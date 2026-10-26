@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../app/routes/app_routes.dart';
+import '../../services/auth_service.dart';
 import 'widgets/company_sso_card.dart';
 import 'widgets/contact_it_sheet.dart';
 import 'widgets/login_brand_header.dart';
@@ -23,6 +24,7 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _obscurePassword = true;
   bool _rememberMe = true;
+  bool _isSigningIn = false;
 
   @override
   void dispose() {
@@ -31,9 +33,68 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  void _onSignIn() {
-    // TODO: Replace with real authentication.
-    Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+  Future<void> _onSignIn() async {
+    if (_isSigningIn) return;
+
+    setState(() => _isSigningIn = true);
+
+    try {
+      debugPrint('[LOGIN-DEBUG] Calling AuthService.signInWithEmail');
+      final user = await AuthService().signInWithEmail(
+        email: _employeeIdController.text.trim(),
+        password: _passwordController.text,
+      );
+      debugPrint(
+        '[LOGIN-DEBUG] AuthService returned: '
+        'userIsNull=${user == null} userId=${user?.id}',
+      );
+
+      if (!mounted) {
+        debugPrint('[LOGIN-DEBUG] LoginPage unmounted after AuthService returned');
+        return;
+      }
+
+      debugPrint('[LOGIN-DEBUG] Checking user == null: ${user == null}');
+      if (user == null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text('Unable to sign in. Please try again.'),
+            ),
+          );
+        return;
+      }
+
+      debugPrint(
+        '[LOGIN-DEBUG] Calling Navigator.pushReplacementNamed: '
+        'route=${AppRoutes.dashboard}',
+      );
+      Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      debugPrint('[LOGIN-DEBUG] Navigator.pushReplacementNamed returned');
+    } on AuthServiceException catch (e, st) {
+      debugPrint(
+        '[LOGIN-DEBUG] AuthServiceException caught: '
+        'type=${e.runtimeType} message="${e.message}"',
+      );
+      debugPrint('[LOGIN-DEBUG] AuthServiceException stack trace:\n$st');
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (e, st) {
+      debugPrint(
+        '[LOGIN-DEBUG] Unexpected exception caught: '
+        'type=${e.runtimeType} error=$e',
+      );
+      debugPrint('[LOGIN-DEBUG] Exception stack trace:\n$st');
+      rethrow;
+    } finally {
+      if (mounted) {
+        setState(() => _isSigningIn = false);
+      }
+    }
   }
 
   void _onForgotPassword() {
@@ -186,7 +247,7 @@ class _LoginPageState extends State<LoginPage> {
           ),
           const SizedBox(height: 24),
           FilledButton(
-            onPressed: _onSignIn,
+            onPressed: _isSigningIn ? null : _onSignIn,
             style: FilledButton.styleFrom(
               minimumSize: const Size(double.infinity, 52),
               backgroundColor: AppColors.primary,
@@ -199,7 +260,16 @@ class _LoginPageState extends State<LoginPage> {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            child: const Text('Sign In'),
+            child: _isSigningIn
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.textOnPrimary,
+                    ),
+                  )
+                : const Text('Sign In'),
           ),
         ],
       ),
