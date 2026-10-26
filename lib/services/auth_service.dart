@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart'; // TEMP-DEBUG
+import 'package:flutter/foundation.dart'; 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// Error thrown by [AuthService] with a message that is safe to show in the UI.
@@ -35,7 +35,6 @@ class AuthService {
     }
 
     if (kDebugMode) {
-      // TEMP-DEBUG
       debugPrint('[AUTH-DEBUG] signInWithPassword start: '
           'email="$trimmedEmail" passwordLength=${password.length}');
     }
@@ -46,14 +45,12 @@ class AuthService {
         password: password,
       );
       if (kDebugMode) {
-        // TEMP-DEBUG
         debugPrint('[AUTH-DEBUG] success: userId=${response.user?.id} '
             'sessionNull=${response.session == null}');
       }
       return response.user;
     } on AuthException catch (e) {
       if (kDebugMode) {
-        // TEMP-DEBUG
         debugPrint('[AUTH-DEBUG] AuthException type=${e.runtimeType} '
             'status=${e.statusCode} message="${e.message}"');
         debugPrint('[AUTH-DEBUG] mapped to: "${_friendlyMessage(e)}"');
@@ -61,7 +58,6 @@ class AuthService {
       throw AuthServiceException(_friendlyMessage(e));
     } catch (e, st) { // TEMP-DEBUG (was: catch (_))
       if (kDebugMode) {
-        // TEMP-DEBUG
         debugPrint('[AUTH-DEBUG] non-auth error type=${e.runtimeType} '
             'error=$e');
         debugPrint('$st');
