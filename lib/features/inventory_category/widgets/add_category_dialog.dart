@@ -311,4 +311,6 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
       ),
     );
   }
+
+    
 }
