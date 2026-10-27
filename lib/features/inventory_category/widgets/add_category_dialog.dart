@@ -11,7 +11,10 @@ class AddCategoryDialog extends StatefulWidget {
     this.initialDescription,
   });
 
-  final void Function(String name, String description) onSave;
+  /// Called when Save is tapped. Return an error message to keep the dialog
+  /// open and show it, or null when saving succeeded (the dialog then
+  /// closes itself).
+  final Future<String?> Function(String name, String description) onSave;
 
   /// When [initialName] is set the dialog opens in edit mode.
   final String? initialName;
@@ -21,7 +24,7 @@ class AddCategoryDialog extends StatefulWidget {
 
   static Future<void> show(
     BuildContext context, {
-    required void Function(String name, String description) onSave,
+    required Future<String?> Function(String name, String description) onSave,
     String? initialName,
     String? initialDescription,
   }) {
@@ -46,6 +49,9 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
   late final TextEditingController _descriptionController;
   final FocusNode _nameFocus = FocusNode();
 
+  bool _isSaving = false;
+  String? _errorText;
+
   @override
   void initState() {
     super.initState();
@@ -61,6 +67,32 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
     _descriptionController.dispose();
     _nameFocus.dispose();
     super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    if (_isSaving) return;
+
+    setState(() {
+      _isSaving = true;
+      _errorText = null;
+    });
+
+    final error = await widget.onSave(
+      _nameController.text,
+      _descriptionController.text,
+    );
+
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    setState(() {
+      _isSaving = false;
+      _errorText = error;
+    });
   }
 
   @override
@@ -95,7 +127,7 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
                 ),
                 InkWell(
                   borderRadius: BorderRadius.circular(20),
-                  onTap: () => Navigator.pop(context),
+                  onTap: _isSaving ? null : () => Navigator.pop(context),
                   child: Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(
@@ -139,6 +171,7 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
               child: TextField(
                 controller: _nameController,
                 focusNode: _nameFocus,
+                enabled: !_isSaving,
                 style: textTheme.bodyLarge?.copyWith(
                   color: AppColors.textPrimary,
                 ),
@@ -191,6 +224,7 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
               ),
               child: TextField(
                 controller: _descriptionController,
+                enabled: !_isSaving,
                 maxLength: _maxDescription,
                 minLines: 3,
                 maxLines: 3,
@@ -219,12 +253,21 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
                 ),
               ),
             ),
+            if (_errorText != null) ...[
+              SizedBox(height: AppSpacing.md),
+              Text(
+                _errorText!,
+                style: textTheme.bodySmall?.copyWith(
+                  color: AppColors.danger,
+                ),
+              ),
+            ],
             SizedBox(height: AppSpacing.lg),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _isSaving ? null : () => Navigator.pop(context),
                   style: TextButton.styleFrom(minimumSize: Size(0, 48)),
                   child: Text(
                     'Cancel',
@@ -236,10 +279,7 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
                 ),
                 SizedBox(width: AppSpacing.md),
                 ElevatedButton(
-                  onPressed: () => widget.onSave(
-                    _nameController.text,
-                    _descriptionController.text,
-                  ),
+                  onPressed: _isSaving ? null : _handleSave,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -247,13 +287,22 @@ class _AddCategoryDialogState extends State<AddCategoryDialog> {
                     minimumSize: Size(104, 48),
                     shape: StadiumBorder(),
                   ),
-                  child: Text(
-                    'Save',
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Save',
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ],
             ),

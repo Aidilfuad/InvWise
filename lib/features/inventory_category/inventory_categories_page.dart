@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
+import '../../services/category_service.dart';
+// Only the InventoryCategory display model is still used (by CategoryCard).
 import 'data/inventory_categories_mock_data.dart';
 import 'widgets/add_category_dialog.dart';
 import 'widgets/category_card.dart';
@@ -20,12 +24,65 @@ class InventoryCategoriesPage extends StatefulWidget {
 }
 
 class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
+  final CategoryService _service = CategoryService();
+
+  List<Category> _categories = const [];
+  bool _isLoading = true;
+  String? _errorMessage;
+
   String _query = '';
   CategorySort? _sort;
 
-  List<InventoryCategory> get _visibleCategories {
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  /// Loads categories from Supabase.
+  ///
+  /// When [silent] is true (refresh after a save) the current list stays on
+  /// screen and a failure is shown as a SnackBar instead of the error state.
+  Future<void> _loadCategories({bool silent = false}) async {
+    try {
+      final categories = await _service.getCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories = categories;
+        _isLoading = false;
+        _errorMessage = null;
+      });
+    } on CategoryServiceException catch (e) {
+      if (!mounted) return;
+      if (silent) {
+        _showMessage(e.message);
+        return;
+      }
+      setState(() {
+        _isLoading = false;
+        _errorMessage = e.message;
+      });
+    }
+  }
+
+  void _onRetryTap() {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    _loadCategories();
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<Category> get _visibleCategories {
     final query = _query.trim().toLowerCase();
-    final list = InventoryCategoriesMockData.categories
+    final list = _categories
         .where((c) => query.isEmpty || c.name.toLowerCase().contains(query))
         .toList();
 
@@ -40,6 +97,9 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     return list;
   }
 
+  int get _totalItems =>
+      _categories.fold<int>(0, (sum, c) => sum + c.itemCount);
+
   String get _sortLabel {
     switch (_sort) {
       case CategorySort.nameAsc:
@@ -51,16 +111,51 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     }
   }
 
+  // The categories table has no icon column, so the icon comes from the
+  // name. Unknown names use a generic icon.
+  IconData _iconFor(String name) {
+    switch (name.trim().toLowerCase()) {
+      case 'hardware':
+        return Icons.hexagon_outlined;
+      case 'electrical':
+        return Icons.bolt_outlined;
+      case 'mechanical':
+        return Icons.settings_outlined;
+      case 'safety equipment':
+        return Icons.engineering_outlined;
+      default:
+        return Icons.category_outlined;
+    }
+  }
+
+  InventoryCategory _toDisplay(Category c) {
+    return InventoryCategory(
+      name: c.name,
+      itemCount: c.itemCount,
+      description: c.description ?? '',
+      icon: _iconFor(c.name),
+    );
+  }
+
   void _onBack() {
     Navigator.pop(context);
   }
 
   void _onAddCategoryTap() {
-    AddCategoryDialog.show(context, onSave: _onSaveCategory);
+    AddCategoryDialog.show(context, onSave: _createCategory);
   }
 
-  void _onSaveCategory(String name, String description) {
-    // TODO: Save the new category.
+  /// Returns an error message for the dialog, or null on success.
+  Future<String?> _createCategory(String name, String description) async {
+    try {
+      await _service.createCategory(name: name, description: description);
+    } on CategoryServiceException catch (e) {
+      return e.message;
+    }
+
+    unawaited(_loadCategories(silent: true));
+    _showMessage('Category created.');
+    return null;
   }
 
   void _onSearchChanged(String value) {
@@ -92,7 +187,11 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     }
   }
 
-  Widget _sortOption(BuildContext sheetContext, CategorySort value, String label) {
+  Widget _sortOption(
+    BuildContext sheetContext,
+    CategorySort value,
+    String label,
+  ) {
     return ListTile(
       title: Text(
         label,
@@ -107,28 +206,75 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     );
   }
 
-  void _onEditTap(InventoryCategory category) {
+  void _onEditTap(Category category) {
     AddCategoryDialog.show(
       context,
       initialName: category.name,
-      initialDescription: category.description,
-      onSave: _onSaveEditedCategory,
+      initialDescription: category.description ?? '',
+      onSave: (name, description) =>
+          _updateCategory(category, name, description),
     );
   }
 
-  void _onSaveEditedCategory(String name, String description) {
-    // TODO: Update the category (requires backend).
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Category update will be available after backend integration.',
-          ),
-        ),
+  /// Returns an error message for the dialog, or null on success.
+  Future<String?> _updateCategory(
+    Category category,
+    String name,
+    String description,
+  ) async {
+    try {
+      await _service.updateCategory(
+        id: category.id,
+        name: name,
+        description: description,
       );
+    } on CategoryServiceException catch (e) {
+      return e.message;
+    }
+
+    unawaited(_loadCategories(silent: true));
+    _showMessage('Category updated.');
+    return null;
+  }
+
+  Widget _buildLoadingState() {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
+      child: Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(TextTheme textTheme) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+      child: Column(
+        children: [
+          Icon(Icons.error_outline, size: 32, color: AppColors.danger),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            _errorMessage ?? 'Unable to load categories.',
+            textAlign: TextAlign.center,
+            style: textTheme.bodyMedium?.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          TextButton(
+            onPressed: _onRetryTap,
+            style: TextButton.styleFrom(minimumSize: Size(0, 48)),
+            child: Text(
+              'Try again',
+              style: textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -204,30 +350,38 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
                     ],
                   ),
                   SizedBox(height: AppSpacing.md),
-                  if (categories.isEmpty)
-                    Padding(
-                      padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
-                      child: Center(
-                        child: Text(
-                          'No categories found.',
-                          style: textTheme.bodyMedium?.copyWith(
-                            color: AppColors.textSecondary,
+                  if (_isLoading)
+                    _buildLoadingState()
+                  else if (_errorMessage != null)
+                    _buildErrorState(textTheme)
+                  else ...[
+                    if (categories.isEmpty)
+                      Padding(
+                        padding: EdgeInsets.symmetric(vertical: AppSpacing.xl),
+                        child: Center(
+                          child: Text(
+                            _query.trim().isEmpty
+                                ? 'No categories yet.'
+                                : 'No categories found.',
+                            style: textTheme.bodyMedium?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  for (final category in categories) ...[
-                    CategoryCard(
-                      category: category,
-                      onEdit: () => _onEditTap(category),
-                    ),
-                    SizedBox(height: AppSpacing.md),
+                    for (final category in categories) ...[
+                      CategoryCard(
+                        category: _toDisplay(category),
+                        onEdit: () => _onEditTap(category),
+                      ),
+                      SizedBox(height: AppSpacing.md),
+                    ],
                   ],
                 ],
               ),
             ),
             CategorySummaryFooter(
-              totalItems: InventoryCategoriesMockData.totalItems,
+              totalItems: _totalItems,
               onAddCategory: _onAddCategoryTap,
             ),
           ],
