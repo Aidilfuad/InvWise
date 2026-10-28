@@ -46,7 +46,10 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
     super.initState();
     _itemId = widget.items.firstOrNull?.id;
     _sourceLocationId = widget.locations.firstOrNull?.id;
-    _destinationLocationId = widget.locations.firstOrNull?.id;
+    _destinationLocationId = widget.locations
+        .where((location) => location.id != _sourceLocationId)
+        .firstOrNull
+        ?.id;
   }
 
   @override
@@ -96,6 +99,35 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
     }
   }
 
+  void _onTypeChanged(StockMovementType? type) {
+    if (type == null) return;
+    setState(() {
+      _type = type;
+      _errorMessage = null;
+      if (type == StockMovementType.transfer &&
+          _sourceLocationId == _destinationLocationId) {
+        _destinationLocationId = widget.locations
+            .where((location) => location.id != _sourceLocationId)
+            .firstOrNull
+            ?.id;
+      }
+    });
+  }
+
+  void _onSourceLocationChanged(String? locationId) {
+    setState(() {
+      _sourceLocationId = locationId;
+      _errorMessage = null;
+      if (_type == StockMovementType.transfer &&
+          locationId == _destinationLocationId) {
+        _destinationLocationId = widget.locations
+            .where((location) => location.id != locationId)
+            .firstOrNull
+            ?.id;
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Create Stock Movement'),
@@ -115,11 +147,7 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
                         DropdownMenuItem(value: type, child: Text(type.label)),
                   )
                   .toList(),
-              onChanged: _isSaving
-                  ? null
-                  : (type) {
-                      if (type != null) setState(() => _type = type);
-                    },
+              onChanged: _isSaving ? null : _onTypeChanged,
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
@@ -157,7 +185,7 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
               _locationSelector(
                 label: 'Source location',
                 value: _sourceLocationId,
-                onChanged: (id) => setState(() => _sourceLocationId = id),
+                onChanged: _onSourceLocationChanged,
               ),
             ],
             if (_type == StockMovementType.receipt ||
@@ -167,7 +195,17 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
               _locationSelector(
                 label: 'Destination location',
                 value: _destinationLocationId,
-                onChanged: (id) => setState(() => _destinationLocationId = id),
+                availableLocations: _type == StockMovementType.transfer
+                    ? widget.locations
+                          .where((location) => location.id != _sourceLocationId)
+                          .toList(growable: false)
+                    : widget.locations,
+                onChanged: (id) {
+                  setState(() {
+                    _destinationLocationId = id;
+                    _errorMessage = null;
+                  });
+                },
               ),
             ],
             const SizedBox(height: 12),
@@ -212,16 +250,25 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
   Widget _locationSelector({
     required String label,
     required String? value,
+    List<InventoryLocation>? availableLocations,
     required ValueChanged<String?> onChanged,
-  }) => DropdownButtonFormField<String>(
-    initialValue: value,
-    decoration: InputDecoration(labelText: label),
-    items: widget.locations
-        .map(
-          (location) =>
-              DropdownMenuItem(value: location.id, child: Text(location.name)),
-        )
-        .toList(),
-    onChanged: _isSaving ? null : onChanged,
-  );
+  }) {
+    final locations = availableLocations ?? widget.locations;
+    final selectedValue = locations.any((location) => location.id == value)
+        ? value
+        : null;
+    return DropdownButtonFormField<String>(
+      initialValue: selectedValue,
+      decoration: InputDecoration(labelText: label),
+      items: locations
+          .map(
+            (location) => DropdownMenuItem(
+              value: location.id,
+              child: Text(location.name),
+            ),
+          )
+          .toList(),
+      onChanged: _isSaving ? null : onChanged,
+    );
+  }
 }

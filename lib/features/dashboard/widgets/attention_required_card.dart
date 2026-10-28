@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
-import '../data/dashboard_mock_data.dart';
+import '../data/dashboard_data.dart';
 
 class AttentionRequiredCard extends StatelessWidget {
-  const AttentionRequiredCard({
-    super.key,
-    required this.items,
-  });
+  const AttentionRequiredCard({super.key, required this.items});
 
   final List<AttentionItem> items;
 
@@ -27,10 +24,7 @@ class AttentionRequiredCard extends StatelessWidget {
             if (i > 0)
               Divider(height: 1, thickness: 1, color: AppColors.border),
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 14,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
                   Container(
@@ -40,11 +34,7 @@ class AttentionRequiredCard extends StatelessWidget {
                       color: items[i].background,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(
-                      items[i].icon,
-                      size: 20,
-                      color: items[i].color,
-                    ),
+                    child: Icon(items[i].icon, size: 20, color: items[i].color),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

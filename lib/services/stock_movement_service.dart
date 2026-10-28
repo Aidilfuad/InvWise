@@ -1,4 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'activity_log_service.dart';
 
 enum StockMovementType {
   receipt('receipt', 'Receipt'),
@@ -86,11 +89,19 @@ class StockMovementService {
   StockMovementService();
 
   final SupabaseClient _client = Supabase.instance.client;
+  final ActivityLogService _activityLogService = ActivityLogService();
+
+  String? lastActivityLogWarning;
 
   static const String _movementsTable = 'stock_movements';
   static const String _stockLevelsTable = 'stock_levels';
 
-  Future<List<StockMovement>> getMovements() async {
+  Future<List<StockMovement>> getMovements({int limit = 100}) async {
+    if (limit <= 0) {
+      throw const StockMovementServiceException(
+        'The movement result limit must be greater than zero.',
+      );
+    }
     try {
       final rows = await _client
           .from(_movementsTable)
@@ -98,7 +109,8 @@ class StockMovementService {
             'id,item_id,movement_type,quantity,source_location_id,'
             'destination_location_id,reference,notes,performed_by,occurred_at',
           )
-          .order('occurred_at', ascending: false);
+          .order('occurred_at', ascending: false)
+          .limit(limit);
       if (rows.isEmpty) return const [];
 
       final itemIds = rows.map((row) => row['item_id'] as String).toSet();
@@ -160,45 +172,79 @@ class StockMovementService {
     String? reference,
     String? notes,
   }) async {
+    lastActivityLogWarning = null;
     final item = _validatedId(itemId, 'item');
     if (!quantity.isFinite || quantity <= 0) {
       throw const StockMovementServiceException(
         'Enter a quantity greater than zero.',
       );
     }
-    final source = _optionalId(sourceLocationId);
-    final destination = _optionalId(destinationLocationId);
+    final requestedSource = _optionalId(sourceLocationId);
+    final requestedDestination = _optionalId(destinationLocationId);
+    final source = switch (type) {
+      StockMovementType.receipt || StockMovementType.returnItem => null,
+      StockMovementType.issue || StockMovementType.transfer => requestedSource,
+    };
+    final destination = switch (type) {
+      StockMovementType.issue => null,
+      StockMovementType.receipt ||
+      StockMovementType.transfer ||
+      StockMovementType.returnItem => requestedDestination,
+    };
     _validateLocations(type, source, destination);
+
+    await _validateReferences(
+      itemId: item,
+      sourceLocationId: source,
+      destinationLocationId: destination,
+    );
+    final performedBy = await _getCurrentProfileId();
 
     final affected = <String, double>{};
     try {
-      if (type == StockMovementType.receipt ||
-          type == StockMovementType.returnItem) {
-        affected[destination!] = await _changeStock(
-          itemId: item,
-          locationId: destination,
-          delta: quantity,
-        );
-      } else if (type == StockMovementType.issue) {
-        affected[source!] = await _changeStock(
-          itemId: item,
-          locationId: source,
-          delta: -quantity,
-        );
-      } else {
-        affected[source!] = await _changeStock(
-          itemId: item,
-          locationId: source,
-          delta: -quantity,
-        );
-        affected[destination!] = await _changeStock(
-          itemId: item,
-          locationId: destination,
-          delta: quantity,
-        );
+      switch (type) {
+        case StockMovementType.receipt:
+        case StockMovementType.returnItem:
+          affected[destination!] = await _changeStock(
+            itemId: item,
+            locationId: destination,
+            delta: quantity,
+          );
+        case StockMovementType.issue:
+          affected[source!] = await _changeStock(
+            itemId: item,
+            locationId: source,
+            delta: -quantity,
+          );
+        case StockMovementType.transfer:
+          final balances = await Future.wait([
+            _getStock(item, source!),
+            _getStock(item, destination!),
+          ]);
+          final sourceQuantity = balances[0];
+          final destinationQuantity = balances[1];
+          if (sourceQuantity < quantity) {
+            throw StockMovementServiceException(
+              'Cannot transfer $quantity units. Only $sourceQuantity units '
+              'are available at the source location.',
+            );
+          }
+
+          affected[source] = sourceQuantity;
+          affected[destination] = destinationQuantity;
+          await _setStock(
+            itemId: item,
+            locationId: source,
+            quantity: sourceQuantity - quantity,
+          );
+          await _setStock(
+            itemId: item,
+            locationId: destination,
+            quantity: destinationQuantity + quantity,
+          );
       }
 
-      await _client.from(_movementsTable).insert({
+      final payload = <String, dynamic>{
         'item_id': item,
         'movement_type': type.databaseValue,
         'quantity': quantity,
@@ -206,10 +252,46 @@ class StockMovementService {
         'destination_location_id': destination,
         'reference': _cleanOptional(reference),
         'notes': _cleanOptional(notes),
-        'performed_by': _client.auth.currentUser?.id,
+        'performed_by': performedBy,
         'occurred_at': DateTime.now().toUtc().toIso8601String(),
-      });
+      };
+      if (kDebugMode) {
+        debugPrint(
+          '[StockMovementService] inserting stock movement: '
+          'item_id=${payload['item_id']}, '
+          'source_location_id=${payload['source_location_id']}, '
+          'destination_location_id=${payload['destination_location_id']}, '
+          'performed_by=${payload['performed_by']}',
+        );
+      }
+      final movementRow = await _client
+          .from(_movementsTable)
+          .insert(payload)
+          .select('id')
+          .single();
+      await _recordActivity(
+        type: switch (type) {
+          StockMovementType.receipt => ActivityEventType.receipt,
+          StockMovementType.issue => ActivityEventType.issue,
+          StockMovementType.returnItem => ActivityEventType.returnItem,
+          StockMovementType.transfer => ActivityEventType.transfer,
+        },
+        description:
+            '${type.label}: ${_formatQuantity(quantity)} units for item $item.',
+        itemId: item,
+        locationId: destination ?? source,
+        stockMovementId: movementRow['id'] as String,
+        details: {
+          'quantity': quantity,
+          'source_location_id': source,
+          'destination_location_id': destination,
+          if (reference?.trim().isNotEmpty == true)
+            'reference': reference!.trim(),
+          if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
+        },
+      );
     } on PostgrestException catch (error) {
+      _logPostgrestFailure('insert stock movement', error);
       final rollbackError = await _restoreStock(item, affected);
       final failure = _friendlyMessage(error, 'save the stock movement');
       if (rollbackError != null) {
@@ -228,6 +310,163 @@ class StockMovementService {
       }
       rethrow;
     }
+  }
+
+  Future<void> _recordActivity({
+    required ActivityEventType type,
+    required String description,
+    required String itemId,
+    required String? locationId,
+    required String stockMovementId,
+    required Map<String, dynamic> details,
+  }) async {
+    try {
+      await _activityLogService.recordEvent(
+        type: type,
+        description: description,
+        itemId: itemId,
+        locationId: locationId,
+        stockMovementId: stockMovementId,
+        details: details,
+      );
+    } on ActivityLogServiceException catch (error) {
+      lastActivityLogWarning =
+          'The stock movement succeeded, but activity logging failed: '
+          '${error.message}';
+      reportActivityLogFailure(error);
+    }
+  }
+
+  String _formatQuantity(double quantity) =>
+      quantity.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
+
+  Future<String> _getCurrentProfileId() async {
+    final authUserId = _client.auth.currentUser?.id;
+    if (authUserId == null || authUserId.isEmpty) {
+      throw const StockMovementServiceException(
+        'Your session has expired. Please sign in again.',
+      );
+    }
+
+    try {
+      final profile = await _client
+          .from('profiles')
+          .select('id')
+          .eq('auth_user_id', authUserId)
+          .maybeSingle();
+      final profileId = profile?['id'] as String?;
+      if (kDebugMode) {
+        debugPrint(
+          '[StockMovementService] profiles validation result: '
+          'auth_user_id=$authUserId, profile_id=$profileId',
+        );
+      }
+      if (profileId == null || profileId.isEmpty) {
+        throw const StockMovementServiceException(
+          'Your user profile could not be found. Please contact an administrator.',
+        );
+      }
+      return profileId;
+    } on PostgrestException catch (error) {
+      _logPostgrestFailure('load performer profile', error);
+      throw StockMovementServiceException(
+        _friendlyMessage(error, 'load the current user profile'),
+      );
+    } on StockMovementServiceException {
+      rethrow;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('[StockMovementService] profile lookup failed: $error');
+      }
+      throw const StockMovementServiceException(
+        'Unable to verify your user profile. Please try again.',
+      );
+    }
+  }
+
+  Future<void> _validateReferences({
+    required String itemId,
+    required String? sourceLocationId,
+    required String? destinationLocationId,
+  }) async {
+    final selectedLocationIds = {
+      ?sourceLocationId,
+      ?destinationLocationId,
+    }.toList(growable: false);
+    if (kDebugMode) {
+      debugPrint(
+        '[StockMovementService] validating selected ids: '
+        'item_id=$itemId, source_location_id=$sourceLocationId, '
+        'destination_location_id=$destinationLocationId',
+      );
+    }
+
+    try {
+      final itemRow = await _client
+          .from('inventory_items')
+          .select('id')
+          .eq('id', itemId)
+          .maybeSingle();
+      if (kDebugMode) {
+        debugPrint(
+          '[StockMovementService] inventory_items validation result: '
+          '${itemRow == null ? 'not found' : 'found id=${itemRow['id']}'}',
+        );
+      }
+      if (itemRow == null) {
+        throw const StockMovementServiceException(
+          'The selected inventory item no longer exists or is not accessible.',
+        );
+      }
+
+      if (selectedLocationIds.isEmpty) return;
+      final locationRows = await _client
+          .from('warehouse_locations')
+          .select('id')
+          .inFilter('id', selectedLocationIds);
+      final foundLocationIds = locationRows
+          .map((row) => row['id'] as String)
+          .toSet();
+      if (kDebugMode) {
+        debugPrint(
+          '[StockMovementService] warehouse_locations validation result: '
+          'requested=$selectedLocationIds, found=$foundLocationIds',
+        );
+      }
+      final missingLocationIds = selectedLocationIds
+          .where((id) => !foundLocationIds.contains(id))
+          .toList(growable: false);
+      if (missingLocationIds.isNotEmpty) {
+        throw StockMovementServiceException(
+          'Selected warehouse location(s) no longer exist or are not '
+          'accessible: ${missingLocationIds.join(', ')}.',
+        );
+      }
+    } on PostgrestException catch (error) {
+      _logPostgrestFailure('validate movement references', error);
+      throw StockMovementServiceException(
+        _friendlyMessage(error, 'validate the selected item and locations'),
+      );
+    } on StockMovementServiceException {
+      rethrow;
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint(
+          '[StockMovementService] reference validation failed: $error',
+        );
+      }
+      throw const StockMovementServiceException(
+        'Unable to verify the selected item and locations. Please try again.',
+      );
+    }
+  }
+
+  void _logPostgrestFailure(String operation, PostgrestException error) {
+    if (!kDebugMode) return;
+    debugPrint(
+      '[StockMovementService] $operation failed: code=${error.code}, '
+      'message=${error.message}, details=${error.details}, hint=${error.hint}',
+    );
   }
 
   StockMovement _fromMap(
@@ -269,13 +508,21 @@ class StockMovementService {
         'Cannot issue or transfer more stock than is available.',
       );
     }
+    await _setStock(itemId: itemId, locationId: locationId, quantity: updated);
+    return current;
+  }
+
+  Future<void> _setStock({
+    required String itemId,
+    required String locationId,
+    required double quantity,
+  }) async {
     await _client.from(_stockLevelsTable).upsert({
       'item_id': itemId,
       'location_id': locationId,
-      'quantity': updated,
+      'quantity': quantity,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     }, onConflict: 'item_id,location_id');
-    return current;
   }
 
   Future<double> _getStock(String itemId, String locationId) async {
@@ -358,7 +605,8 @@ class StockMovementService {
 
   String _friendlyMessage(PostgrestException error, String action) {
     if (error.code == '23503') {
-      return 'The selected item or location no longer exists.';
+      return 'The database rejected a referenced record while trying to '
+          '$action. Please verify the item, location, and performer references.';
     }
     if (error.code == '23502') {
       return 'Please complete all required movement fields.';

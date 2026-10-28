@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'activity_log_service.dart';
+
 class InventoryServiceException implements Exception {
   const InventoryServiceException(this.message);
 
@@ -124,6 +126,9 @@ class InventoryService {
   InventoryService();
 
   final SupabaseClient _client = Supabase.instance.client;
+  final ActivityLogService _activityLogService = ActivityLogService();
+
+  String? lastActivityLogWarning;
 
   static const String _table = 'inventory_items';
   static const String _locationsTable = 'warehouse_locations';
@@ -184,6 +189,7 @@ class InventoryService {
     required double quantity,
     required bool add,
   }) async {
+    lastActivityLogWarning = null;
     final validatedItemId = _validatedId(itemId);
     final validatedLocationId = _validatedId(locationId);
     if (!quantity.isFinite || quantity <= 0) {
@@ -212,6 +218,20 @@ class InventoryService {
         'quantity': updatedQuantity,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'item_id,location_id');
+      await _recordActivity(
+        type: ActivityEventType.stockAdjustment,
+        description:
+            '${add ? 'Added' : 'Removed'} $quantity units for inventory item '
+            '$validatedItemId.',
+        itemId: validatedItemId,
+        locationId: validatedLocationId,
+        details: {
+          'quantity': quantity,
+          'operation': add ? 'add' : 'remove',
+          'previous_quantity': currentQuantity,
+          'updated_quantity': updatedQuantity,
+        },
+      );
       return updatedQuantity;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(
@@ -276,6 +296,7 @@ class InventoryService {
     required double unitPrice,
     String? notes,
   }) async {
+    lastActivityLogWarning = null;
     final payload = _validatedPayload(
       sku: sku,
       name: name,
@@ -318,7 +339,19 @@ class InventoryService {
         );
       }
 
-      return await getItemById(itemId);
+      final item = await getItemById(itemId);
+      await _recordActivity(
+        type: ActivityEventType.inventoryCreated,
+        description: 'Created inventory item ${item.name} (SKU ${item.sku}).',
+        itemId: item.id,
+        locationId: locationId,
+        details: {
+          'sku': item.sku,
+          'item_name': item.name,
+          'initial_quantity': quantity,
+        },
+      );
+      return item;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'create the item'));
     } on InventoryServiceException {
@@ -343,6 +376,7 @@ class InventoryService {
     required double unitPrice,
     String? notes,
   }) async {
+    lastActivityLogWarning = null;
     final itemId = _validatedId(id);
     final payload = _validatedPayload(
       sku: sku,
@@ -376,7 +410,19 @@ class InventoryService {
         'quantity': quantity,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'item_id,location_id');
-      return await getItemById(itemId);
+      final item = await getItemById(itemId);
+      await _recordActivity(
+        type: ActivityEventType.inventoryUpdated,
+        description: 'Updated inventory item ${item.name} (SKU ${item.sku}).',
+        itemId: item.id,
+        locationId: locationId,
+        details: {
+          'sku': item.sku,
+          'item_name': item.name,
+          'quantity': quantity,
+        },
+      );
+      return item;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'update the item'));
     } on InventoryServiceException {
@@ -390,8 +436,17 @@ class InventoryService {
   }
 
   Future<void> deleteItem(String id) async {
+    lastActivityLogWarning = null;
     final itemId = _validatedId(id);
     try {
+      final item = await _client
+          .from(_table)
+          .select('name,sku')
+          .eq('id', itemId)
+          .maybeSingle();
+      if (item == null) {
+        throw const InventoryServiceException('Inventory item not found.');
+      }
       await _client.from(_stockLevelsTable).delete().eq('item_id', itemId);
       final rows = await _client
           .from(_table)
@@ -403,6 +458,16 @@ class InventoryService {
           'Item not found, or you do not have permission to delete it.',
         );
       }
+      await _recordActivity(
+        type: ActivityEventType.inventoryDeleted,
+        description:
+            'Deleted inventory item ${item['name']} (SKU ${item['sku']}).',
+        details: {
+          'deleted_item_id': itemId,
+          'item_name': item['name'],
+          'sku': item['sku'],
+        },
+      );
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'delete the item'));
     } on InventoryServiceException {
@@ -412,6 +477,29 @@ class InventoryService {
       throw const InventoryServiceException(
         'Unable to delete the item. Please check your connection and try again.',
       );
+    }
+  }
+
+  Future<void> _recordActivity({
+    required ActivityEventType type,
+    required String description,
+    String? itemId,
+    String? locationId,
+    Map<String, dynamic> details = const {},
+  }) async {
+    try {
+      await _activityLogService.recordEvent(
+        type: type,
+        description: description,
+        itemId: itemId,
+        locationId: locationId,
+        details: details,
+      );
+    } on ActivityLogServiceException catch (error) {
+      lastActivityLogWarning =
+          'The inventory change succeeded, but activity logging failed: '
+          '${error.message}';
+      reportActivityLogFailure(error);
     }
   }
 

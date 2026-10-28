@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
-import '../data/dashboard_mock_data.dart';
+import '../data/dashboard_data.dart';
 
 class InventoryOverviewCard extends StatelessWidget {
-  const InventoryOverviewCard({super.key, required this.overview});
+  const InventoryOverviewCard({super.key, required this.summary});
 
-  final InventoryOverview overview;
+  final DashboardData summary;
 
   String _fmt(int n) {
     final s = n.toString();
@@ -62,10 +62,7 @@ class InventoryOverviewCard extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 'Live data',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ],
           ),
@@ -87,7 +84,7 @@ class InventoryOverviewCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        overview.totalItems,
+                        summary.totalItemsLabel,
                         style: TextStyle(
                           fontSize: 32,
                           fontWeight: FontWeight.w800,
@@ -104,7 +101,7 @@ class InventoryOverviewCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Inventory Value',
+                        'Total Stock Quantity',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -112,7 +109,7 @@ class InventoryOverviewCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        overview.inventoryValue,
+                        summary.totalStockQuantityLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -141,7 +138,7 @@ class InventoryOverviewCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '${overview.healthyPercent}% healthy',
+                '${summary.healthyPercent.toStringAsFixed(1)}% healthy',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -157,11 +154,12 @@ class InventoryOverviewCard extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
-                    value: overview.healthyPercent / 100,
+                    value: summary.healthyPercent / 100,
                     minHeight: 8,
                     backgroundColor: AppColors.primary.withAlpha(30),
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(AppColors.primary),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
                   ),
                 ),
               ),
@@ -173,14 +171,12 @@ class InventoryOverviewCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '${_fmt(overview.healthyCount)} healthy · ${overview.attentionCount} need attention',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
-            ),
+            '${_fmt(summary.healthyCount)} healthy · '
+            '${summary.attentionCount} need attention',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
           ),
         ],
       ),
     );
   }
-} 
+}

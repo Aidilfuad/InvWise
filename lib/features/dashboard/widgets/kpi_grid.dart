@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
-import '../data/dashboard_mock_data.dart';
+import '../data/dashboard_data.dart';
 
 class KpiGrid extends StatelessWidget {
   const KpiGrid({super.key, required this.stats});
@@ -84,10 +84,7 @@ class _KpiCard extends StatelessWidget {
             stat.caption,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 11,
-              color: stat.captionColor,
-            ),
+            style: TextStyle(fontSize: 11, color: stat.captionColor),
           ),
         ],
       ),

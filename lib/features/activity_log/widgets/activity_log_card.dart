@@ -2,41 +2,40 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../../../services/stock_movement_service.dart';
+import '../../../services/activity_log_service.dart';
 
 class ActivityLogCard extends StatelessWidget {
   const ActivityLogCard({super.key, required this.entry});
 
-  final StockMovement entry;
+  final ActivityLogEntry entry;
 
-  String get _quantityText {
-    final quantity = _formatQuantity(entry.quantity);
-    return switch (entry.type) {
-      StockMovementType.receipt ||
-      StockMovementType.returnItem => '+$quantity Units',
-      StockMovementType.issue => '−$quantity Units',
-      StockMovementType.transfer => '$quantity Units',
-    };
-  }
-
-  Color get _quantityColor => switch (entry.type) {
-    StockMovementType.receipt ||
-    StockMovementType.returnItem => AppColors.success,
-    StockMovementType.issue => AppColors.danger,
-    StockMovementType.transfer => AppColors.primary,
+  Color get _color => switch (entry.type) {
+    ActivityEventType.inventoryCreated ||
+    ActivityEventType.receipt ||
+    ActivityEventType.returnItem => AppColors.success,
+    ActivityEventType.inventoryDeleted ||
+    ActivityEventType.issue => AppColors.danger,
+    ActivityEventType.stockAdjustment => AppColors.warning,
+    ActivityEventType.inventoryUpdated ||
+    ActivityEventType.transfer => AppColors.primary,
   };
 
   IconData get _icon => switch (entry.type) {
-    StockMovementType.receipt => Icons.south_west,
-    StockMovementType.issue => Icons.north_east,
-    StockMovementType.transfer => Icons.swap_horiz_rounded,
-    StockMovementType.returnItem => Icons.assignment_return_outlined,
+    ActivityEventType.inventoryCreated => Icons.inventory_2_outlined,
+    ActivityEventType.inventoryUpdated => Icons.edit_outlined,
+    ActivityEventType.inventoryDeleted => Icons.delete_outline,
+    ActivityEventType.stockAdjustment => Icons.tune_rounded,
+    ActivityEventType.receipt => Icons.south_west,
+    ActivityEventType.issue => Icons.north_east,
+    ActivityEventType.returnItem => Icons.assignment_return_outlined,
+    ActivityEventType.transfer => Icons.swap_horiz_rounded,
   };
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final color = _quantityColor;
+    final quantity = entry.quantityLabel;
+    final contextLabel = entry.context;
 
     return Container(
       width: double.infinity,
@@ -50,22 +49,24 @@ class ActivityLogCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            entry.itemName,
+            entry.title,
             style: textTheme.titleMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            'SKU · ${entry.sku}',
-            style: textTheme.bodySmall?.copyWith(
-              color: AppColors.textSecondary,
+          if (entry.sku.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              'SKU · ${entry.sku}',
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+              ),
             ),
-          ),
+          ],
           SizedBox(height: AppSpacing.md),
           Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -73,43 +74,33 @@ class ActivityLogCard extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: color.withAlpha(26),
+                  color: _color.withAlpha(26),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(_icon, size: 16, color: color),
+                    Icon(_icon, size: 16, color: _color),
                     const SizedBox(width: 6),
                     Text(
                       entry.type.label,
                       style: textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: color,
+                        color: _color,
                       ),
                     ),
                   ],
                 ),
               ),
               const Spacer(),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Quantity',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+              if (quantity.isNotEmpty)
+                Text(
+                  quantity,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: _color,
                   ),
-                  Text(
-                    _quantityText,
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: color,
-                    ),
-                  ),
-                ],
-              ),
+                ),
             ],
           ),
           SizedBox(height: AppSpacing.md),
@@ -119,6 +110,15 @@ class ActivityLogCard extends StatelessWidget {
               color: AppColors.textSecondary,
             ),
           ),
+          if (contextLabel.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              contextLabel,
+              style: textTheme.bodySmall?.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
           SizedBox(height: AppSpacing.md),
           Divider(height: 1, color: AppColors.border),
           SizedBox(height: AppSpacing.md),
@@ -151,10 +151,10 @@ class ActivityLogCard extends StatelessWidget {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  entry.performedBy ?? 'Unknown user',
+                  entry.actorProfileId ?? 'System',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodyMedium?.copyWith(
+                  style: textTheme.bodySmall?.copyWith(
                     color: AppColors.textSecondary,
                   ),
                 ),
@@ -190,7 +190,4 @@ class ActivityLogCard extends StatelessWidget {
     'Nov',
     'Dec',
   ][month - 1];
-
-  String _formatQuantity(double quantity) =>
-      quantity.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 }

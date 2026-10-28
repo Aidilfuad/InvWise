@@ -101,7 +101,15 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
     setState(() => _isDeleting = true);
     try {
       await _service.deleteItem(item.id);
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) {
+        final activityWarning = _service.lastActivityLogWarning;
+        if (activityWarning != null) {
+          ScaffoldMessenger.of(context)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(activityWarning)));
+        }
+        Navigator.of(context).pop();
+      }
     } on InventoryServiceException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)

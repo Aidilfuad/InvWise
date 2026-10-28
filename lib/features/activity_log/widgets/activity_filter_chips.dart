@@ -16,27 +16,11 @@ class ActivityFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const filters = ActivityFilter.values;
-
-    return Column(
+    return Wrap(
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.sm,
       children: [
-        _buildRow(context, filters.sublist(0, 3)),
-        SizedBox(height: AppSpacing.sm),
-        _buildRow(context, filters.sublist(3)),
-      ],
-    );
-  }
-
-  Widget _buildRow(BuildContext context, List<ActivityFilter> items) {
-    return Row(
-      children: [
-        for (int i = 0; i < items.length; i++) ...[
-          if (i > 0) SizedBox(width: AppSpacing.sm),
-          Expanded(child: _chip(context, items[i])),
-        ],
-        if (items.length < 3)
-          for (var i = items.length; i < 3; i++)
-            const Expanded(child: SizedBox()),
+        for (final filter in ActivityFilter.values) _chip(context, filter),
       ],
     );
   }
@@ -52,7 +36,8 @@ class ActivityFilterChips extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: () => onSelected(filter),
         child: Container(
-          height: 44,
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),

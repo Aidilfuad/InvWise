@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
-import '../data/dashboard_mock_data.dart';
+import '../data/dashboard_data.dart';
 
 class MonthlyInsightsCard extends StatelessWidget {
   const MonthlyInsightsCard({
@@ -48,10 +48,7 @@ class MonthlyInsightsCard extends StatelessWidget {
               ),
               Text(
                 range,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
-                ),
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
               ),
             ],
           ),

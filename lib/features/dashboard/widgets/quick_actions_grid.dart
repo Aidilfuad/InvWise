@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
-import '../data/dashboard_mock_data.dart';
+import '../data/dashboard_data.dart';
 
 class QuickActionsGrid extends StatelessWidget {
   const QuickActionsGrid({
@@ -57,13 +57,13 @@ class _QuickActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final highlighted = item.type == QuickActionType.addItem;
-    final titleColor =
-        highlighted ? AppColors.textOnPrimary : AppColors.textPrimary;
+    final titleColor = highlighted
+        ? AppColors.textOnPrimary
+        : AppColors.textPrimary;
     final subtitleColor = highlighted
         ? AppColors.textOnPrimary.withAlpha(210)
         : AppColors.textSecondary;
-    final iconColor =
-        highlighted ? AppColors.textOnPrimary : AppColors.primary;
+    final iconColor = highlighted ? AppColors.textOnPrimary : AppColors.primary;
 
     return Material(
       color: highlighted ? AppColors.primary : AppColors.primaryContainer,

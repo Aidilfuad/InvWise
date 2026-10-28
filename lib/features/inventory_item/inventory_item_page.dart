@@ -249,6 +249,12 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
               notes: _notesController.text,
             );
       if (!mounted) return;
+      final activityWarning = _inventoryService.lastActivityLogWarning;
+      if (activityWarning != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(activityWarning)));
+      }
       Navigator.of(context).pop(item);
     } on InventoryServiceException catch (e) {
       if (!mounted) return;

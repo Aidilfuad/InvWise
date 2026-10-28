@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
+import '../../services/activity_log_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/stock_movement_service.dart';
 import 'data/activity_log_options.dart';
@@ -20,11 +21,12 @@ class ActivityLogPage extends StatefulWidget {
 
 class _ActivityLogPageState extends State<ActivityLogPage> {
   final StockMovementService _movementService = StockMovementService();
+  final ActivityLogService _activityLogService = ActivityLogService();
   final InventoryService _inventoryService = InventoryService();
   final TextEditingController _searchController = TextEditingController();
 
   ActivityFilter _filter = ActivityFilter.all;
-  List<StockMovement> _movements = const [];
+  List<ActivityLogEntry> _entries = const [];
   List<InventoryItem> _items = const [];
   List<InventoryLocation> _locations = const [];
   String _searchQuery = '';
@@ -51,15 +53,21 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     });
     try {
       final results = await Future.wait([
-        _movementService.getMovements(),
+        _activityLogService.getEntries(),
         _inventoryService.getItems(),
         _inventoryService.getLocations(),
       ]);
       if (!mounted) return;
       setState(() {
-        _movements = results[0] as List<StockMovement>;
+        _entries = results[0] as List<ActivityLogEntry>;
         _items = results[1] as List<InventoryItem>;
         _locations = results[2] as List<InventoryLocation>;
+        _isLoading = false;
+      });
+    } on ActivityLogServiceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
         _isLoading = false;
       });
     } on StockMovementServiceException catch (error) {
@@ -77,24 +85,25 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Unable to load stock movements: $error';
+        _errorMessage = 'Unable to load activity history: $error';
         _isLoading = false;
       });
     }
   }
 
-  List<StockMovement> get _filteredMovements {
+  List<ActivityLogEntry> get _filteredEntries {
     final selectedType = _filter.type;
     final query = _searchQuery.trim().toLowerCase();
-    return _movements
-        .where((movement) {
+    return _entries
+        .where((entry) {
           final typeMatches =
-              selectedType == null || movement.type == selectedType;
+              selectedType == null || entry.type == selectedType;
           final searchMatches =
               query.isEmpty ||
-              movement.itemName.toLowerCase().contains(query) ||
-              movement.sku.toLowerCase().contains(query) ||
-              (movement.reference?.toLowerCase().contains(query) ?? false);
+              entry.title.toLowerCase().contains(query) ||
+              entry.sku.toLowerCase().contains(query) ||
+              entry.description.toLowerCase().contains(query) ||
+              entry.context.toLowerCase().contains(query);
           return typeMatches && searchMatches;
         })
         .toList(growable: false);
@@ -123,7 +132,11 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     setState(() => _isCreating = false);
     if (created == true) {
       await _loadData();
-      if (mounted) _showMessage('Stock movement recorded.');
+      if (mounted) {
+        _showMessage(
+          _movementService.lastActivityLogWarning ?? 'Stock movement recorded.',
+        );
+      }
     }
   }
 
@@ -136,7 +149,7 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final movements = _filteredMovements;
+    final entries = _filteredEntries;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -182,7 +195,7 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
                           Row(
                             children: [
                               Text(
-                                'Recent movements',
+                                'Recent activity',
                                 style: textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.textPrimary,
@@ -204,20 +217,20 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
                             ],
                           ),
                           SizedBox(height: AppSpacing.md),
-                          if (movements.isEmpty)
+                          if (entries.isEmpty)
                             Padding(
                               padding: const EdgeInsets.symmetric(vertical: 48),
                               child: Center(
                                 child: Text(
-                                  'No stock movements found.',
+                                  'No activity found.',
                                   style: textTheme.bodyMedium?.copyWith(
                                     color: AppColors.textSecondary,
                                   ),
                                 ),
                               ),
                             ),
-                          for (final movement in movements) ...[
-                            ActivityLogCard(entry: movement),
+                          for (final entry in entries) ...[
+                            ActivityLogCard(entry: entry),
                             SizedBox(height: AppSpacing.md),
                           ],
                         ],

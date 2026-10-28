@@ -162,6 +162,10 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
       );
       if (!mounted) return;
       setState(() => _locationQuantity = updatedQuantity);
+      final activityWarning = _service.lastActivityLogWarning;
+      if (activityWarning != null) {
+        _showMessage(activityWarning);
+      }
       Navigator.of(context).pop(true);
     } on InventoryServiceException catch (e) {
       if (!mounted) return;

@@ -1,21 +1,39 @@
-import '../../../services/stock_movement_service.dart';
+import '../../../services/activity_log_service.dart';
 
-enum ActivityFilter { all, receipt, issue, transfer, returnItem }
+enum ActivityFilter {
+  all,
+  inventoryCreated,
+  inventoryUpdated,
+  inventoryDeleted,
+  stockAdjustment,
+  receipt,
+  issue,
+  returnItem,
+  transfer,
+}
 
 extension ActivityFilterX on ActivityFilter {
   String get label => switch (this) {
     ActivityFilter.all => 'All',
+    ActivityFilter.inventoryCreated => 'Create Item',
+    ActivityFilter.inventoryUpdated => 'Update Item',
+    ActivityFilter.inventoryDeleted => 'Delete Item',
+    ActivityFilter.stockAdjustment => 'Adjustment',
     ActivityFilter.receipt => 'Receipt',
     ActivityFilter.issue => 'Issue',
-    ActivityFilter.transfer => 'Transfer',
     ActivityFilter.returnItem => 'Return',
+    ActivityFilter.transfer => 'Transfer',
   };
 
-  StockMovementType? get type => switch (this) {
+  ActivityEventType? get type => switch (this) {
     ActivityFilter.all => null,
-    ActivityFilter.receipt => StockMovementType.receipt,
-    ActivityFilter.issue => StockMovementType.issue,
-    ActivityFilter.transfer => StockMovementType.transfer,
-    ActivityFilter.returnItem => StockMovementType.returnItem,
+    ActivityFilter.inventoryCreated => ActivityEventType.inventoryCreated,
+    ActivityFilter.inventoryUpdated => ActivityEventType.inventoryUpdated,
+    ActivityFilter.inventoryDeleted => ActivityEventType.inventoryDeleted,
+    ActivityFilter.stockAdjustment => ActivityEventType.stockAdjustment,
+    ActivityFilter.receipt => ActivityEventType.receipt,
+    ActivityFilter.issue => ActivityEventType.issue,
+    ActivityFilter.returnItem => ActivityEventType.returnItem,
+    ActivityFilter.transfer => ActivityEventType.transfer,
   };
 }
