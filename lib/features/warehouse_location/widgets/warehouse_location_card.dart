@@ -2,26 +2,25 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/warehouse_locations_mock_data.dart';
+import '../../../services/warehouse_location_service.dart';
 
 class WarehouseLocationCard extends StatelessWidget {
   final WarehouseLocation location;
   final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   const WarehouseLocationCard({
     super.key,
     required this.location,
     this.onEdit,
+    this.onDelete,
   });
 
   static const Color _activeColor = Color(0xFF16A34A);
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = TextStyle(
-      fontSize: 11,
-      color: AppColors.textSecondary,
-    );
+    final labelStyle = TextStyle(fontSize: 11, color: AppColors.textSecondary);
     final valueStyle = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w700,
@@ -49,7 +48,11 @@ class WarehouseLocationCard extends StatelessWidget {
                   color: AppColors.primary.withAlpha(26),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(location.icon, size: 22, color: AppColors.primary),
+                child: const Icon(
+                  Icons.warehouse_outlined,
+                  size: 22,
+                  color: AppColors.primary,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -80,8 +83,11 @@ class WarehouseLocationCard extends StatelessWidget {
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: onEdit,
-                icon: Icon(Icons.edit_outlined,
-                    size: 14, color: AppColors.primary),
+                icon: Icon(
+                  Icons.edit_outlined,
+                  size: 14,
+                  color: AppColors.primary,
+                ),
                 label: Text(
                   'Edit',
                   style: TextStyle(
@@ -105,12 +111,15 @@ class WarehouseLocationCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(Icons.location_on_outlined,
-                  size: 14, color: AppColors.textSecondary),
+              Icon(
+                Icons.location_on_outlined,
+                size: 14,
+                color: AppColors.textSecondary,
+              ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  location.area,
+                  location.displayAddress,
                   style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
@@ -120,18 +129,22 @@ class WarehouseLocationCard extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: const BoxDecoration(
-                  color: _activeColor,
+                decoration: BoxDecoration(
+                  color: location.isActive
+                      ? _activeColor
+                      : AppColors.textSecondary,
                   shape: BoxShape.circle,
                 ),
               ),
               const SizedBox(width: 6),
               Text(
                 location.status,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: _activeColor,
+                  color: location.isActive
+                      ? _activeColor
+                      : AppColors.textSecondary,
                 ),
               ),
             ],
@@ -168,6 +181,15 @@ class WarehouseLocationCard extends StatelessWidget {
               minHeight: 4,
               backgroundColor: AppColors.primary.withAlpha(26),
               valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+            ),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: const Text('Delete'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             ),
           ),
         ],

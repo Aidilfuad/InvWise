@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/warehouse_locations_mock_data.dart';
+import '../../../services/warehouse_location_service.dart';
 
 class LocationsSummaryCard extends StatelessWidget {
   final WarehouseLocationsSummary summary;
@@ -11,10 +11,7 @@ class LocationsSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final labelStyle = TextStyle(
-      fontSize: 11,
-      color: AppColors.textSecondary,
-    );
+    final labelStyle = TextStyle(fontSize: 11, color: AppColors.textSecondary);
     final valueStyle = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w700,
@@ -34,8 +31,11 @@ class LocationsSummaryCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.warehouse_outlined,
-                  size: 20, color: AppColors.primary),
+              Icon(
+                Icons.warehouse_outlined,
+                size: 20,
+                color: AppColors.primary,
+              ),
               const SizedBox(width: 8),
               Text(
                 'Active Locations: ',

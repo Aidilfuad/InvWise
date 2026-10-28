@@ -43,7 +43,7 @@ class ActivityLogHeader extends StatelessWidget {
           SizedBox(width: AppSpacing.md),
           Expanded(
             child: Text(
-              'Activity Log',
+              'Stock Movements',
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.textPrimary,

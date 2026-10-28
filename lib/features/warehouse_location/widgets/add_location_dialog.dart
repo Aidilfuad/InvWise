@@ -9,7 +9,8 @@ class AddLocationDialog extends StatefulWidget {
     this.initialCode,
     this.initialCapacity,
     this.initialDescription,
-    this.onSave,
+    this.initialAddress,
+    required this.onSave,
   });
 
   /// When [initialName] is set the dialog opens in edit mode.
@@ -17,13 +18,16 @@ class AddLocationDialog extends StatefulWidget {
   final String? initialCode;
   final String? initialCapacity;
   final String? initialDescription;
+  final String? initialAddress;
 
-  final void Function(
+  final Future<void> Function(
     String name,
     String code,
     String capacity,
     String description,
-  )? onSave;
+    String address,
+  )
+  onSave;
 
   bool get isEdit => initialName != null;
 
@@ -36,16 +40,24 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
   late final TextEditingController _codeController;
   late final TextEditingController _capacityController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _addressController;
+  bool _isSaving = false;
+  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialName ?? '');
     _codeController = TextEditingController(text: widget.initialCode ?? '');
-    _capacityController =
-        TextEditingController(text: widget.initialCapacity ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.initialDescription ?? '');
+    _capacityController = TextEditingController(
+      text: widget.initialCapacity ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.initialDescription ?? '',
+    );
+    _addressController = TextEditingController(
+      text: widget.initialAddress ?? '',
+    );
   }
 
   @override
@@ -54,21 +66,42 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
     _codeController.dispose();
     _capacityController.dispose();
     _descriptionController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
-  void _onSave() {
-    final onSave = widget.onSave;
-    if (onSave != null) {
-      onSave(
+  Future<void> _onSave() async {
+    if (_isSaving) return;
+    final capacity = double.tryParse(_capacityController.text.trim());
+    if (capacity == null || !capacity.isFinite || capacity < 0) {
+      setState(() {
+        _errorMessage = 'Enter a valid non-negative capacity.';
+      });
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+    try {
+      await widget.onSave(
         _nameController.text,
         _codeController.text,
         _capacityController.text,
         _descriptionController.text,
+        _addressController.text,
       );
-      return;
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.toString().replaceFirst(
+          'WarehouseLocationServiceException: ',
+          '',
+        );
+        _isSaving = false;
+      });
     }
-    // TODO: Save location (requires backend).
   }
 
   OutlineInputBorder _border(Color color) {
@@ -104,15 +137,14 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
           style: TextStyle(fontSize: 13, color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
+            hintStyle: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.surface,
             isDense: true,
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 14,
+              vertical: 14,
+            ),
             border: _border(AppColors.border),
             enabledBorder: _border(AppColors.border),
             focusedBorder: _border(AppColors.primary),
@@ -147,9 +179,7 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              isEdit
-                  ? 'Update this warehouse location and its capacity.'
-                  : 'Create a warehouse location to organize inventory and manage capacity.',
+              isEdit ? 'Update this warehouse location and its capacity.' : 'Create a warehouse location to organize inventory and manage capacity.',
               style: TextStyle(
                 fontSize: 12,
                 height: 1.4,
@@ -175,16 +205,31 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
             ),
             _field(
               label: 'Description',
-              hint: 'Enter locality or description',
+              hint: 'Enter a description',
               controller: _descriptionController,
               maxLines: 3,
             ),
+            _field(
+              label: 'Address',
+              hint: 'Enter the location address',
+              controller: _addressController,
+              maxLines: 2,
+            ),
+            if (_errorMessage != null) ...[
+              Text(
+                _errorMessage!,
+                style: TextStyle(color: AppColors.danger, fontSize: 12),
+              ),
+              const SizedBox(height: 12),
+            ],
             const SizedBox(height: 4),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
+                  onPressed: _isSaving
+                      ? null
+                      : () => Navigator.of(context).pop(),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 44),
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -204,7 +249,7 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
                 ),
                 const SizedBox(width: 12),
                 ElevatedButton(
-                  onPressed: _onSave,
+                  onPressed: _isSaving ? null : _onSave,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 44),
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -215,13 +260,19 @@ class _AddLocationDialogState extends State<AddLocationDialog> {
                       borderRadius: BorderRadius.circular(22),
                     ),
                   ),
-                  child: const Text(
-                    'Save',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Save',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ],
             ),

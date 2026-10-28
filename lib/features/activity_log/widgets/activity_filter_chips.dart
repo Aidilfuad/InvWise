@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/activity_log_mock_data.dart';
+import '../data/activity_log_options.dart';
 
 class ActivityFilterChips extends StatelessWidget {
   const ActivityFilterChips({
@@ -22,7 +22,7 @@ class ActivityFilterChips extends StatelessWidget {
       children: [
         _buildRow(context, filters.sublist(0, 3)),
         SizedBox(height: AppSpacing.sm),
-        _buildRow(context, filters.sublist(3, 6)),
+        _buildRow(context, filters.sublist(3)),
       ],
     );
   }
@@ -34,6 +34,9 @@ class ActivityFilterChips extends StatelessWidget {
           if (i > 0) SizedBox(width: AppSpacing.sm),
           Expanded(child: _chip(context, items[i])),
         ],
+        if (items.length < 3)
+          for (var i = items.length; i < 3; i++)
+            const Expanded(child: SizedBox()),
       ],
     );
   }

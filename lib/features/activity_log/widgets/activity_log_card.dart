@@ -2,88 +2,41 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/activity_log_mock_data.dart';
+import '../../../services/stock_movement_service.dart';
 
 class ActivityLogCard extends StatelessWidget {
   const ActivityLogCard({super.key, required this.entry});
 
-  final ActivityLogEntry entry;
-
-  static const Color _greenFg = Color(0xFF15803D);
-  static const Color _greenBg = Color(0xFFE8F6EE);
-  static const Color _redFg = Color(0xFFC2410C);
-  static const Color _redBg = Color(0xFFFDEDE7);
-  static const Color _blueBg = Color(0xFFEAF0FE);
-
-  String get _label {
-    switch (entry.type) {
-      case ActivityType.addItem:
-        return 'Add Item';
-      case ActivityType.editItem:
-        return 'Edit Item';
-      case ActivityType.stockIn:
-        return 'Stock In';
-      case ActivityType.stockOut:
-        return 'Stock Out';
-      case ActivityType.audit:
-        return 'Audit';
-    }
-  }
-
-  IconData get _icon {
-    switch (entry.type) {
-      case ActivityType.addItem:
-        return Icons.inventory_2_outlined;
-      case ActivityType.editItem:
-        return Icons.edit_outlined;
-      case ActivityType.stockIn:
-        return Icons.south_west;
-      case ActivityType.stockOut:
-        return Icons.north_east;
-      case ActivityType.audit:
-        return Icons.assignment_turned_in_outlined;
-    }
-  }
-
-  Color get _badgeFg {
-    switch (entry.type) {
-      case ActivityType.stockIn:
-        return _greenFg;
-      case ActivityType.stockOut:
-        return _redFg;
-      default:
-        return AppColors.primary;
-    }
-  }
-
-  Color get _badgeBg {
-    switch (entry.type) {
-      case ActivityType.stockIn:
-        return _greenBg;
-      case ActivityType.stockOut:
-        return _redBg;
-      default:
-        return _blueBg;
-    }
-  }
+  final StockMovement entry;
 
   String get _quantityText {
-    final q = entry.quantityChange;
-    if (q > 0) return '+$q Units';
-    if (q < 0) return '\u2212${q.abs()} Units';
-    return '0 Units';
+    final quantity = _formatQuantity(entry.quantity);
+    return switch (entry.type) {
+      StockMovementType.receipt ||
+      StockMovementType.returnItem => '+$quantity Units',
+      StockMovementType.issue => '−$quantity Units',
+      StockMovementType.transfer => '$quantity Units',
+    };
   }
 
-  Color get _quantityColor {
-    final q = entry.quantityChange;
-    if (q > 0) return _greenFg;
-    if (q < 0) return _redFg;
-    return AppColors.textPrimary;
-  }
+  Color get _quantityColor => switch (entry.type) {
+    StockMovementType.receipt ||
+    StockMovementType.returnItem => AppColors.success,
+    StockMovementType.issue => AppColors.danger,
+    StockMovementType.transfer => AppColors.primary,
+  };
+
+  IconData get _icon => switch (entry.type) {
+    StockMovementType.receipt => Icons.south_west,
+    StockMovementType.issue => Icons.north_east,
+    StockMovementType.transfer => Icons.swap_horiz_rounded,
+    StockMovementType.returnItem => Icons.assignment_return_outlined,
+  };
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final color = _quantityColor;
 
     return Container(
       width: double.infinity,
@@ -103,7 +56,7 @@ class ActivityLogCard extends StatelessWidget {
               color: AppColors.textPrimary,
             ),
           ),
-          SizedBox(height: 2),
+          const SizedBox(height: 2),
           Text(
             'SKU · ${entry.sku}',
             style: textTheme.bodySmall?.copyWith(
@@ -115,32 +68,35 @@ class ActivityLogCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Container(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
-                  color: _badgeBg,
+                  color: color.withAlpha(26),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(_icon, size: 16, color: _badgeFg),
-                    SizedBox(width: 6),
+                    Icon(_icon, size: 16, color: color),
+                    const SizedBox(width: 6),
                     Text(
-                      _label,
+                      entry.type.label,
                       style: textTheme.bodySmall?.copyWith(
                         fontWeight: FontWeight.w700,
-                        color: _badgeFg,
+                        color: color,
                       ),
                     ),
                   ],
                 ),
               ),
-              Spacer(),
+              const Spacer(),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    'Quantity change',
+                    'Quantity',
                     style: textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                     ),
@@ -149,7 +105,7 @@ class ActivityLogCard extends StatelessWidget {
                     _quantityText,
                     style: textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
-                      color: _quantityColor,
+                      color: color,
                     ),
                   ),
                 ],
@@ -172,31 +128,35 @@ class ActivityLogCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    entry.date,
+                    _formatDate(entry.occurredAt),
                     style: textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
                   ),
                   Text(
-                    entry.time,
+                    _formatTime(entry.occurredAt),
                     style: textTheme.bodySmall?.copyWith(
                       color: AppColors.textSecondary,
                     ),
                   ),
                 ],
               ),
-              Spacer(),
+              const Spacer(),
               Icon(
                 Icons.person_outline,
                 size: 18,
                 color: AppColors.textSecondary,
               ),
-              SizedBox(width: 6),
-              Text(
-                entry.user,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: AppColors.textSecondary,
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  entry.performedBy ?? 'Unknown user',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               ),
             ],
@@ -205,4 +165,32 @@ class ActivityLogCard extends StatelessWidget {
       ),
     );
   }
+
+  String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')} '
+      '${_month(date.month)} ${date.year}';
+
+  String _formatTime(DateTime date) {
+    final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
+    return '$hour:${date.minute.toString().padLeft(2, '0')} '
+        '${date.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  String _month(int month) => const [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ][month - 1];
+
+  String _formatQuantity(double quantity) =>
+      quantity.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 }
