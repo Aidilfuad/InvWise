@@ -9,26 +9,6 @@ class InventoryServiceException implements Exception {
   String toString() => 'InventoryServiceException: $message';
 }
 
-class InventoryUnit {
-  const InventoryUnit({
-    required this.id,
-    required this.name,
-    required this.abbreviation,
-  });
-
-  final String id;
-  final String name;
-  final String abbreviation;
-
-  String get label => '$name ($abbreviation)';
-
-  factory InventoryUnit.fromMap(Map<String, dynamic> map) => InventoryUnit(
-    id: _requiredString(map, 'id'),
-    name: _requiredString(map, 'name'),
-    abbreviation: _requiredString(map, 'abbreviation'),
-  );
-}
-
 class InventoryLocation {
   const InventoryLocation({required this.id, required this.name});
 
@@ -146,31 +126,10 @@ class InventoryService {
   final SupabaseClient _client = Supabase.instance.client;
 
   static const String _table = 'inventory_items';
-  static const String _unitsTable = 'units';
   static const String _locationsTable = 'warehouse_locations';
   static const String _stockLevelsTable = 'stock_levels';
   static const String _selectColumns =
       '*, category:categories(name), unit:units(name,abbreviation)';
-
-  Future<List<InventoryUnit>> getUnits() async {
-    try {
-      final rows = await _client
-          .from(_unitsTable)
-          .select('id,name,abbreviation')
-          .eq('is_active', true)
-          .order('name', ascending: true);
-      return rows
-          .map<InventoryUnit>(InventoryUnit.fromMap)
-          .toList(growable: false);
-    } on PostgrestException catch (e) {
-      throw InventoryServiceException(_friendlyMessage(e, 'load units'));
-    } catch (e) {
-      if (e is InventoryServiceException) rethrow;
-      throw const InventoryServiceException(
-        'Unable to load units. Please check your connection and try again.',
-      );
-    }
-  }
 
   Future<List<InventoryLocation>> getLocations() async {
     try {

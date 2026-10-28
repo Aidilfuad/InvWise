@@ -2,17 +2,37 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/stock_units_mock_data.dart';
+import '../../../services/unit_service.dart';
 
 class StockUnitCard extends StatelessWidget {
   const StockUnitCard({
     super.key,
     required this.unit,
     required this.onEdit,
+    required this.onDelete,
   });
 
-  final StockUnit unit;
+  final MeasurementUnit unit;
   final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  IconData get _icon {
+    final name = unit.name.toLowerCase();
+    if (name.contains('weight') ||
+        name.contains('kilogram') ||
+        name.contains('gram')) {
+      return Icons.scale_outlined;
+    }
+    if (name.contains('meter') ||
+        name.contains('liter') ||
+        name.contains('length')) {
+      return Icons.straighten;
+    }
+    if (name.contains('box') || name.contains('case')) {
+      return Icons.inventory_2_outlined;
+    }
+    return Icons.grid_view_outlined;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +59,7 @@ class StockUnitCard extends StatelessWidget {
                   color: const Color(0xFFEAF0FE),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(unit.icon, size: 24, color: AppColors.primary),
+                child: Icon(_icon, size: 24, color: AppColors.primary),
               ),
               SizedBox(width: AppSpacing.md),
               Expanded(
@@ -99,12 +119,21 @@ class StockUnitCard extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.md),
           Text(
-            unit.description,
+            unit.description ?? '',
             style: textTheme.bodyMedium?.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
           SizedBox(height: AppSpacing.sm),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onDelete,
+              icon: const Icon(Icons.delete_outline_rounded, size: 18),
+              label: const Text('Delete'),
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+            ),
+          ),
         ],
       ),
     );

@@ -4,6 +4,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/category_service.dart';
 import '../../services/inventory_service.dart';
+import '../../services/unit_service.dart';
 import 'data/inventory_item_form_data.dart';
 import 'widgets/inventory_item_actions.dart';
 import 'widgets/inventory_item_header.dart';
@@ -35,8 +36,9 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
 
   final _inventoryService = InventoryService();
   final _categoryService = CategoryService();
+  final _unitService = UnitService();
   List<Category> _categories = const [];
-  List<InventoryUnit> _units = const [];
+  List<MeasurementUnit> _units = const [];
   List<InventoryLocation> _locations = const [];
   String? _categoryId;
   String? _unitId;
@@ -134,7 +136,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
     });
 
     try {
-      final units = await _inventoryService.getUnits();
+      final units = await _unitService.getUnits();
       if (!mounted) return;
       setState(() {
         _units = units;
@@ -143,7 +145,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
           _unitId = null;
         }
       });
-    } on InventoryServiceException catch (e) {
+    } on UnitServiceException catch (e) {
       if (!mounted) return;
       setState(() {
         _unitLoadError = e.message;

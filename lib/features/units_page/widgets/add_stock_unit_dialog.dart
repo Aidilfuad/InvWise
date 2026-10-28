@@ -12,8 +12,12 @@ class AddStockUnitDialog extends StatefulWidget {
     this.initialDescription,
   });
 
-  final void Function(String name, String abbreviation, String description)
-      onSave;
+  final Future<String?> Function(
+    String name,
+    String abbreviation,
+    String description,
+  )
+  onSave;
 
   /// When [initialName] is set the dialog opens in edit mode.
   final String? initialName;
@@ -24,11 +28,12 @@ class AddStockUnitDialog extends StatefulWidget {
 
   static Future<void> show(
     BuildContext context, {
-    required void Function(
+    required Future<String?> Function(
       String name,
       String abbreviation,
       String description,
-    ) onSave,
+    )
+    onSave,
     String? initialName,
     String? initialAbbreviation,
     String? initialDescription,
@@ -56,15 +61,19 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
   late final TextEditingController _descriptionController;
   final FocusNode _nameFocus = FocusNode();
   final FocusNode _abbreviationFocus = FocusNode();
+  bool _isSaving = false;
+  String? _errorText;
 
   @override
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.initialName ?? '');
-    _abbreviationController =
-        TextEditingController(text: widget.initialAbbreviation ?? '');
-    _descriptionController =
-        TextEditingController(text: widget.initialDescription ?? '');
+    _abbreviationController = TextEditingController(
+      text: widget.initialAbbreviation ?? '',
+    );
+    _descriptionController = TextEditingController(
+      text: widget.initialDescription ?? '',
+    );
     _nameFocus.addListener(() => setState(() {}));
     _abbreviationFocus.addListener(() => setState(() {}));
   }
@@ -79,11 +88,36 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
     super.dispose();
   }
 
+  Future<void> _handleSave() async {
+    if (_isSaving) return;
+    setState(() {
+      _isSaving = true;
+      _errorText = null;
+    });
+
+    final error = await widget.onSave(
+      _nameController.text,
+      _abbreviationController.text,
+      _descriptionController.text,
+    );
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop();
+      return;
+    }
+
+    setState(() {
+      _isSaving = false;
+      _errorText = error;
+    });
+  }
+
   Widget _singleLineField({
     required TextTheme textTheme,
     required TextEditingController controller,
     required FocusNode focusNode,
     required String hint,
+    required bool enabled,
   }) {
     final focused = focusNode.hasFocus;
 
@@ -102,6 +136,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
       child: TextField(
         controller: controller,
         focusNode: focusNode,
+        enabled: enabled,
         style: textTheme.bodyLarge?.copyWith(color: AppColors.textPrimary),
         decoration: InputDecoration(
           isCollapsed: true,
@@ -146,7 +181,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
                 ),
                 InkWell(
                   borderRadius: BorderRadius.circular(20),
-                  onTap: () => Navigator.pop(context),
+                  onTap: _isSaving ? null : () => Navigator.pop(context),
                   child: Padding(
                     padding: EdgeInsets.all(4),
                     child: Icon(Icons.close, color: AppColors.textSecondary),
@@ -159,7 +194,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
               isEdit
                   ? 'Update the name, abbreviation and description of this unit.'
                   : 'Create a measurement unit to keep inventory consistent '
-                      'across your warehouse.',
+                        'across your warehouse.',
               style: textTheme.bodyMedium?.copyWith(
                 color: AppColors.textSecondary,
               ),
@@ -177,6 +212,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
               textTheme: textTheme,
               controller: _nameController,
               focusNode: _nameFocus,
+              enabled: !_isSaving,
               hint: 'Enter unit name',
             ),
             SizedBox(height: 6),
@@ -199,6 +235,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
               textTheme: textTheme,
               controller: _abbreviationController,
               focusNode: _abbreviationFocus,
+              enabled: !_isSaving,
               hint: 'e.g. PCS',
             ),
             SizedBox(height: AppSpacing.md),
@@ -233,6 +270,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
               ),
               child: TextField(
                 controller: _descriptionController,
+                enabled: !_isSaving,
                 maxLength: _maxDescription,
                 minLines: 3,
                 maxLines: 3,
@@ -262,11 +300,18 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
               ),
             ),
             SizedBox(height: AppSpacing.lg),
+            if (_errorText != null) ...[
+              Text(
+                _errorText!,
+                style: textTheme.bodySmall?.copyWith(color: AppColors.danger),
+              ),
+              SizedBox(height: AppSpacing.md),
+            ],
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: _isSaving ? null : () => Navigator.pop(context),
                   style: TextButton.styleFrom(minimumSize: Size(0, 48)),
                   child: Text(
                     'Cancel',
@@ -278,11 +323,7 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
                 ),
                 SizedBox(width: AppSpacing.md),
                 ElevatedButton(
-                  onPressed: () => widget.onSave(
-                    _nameController.text,
-                    _abbreviationController.text,
-                    _descriptionController.text,
-                  ),
+                  onPressed: _isSaving ? null : _handleSave,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
@@ -290,13 +331,22 @@ class _AddStockUnitDialogState extends State<AddStockUnitDialog> {
                     minimumSize: Size(104, 48),
                     shape: StadiumBorder(),
                   ),
-                  child: Text(
-                    'Save',
-                    style: textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          'Save',
+                          style: textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
               ],
             ),
