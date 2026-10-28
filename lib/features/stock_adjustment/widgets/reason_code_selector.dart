@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/stock_adjustment_mock_data.dart';
+import '../data/stock_adjustment_options.dart';
 
 /// Wrapping group of pill-shaped single-select chips with leading icons.
 class ReasonCodeSelector extends StatelessWidget {
@@ -48,8 +48,9 @@ class _ReasonPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final foreground =
-        selected ? AppColors.textOnPrimary : AppColors.textPrimary;
+    final foreground = selected
+        ? AppColors.textOnPrimary
+        : AppColors.textPrimary;
 
     return Material(
       color: selected ? AppColors.primary : AppColors.surface,

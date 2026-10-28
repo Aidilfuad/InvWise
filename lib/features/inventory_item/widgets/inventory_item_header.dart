@@ -9,11 +9,13 @@ class InventoryItemHeader extends StatelessWidget {
     required this.title,
     required this.onBack,
     required this.onSave,
+    this.isSaving = false,
   });
 
   final String title;
   final VoidCallback onBack;
   final VoidCallback onSave;
+  final bool isSaving;
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +32,7 @@ class InventoryItemHeader extends StatelessWidget {
       child: Row(
         children: [
           Material(
-            color: AppColors.primary.withOpacity(0.08),
+            color: AppColors.primary.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),
@@ -53,8 +55,14 @@ class InventoryItemHeader extends StatelessWidget {
             ),
           ),
           IconButton(
-            onPressed: onSave,
-            icon: Icon(Icons.save_outlined, color: AppColors.primary),
+            onPressed: isSaving ? null : onSave,
+            icon: isSaving
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Icon(Icons.save_outlined, color: AppColors.primary),
           ),
         ],
       ),

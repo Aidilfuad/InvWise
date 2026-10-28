@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/item_details_mock_data.dart';
+import '../data/item_details_data.dart';
 
 /// "Recent Activity" header with a "View All" action, followed by a bordered
 /// card listing stock movements separated by inset dividers.

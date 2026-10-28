@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
-import '../inventory/item_details_page.dart';
-import '../stock_adjustment/stock_adjustment_page.dart';
+import '../inventory/inventory_page.dart';
 import 'data/alerts_mock_data.dart';
 import 'widgets/alert_card.dart';
 import 'widgets/alert_section_header.dart';
@@ -28,14 +27,12 @@ class _AlertsPageState extends State<AlertsPage> {
     switch (entry.action) {
       case AlertAction.viewItem:
       case AlertAction.viewDetails:
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const ItemDetailsPage()),
-        );
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const InventoryPage()));
         break;
       case AlertAction.restock:
-        Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const StockAdjustmentPage()),
-        );
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const InventoryPage()));
         break;
       case AlertAction.none:
         break;
@@ -49,8 +46,9 @@ class _AlertsPageState extends State<AlertsPage> {
   }) {
     if (_filter != AlertFilter.all && _filter != visibleOn) return const [];
 
-    final entries =
-        AlertsMockData.alerts.where((a) => a.category == category).toList();
+    final entries = AlertsMockData.alerts
+        .where((a) => a.category == category)
+        .toList();
     if (entries.isEmpty) return const [];
 
     return [
@@ -82,10 +80,7 @@ class _AlertsPageState extends State<AlertsPage> {
               children: [
                 const AlertsHeader(),
                 const SizedBox(height: 20),
-                AlertsFilterBar(
-                  selected: _filter,
-                  onChanged: _onFilterChanged,
-                ),
+                AlertsFilterBar(selected: _filter, onChanged: _onFilterChanged),
                 const SizedBox(height: 24),
                 ..._section(
                   title: 'URGENT REPLENISHMENT',

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/inventory_mock_data.dart';
+import '../../../services/inventory_service.dart';
 
 /// One row in the stock list: status icon, SKU + location, centered name,
 /// quantity with status, and a trailing chevron.
@@ -16,6 +16,21 @@ class InventoryItemCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final borderRadius = BorderRadius.circular(16);
+    final statusColor = switch (item.status) {
+      InventoryStockStatus.inStock => AppColors.success,
+      InventoryStockStatus.lowStock => AppColors.warning,
+      InventoryStockStatus.outOfStock => AppColors.danger,
+    };
+    final statusBackground = switch (item.status) {
+      InventoryStockStatus.inStock => AppColors.successContainer,
+      InventoryStockStatus.lowStock => AppColors.warningContainer,
+      InventoryStockStatus.outOfStock => AppColors.dangerContainer,
+    };
+    final statusIcon = switch (item.status) {
+      InventoryStockStatus.inStock => Icons.check_circle_outline_rounded,
+      InventoryStockStatus.lowStock => Icons.warning_amber_rounded,
+      InventoryStockStatus.outOfStock => Icons.remove_circle_outline_rounded,
+    };
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -43,14 +58,10 @@ class InventoryItemCard extends StatelessWidget {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: item.status.iconBackground,
+                    color: statusBackground,
                     borderRadius: AppSpacing.borderRadiusMd,
                   ),
-                  child: Icon(
-                    item.status.icon,
-                    size: 24,
-                    color: item.status.color,
-                  ),
+                  child: Icon(statusIcon, size: 24, color: statusColor),
                 ),
                 AppSpacing.gapLg,
                 Expanded(
@@ -75,7 +86,7 @@ class InventoryItemCard extends StatelessWidget {
                           AppSpacing.gapSm,
                           Flexible(
                             child: Text(
-                              item.location,
+                              item.location ?? '—',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: textTheme.labelSmall?.copyWith(
@@ -123,7 +134,7 @@ class InventoryItemCard extends StatelessWidget {
                           Text(
                             item.status.label,
                             style: textTheme.labelSmall?.copyWith(
-                              color: item.status.color,
+                              color: statusColor,
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/item_details_mock_data.dart';
+import '../data/item_details_data.dart';
 
 /// Full-width white band with a 2-column grid of icon + label + value cells.
 ///

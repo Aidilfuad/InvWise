@@ -3,23 +3,21 @@ import 'package:flutter/services.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
-import 'data/stock_adjustment_mock_data.dart';
+import '../../services/inventory_service.dart';
+import 'data/stock_adjustment_options.dart';
 import 'widgets/adjustment_type_selector.dart';
 import 'widgets/item_summary_card.dart';
 import 'widgets/location_card.dart';
 import 'widgets/reason_code_selector.dart';
 
-/// Stock Adjustment screen. UI only, backed by dummy data.
 class StockAdjustmentPage extends StatefulWidget {
   const StockAdjustmentPage({
     super.key,
-    this.item = StockAdjustmentMockData.item,
+    required this.itemId,
     this.initialType = AdjustmentType.remove,
   });
 
-  final StockAdjustmentItem item;
-
-  /// Which adjustment type is selected when the screen opens.
+  final String itemId;
   final AdjustmentType initialType;
 
   @override
@@ -31,10 +29,24 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
 
   final _quantityController = TextEditingController();
   final _notesController = TextEditingController();
+  final _service = InventoryService();
 
-  // Defaults match the reference design.
   late AdjustmentType _type = widget.initialType;
   ReasonCode _reason = ReasonCode.restock;
+  InventoryItem? _item;
+  List<InventoryLocation> _locations = const [];
+  String? _locationId;
+  double _locationQuantity = 0;
+  String? _errorMessage;
+  bool _isLoading = true;
+  bool _isLoadingLocationQuantity = false;
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadItem();
+  }
 
   @override
   void dispose() {
@@ -43,32 +55,139 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
     super.dispose();
   }
 
-  void _onCloseTap() {
-    // Pops back to Item Details.
-    Navigator.of(context).maybePop();
+  Future<void> _loadItem() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final results = await Future.wait([
+        _service.getItemById(widget.itemId),
+        _service.getLocations(),
+      ]);
+      final item = results[0] as InventoryItem;
+      final locations = results[1] as List<InventoryLocation>;
+      if (!mounted) return;
+
+      final selectedLocationId =
+          locations.any((location) => location.id == item.locationId)
+          ? item.locationId
+          : locations.firstOrNull?.id;
+      setState(() {
+        _item = item;
+        _locations = locations;
+        _locationId = selectedLocationId;
+        _isLoading = false;
+      });
+      if (selectedLocationId != null) {
+        await _loadLocationQuantity(selectedLocationId);
+      }
+    } on InventoryServiceException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.message;
+        _isLoading = false;
+      });
+    }
   }
 
-  void _onHelpTap() {
-    // TODO: Show help for stock adjustments.
+  Future<void> _loadLocationQuantity(String locationId) async {
+    final item = _item;
+    if (item == null) return;
+    setState(() => _isLoadingLocationQuantity = true);
+    try {
+      final quantity = await _service.getStockQuantity(
+        itemId: item.id,
+        locationId: locationId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _locationQuantity = quantity;
+        _isLoadingLocationQuantity = false;
+      });
+    } on InventoryServiceException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = e.message;
+        _isLoadingLocationQuantity = false;
+      });
+    }
   }
 
-  void _onTypeChanged(AdjustmentType type) {
-    setState(() => _type = type);
+  Future<void> _onLocationTap() async {
+    if (_locations.isEmpty || _isSaving) return;
+    final selectedId = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final location in _locations)
+              ListTile(
+                title: Text(location.name),
+                trailing: location.id == _locationId
+                    ? const Icon(Icons.check_rounded)
+                    : null,
+                onTap: () => Navigator.pop(context, location.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selectedId == null || !mounted || selectedId == _locationId) return;
+    setState(() {
+      _locationId = selectedId;
+      _errorMessage = null;
+    });
+    await _loadLocationQuantity(selectedId);
   }
 
-  void _onReasonChanged(ReasonCode reason) {
-    setState(() => _reason = reason);
+  Future<void> _onSaveTap() async {
+    if (_isSaving || _item == null || _locationId == null) return;
+    final quantity = double.tryParse(_quantityController.text.trim());
+    if (quantity == null || !quantity.isFinite || quantity <= 0) {
+      _showMessage('Enter a valid quantity greater than zero.');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final updatedQuantity = await _service.adjustStock(
+        itemId: _item!.id,
+        locationId: _locationId!,
+        quantity: quantity,
+        add: _type == AdjustmentType.add,
+      );
+      if (!mounted) return;
+      setState(() => _locationQuantity = updatedQuantity);
+      Navigator.of(context).pop(true);
+    } on InventoryServiceException catch (e) {
+      if (!mounted) return;
+      _showMessage(e.message);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
-  void _onLocationTap() {
-    // TODO: Open the warehouse location picker.
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
   }
+
+  String _formatQuantity(double value) =>
+      value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final item = widget.item;
+    final item = _item;
+    final location = _locations
+        .where((location) => location.id == _locationId)
+        .firstOrNull;
 
     return Scaffold(
       appBar: AppBar(
@@ -77,20 +196,12 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
         leading: IconButton(
           tooltip: 'Close',
           icon: const Icon(Icons.close_rounded),
-          onPressed: _onCloseTap,
+          onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: Text(
           'Stock Adjustment',
           style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'Help',
-            icon: const Icon(Icons.help_outline_rounded),
-            onPressed: _onHelpTap,
-          ),
-          AppSpacing.gapSm,
-        ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1),
           child: Divider(),
@@ -99,66 +210,149 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: _maxContentWidth),
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: EdgeInsets.fromLTRB(
-              AppSpacing.xl,
-              AppSpacing.xl,
-              AppSpacing.xl,
-              AppSpacing.xxl + bottomInset,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                ItemSummaryCard(
-                  sku: item.sku,
-                  name: item.name,
-                  quantityLabel: item.quantityLabel,
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : item == null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpacing.xl),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _errorMessage ?? 'Inventory item not found.',
+                          textAlign: TextAlign.center,
+                        ),
+                        AppSpacing.gapMd,
+                        FilledButton(
+                          onPressed: _loadItem,
+                          child: const Text('Try Again'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              : Column(
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        keyboardDismissBehavior:
+                            ScrollViewKeyboardDismissBehavior.onDrag,
+                        padding: EdgeInsets.fromLTRB(
+                          AppSpacing.xl,
+                          AppSpacing.xl,
+                          AppSpacing.xl,
+                          AppSpacing.xl + bottomInset,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_errorMessage != null)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: AppSpacing.lg,
+                                ),
+                                child: Text(
+                                  _errorMessage!,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.danger,
+                                  ),
+                                ),
+                              ),
+                            ItemSummaryCard(
+                              sku: item.sku,
+                              name: item.name,
+                              quantityLabel:
+                                  '${_formatQuantity(_locationQuantity)} '
+                                  '${item.unitLabel}',
+                            ),
+                            AppSpacing.gapXxl,
+                            _SectionLabel('Adjustment Type', large: true),
+                            AppSpacing.gapLg,
+                            AdjustmentTypeSelector(
+                              selected: _type,
+                              onChanged: (type) => setState(() => _type = type),
+                            ),
+                            AppSpacing.gapXxl,
+                            _SectionLabel(
+                              'Available at location: '
+                              '${_formatQuantity(_locationQuantity)} '
+                              '${item.unitLabel}',
+                            ),
+                            AppSpacing.gapMd,
+                            _buildQuantityRow(textTheme, item),
+                            AppSpacing.gapXxl,
+                            const _SectionLabel('Reason Code'),
+                            AppSpacing.gapMd,
+                            ReasonCodeSelector(
+                              selected: _reason,
+                              onChanged: (reason) =>
+                                  setState(() => _reason = reason),
+                            ),
+                            AppSpacing.gapXxl,
+                            const _SectionLabel('Notes (Optional)'),
+                            AppSpacing.gapMd,
+                            _buildNotesField(),
+                            AppSpacing.gapXxl,
+                            if (_isLoadingLocationQuantity)
+                              const LinearProgressIndicator()
+                            else
+                              LocationCard(
+                                location:
+                                    location?.name ??
+                                    'Select a warehouse location',
+                                onTap: _onLocationTap,
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: SizedBox(
+                          width: double.infinity,
+                          height: 52,
+                          child: FilledButton(
+                            onPressed:
+                                _isSaving ||
+                                    _isLoadingLocationQuantity ||
+                                    location == null
+                                ? null
+                                : _onSaveTap,
+                            child: _isSaving
+                                ? const SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(_type.label),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                AppSpacing.gapXxl,
-                _SectionLabel('Adjustment Type', large: true),
-                AppSpacing.gapLg,
-                AdjustmentTypeSelector(
-                  selected: _type,
-                  onChanged: _onTypeChanged,
-                ),
-                AppSpacing.gapXxl,
-                const _SectionLabel('Quantity to Adjust'),
-                AppSpacing.gapMd,
-                _buildQuantityRow(textTheme, item),
-                AppSpacing.gapXxl,
-                const _SectionLabel('Reason Code'),
-                AppSpacing.gapMd,
-                ReasonCodeSelector(
-                  selected: _reason,
-                  onChanged: _onReasonChanged,
-                ),
-                AppSpacing.gapXxl,
-                const _SectionLabel('Notes (Optional)'),
-                AppSpacing.gapMd,
-                _buildNotesField(),
-                AppSpacing.gapXxl,
-                LocationCard(
-                  location: item.location,
-                  onTap: _onLocationTap,
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );
   }
 
-  Widget _buildQuantityRow(TextTheme textTheme, StockAdjustmentItem item) {
+  Widget _buildQuantityRow(TextTheme textTheme, InventoryItem item) {
     return Row(
       children: [
         Expanded(
           child: TextField(
             controller: _quantityController,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             textInputAction: TextInputAction.next,
-            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')),
+            ],
             style: textTheme.bodyLarge,
             decoration: const InputDecoration(
               hintText: '0',

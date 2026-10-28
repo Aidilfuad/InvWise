@@ -11,6 +11,9 @@ class StockInformationCard extends StatelessWidget {
     required this.unitPriceController,
     required this.unitSuffix,
     required this.priceSuffix,
+    required this.locations,
+    required this.selectedLocation,
+    required this.onLocationChanged,
   });
 
   final TextEditingController quantityController;
@@ -22,6 +25,9 @@ class StockInformationCard extends StatelessWidget {
 
   /// e.g. "USD / pc"
   final String priceSuffix;
+  final List<String> locations;
+  final String? selectedLocation;
+  final ValueChanged<String?> onLocationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +40,14 @@ class StockInformationCard extends StatelessWidget {
             controller: quantityController,
             hint: '0',
             suffix: unitSuffix,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          SizedBox(height: AppSpacing.md),
+          InventoryItemDropdown(
+            label: 'Warehouse Location',
+            value: selectedLocation,
+            items: locations,
+            onChanged: onLocationChanged,
           ),
           SizedBox(height: AppSpacing.md),
           InventoryItemField(
@@ -42,7 +55,7 @@ class StockInformationCard extends StatelessWidget {
             controller: minStockController,
             hint: '0',
             suffix: unitSuffix,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: AppSpacing.md),
           InventoryItemField(
@@ -51,8 +64,7 @@ class StockInformationCard extends StatelessWidget {
             hint: '0.00',
             prefix: '\$',
             suffix: priceSuffix,
-            keyboardType:
-                const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
         ],
       ),

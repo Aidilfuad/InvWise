@@ -1,0 +1,1 @@
+enum InventoryItemMode { create, edit }
