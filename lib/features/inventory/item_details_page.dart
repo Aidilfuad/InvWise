@@ -182,24 +182,31 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
           child: Divider(),
         ),
       ),
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(
-            maxWidth: ItemDetailsPage._maxContentWidth,
-          ),
-          child: _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : details == null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(AppSpacing.xl),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.only(bottom: AppSpacing.xxl + bottomInset),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              maxWidth: ItemDetailsPage._maxContentWidth,
+            ),
+            child: _isLoading
+                ? const Padding(
+                    padding: EdgeInsets.only(top: AppSpacing.lg),
+                    child: CircularProgressIndicator(),
+                  )
+                : details == null
+                ? Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      AppSpacing.xl,
+                      AppSpacing.lg,
+                      AppSpacing.xl,
+                      0,
+                    ),
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          _errorMessage ?? 'Inventory item not found.',
-                          textAlign: TextAlign.center,
-                        ),
+                        Text(_errorMessage ?? 'Inventory item not found.'),
                         AppSpacing.gapMd,
                         FilledButton(
                           onPressed: _loadItem,
@@ -207,19 +214,14 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                         ),
                       ],
                     ),
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: EdgeInsets.only(
-                    bottom: AppSpacing.xxl + bottomInset,
-                  ),
-                  child: Column(
+                  )
+                : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(
                           AppSpacing.xl,
-                          AppSpacing.xl,
+                          AppSpacing.lg,
                           AppSpacing.xl,
                           0,
                         ),
@@ -229,9 +231,14 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                           currentStock: details.currentStockLabel,
                           unit: details.unit,
                           unitPrice: details.unitPriceLabel,
+                          statusLabel: _stockStatusLabel(item!),
+                          statusColor: _stockStatusColor(item),
+                          statusBackground: _stockStatusBackground(item),
+                          minThreshold:
+                              '${details.minThresholdLabel} ${details.unit}',
                         ),
                       ),
-                      AppSpacing.gapXl,
+                      AppSpacing.gapMd,
                       Padding(
                         padding: const EdgeInsets.symmetric(
                           horizontal: AppSpacing.xl,
@@ -243,10 +250,10 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                               _openStockAdjustment(AdjustmentType.remove),
                         ),
                       ),
-                      const SizedBox(height: 40),
+                      AppSpacing.gapMd,
                       InfoGridCard(entries: details.infoEntries),
                       if (details.activities.isNotEmpty) ...[
-                        const SizedBox(height: 48),
+                        AppSpacing.gapXl,
                         Padding(
                           padding: const EdgeInsets.symmetric(
                             horizontal: AppSpacing.xl,
@@ -265,9 +272,27 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                       ],
                     ],
                   ),
-                ),
+          ),
         ),
       ),
     );
   }
+
+  String _stockStatusLabel(InventoryItem item) => switch (item.status) {
+    InventoryStockStatus.outOfStock => 'Out Of Stock',
+    InventoryStockStatus.lowStock => 'Low Stock',
+    InventoryStockStatus.inStock => 'In Stock',
+  };
+
+  Color _stockStatusColor(InventoryItem item) => switch (item.status) {
+    InventoryStockStatus.outOfStock => AppColors.danger,
+    InventoryStockStatus.lowStock => AppColors.warning,
+    InventoryStockStatus.inStock => AppColors.success,
+  };
+
+  Color _stockStatusBackground(InventoryItem item) => switch (item.status) {
+    InventoryStockStatus.outOfStock => AppColors.dangerContainer,
+    InventoryStockStatus.lowStock => AppColors.warningContainer,
+    InventoryStockStatus.inStock => AppColors.successContainer,
+  };
 }

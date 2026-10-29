@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
+import '../../../services/activity_log_service.dart';
 import '../../../services/stock_movement_service.dart';
 
 class DashboardInventorySummary {
@@ -92,7 +93,7 @@ class DashboardData {
 
   final DashboardInventorySummary summary;
   final List<StockMovement> recentMovements;
-  final List<StockMovement> recentActivity;
+  final List<ActivityLogEntry> recentActivity;
 
   List<KpiStat> get kpis => [
     KpiStat(

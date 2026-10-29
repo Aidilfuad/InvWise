@@ -20,6 +20,7 @@ import 'widgets/kpi_grid.dart';
 import 'widgets/monthly_insights_card.dart';
 import 'widgets/quick_actions_grid.dart';
 import 'widgets/recent_activity_card.dart';
+import 'widgets/recent_activity_log_card.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -223,9 +224,15 @@ class _DashboardPageState extends State<DashboardPage> {
         entries: data.recentMovements,
       ),
       AppSpacing.gapXl,
-      const DashboardSectionHeader(title: 'Recent Activity'),
+      DashboardSectionHeader(
+        title: 'Recent Activity',
+        actionLabel: 'View All',
+        onActionTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const ActivityLogPage()),
+        ),
+      ),
       AppSpacing.gapMd,
-      RecentActivityCard(
+      RecentActivityLogCard(
         dateLabel: data.activityDate,
         entries: data.recentActivity,
       ),

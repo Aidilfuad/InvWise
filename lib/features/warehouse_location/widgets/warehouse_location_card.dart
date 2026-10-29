@@ -158,7 +158,12 @@ class WarehouseLocationCard extends StatelessWidget {
                   text: 'Capacity ',
                   style: labelStyle,
                   children: [
-                    TextSpan(text: '${location.capacity}', style: valueStyle),
+                    TextSpan(
+                      text: location.capacity <= 0
+                          ? '—'
+                          : _formatQuantity(location.capacity),
+                      style: valueStyle,
+                    ),
                   ],
                 ),
               ),
@@ -167,22 +172,27 @@ class WarehouseLocationCard extends StatelessWidget {
                   text: 'Usage ',
                   style: labelStyle,
                   children: [
-                    TextSpan(text: '${location.usage}', style: valueStyle),
+                    TextSpan(
+                      text: _formatQuantity(location.usage),
+                      style: valueStyle,
+                    ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: location.usageRatio,
-              minHeight: 4,
-              backgroundColor: AppColors.primary.withAlpha(26),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+          if (location.capacity > 0) ...[
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: location.usageRatio,
+                minHeight: 4,
+                backgroundColor: AppColors.primary.withAlpha(26),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
             ),
-          ),
+          ],
           Align(
             alignment: Alignment.centerRight,
             child: TextButton.icon(
@@ -196,4 +206,7 @@ class WarehouseLocationCard extends StatelessWidget {
       ),
     );
   }
+
+  String _formatQuantity(double value) =>
+      value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 }

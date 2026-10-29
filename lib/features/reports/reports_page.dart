@@ -204,11 +204,11 @@ class _ReportsPageState extends State<ReportsPage> {
                           }
                         },
                       ),
-                      AppSpacing.gapLg,
+                      AppSpacing.gapMd,
                       _buildMetrics(data[_selectedReport]),
-                      AppSpacing.gapLg,
+                      AppSpacing.gapMd,
                       _buildReportTable(data[_selectedReport]),
-                      AppSpacing.gapLg,
+                      AppSpacing.gapMd,
                       ExportReportActions(
                         isExporting: _isExporting,
                         onExportCsvTap: () => _export(excel: false),
@@ -226,38 +226,48 @@ class _ReportsPageState extends State<ReportsPage> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       ReportSectionHeader(title: 'Summary', subtitle: report.title),
-      AppSpacing.gapMd,
-      Wrap(
-        spacing: AppSpacing.md,
-        runSpacing: AppSpacing.md,
-        children: [
-          for (final metric in report.metrics)
-            SizedBox(
-              width: 200,
-              child: ReportCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      metric.label,
-                      style: Theme.of(context).textTheme.labelMedium
-                          ?.copyWith(color: AppColors.textSecondary),
+      AppSpacing.gapSm,
+      LayoutBuilder(
+        builder: (context, constraints) {
+          const gap = AppSpacing.sm;
+          final cardWidth = (constraints.maxWidth - gap) / 2;
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final metric in report.metrics)
+                SizedBox(
+                  width: cardWidth,
+                  child: ReportCard(
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          metric.label,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text(
+                          metric.value,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: AppColors.textPrimary,
+                                fontWeight: FontWeight.w800,
+                              ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: AppSpacing.xs),
-                    Text(
-                      metric.value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
     ],
   );
@@ -269,7 +279,7 @@ class _ReportsPageState extends State<ReportsPage> {
         title: 'Report data',
         subtitle: '${report.rows.length} records',
       ),
-      AppSpacing.gapMd,
+      AppSpacing.gapSm,
       ReportCard(
         padding: EdgeInsets.zero,
         child: report.rows.isEmpty
@@ -287,20 +297,7 @@ class _ReportsPageState extends State<ReportsPage> {
                       .map(
                         (row) => DataRow(
                           cells: row
-                              .map(
-                                (value) => DataCell(
-                                  ConstrainedBox(
-                                    constraints: const BoxConstraints(
-                                      maxWidth: 240,
-                                    ),
-                                    child: Text(
-                                      value,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ),
-                              )
+                              .map((value) => DataCell(Text(value)))
                               .toList(growable: false),
                         ),
                       )

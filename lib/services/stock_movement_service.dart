@@ -110,6 +110,7 @@ class StockMovementService {
             'destination_location_id,reference,notes,performed_by,occurred_at',
           )
           .order('occurred_at', ascending: false)
+          .order('id', ascending: false)
           .limit(limit);
       if (rows.isEmpty) return const [];
 

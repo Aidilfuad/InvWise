@@ -65,7 +65,9 @@ class LocationsSummaryCard extends StatelessWidget {
                   style: labelStyle,
                   children: [
                     TextSpan(
-                      text: '${summary.totalCapacity} Items',
+                      text: summary.totalCapacity <= 0
+                          ? '—'
+                          : '${_formatQuantity(summary.totalCapacity)} Items',
                       style: valueStyle,
                     ),
                   ],
@@ -77,7 +79,9 @@ class LocationsSummaryCard extends StatelessWidget {
                   style: labelStyle,
                   children: [
                     TextSpan(
-                      text: '${summary.utilizationPercent}%',
+                      text: summary.totalCapacity <= 0
+                          ? '—'
+                          : '${summary.utilizationPercent}%',
                       style: valueStyle.copyWith(color: AppColors.primary),
                     ),
                   ],
@@ -85,18 +89,23 @@ class LocationsSummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: summary.utilizationPercent / 100,
-              minHeight: 6,
-              backgroundColor: AppColors.primary.withAlpha(26),
-              valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+          if (summary.totalCapacity > 0) ...[
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: summary.utilizationPercent / 100,
+                minHeight: 6,
+                backgroundColor: AppColors.primary.withAlpha(26),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
+
+  String _formatQuantity(double value) =>
+      value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 }

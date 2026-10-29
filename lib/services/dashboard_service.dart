@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../features/dashboard/data/dashboard_data.dart';
+import 'activity_log_service.dart';
 import 'stock_movement_service.dart';
 
 class DashboardServiceException implements Exception {
@@ -17,6 +18,7 @@ class DashboardService {
 
   final SupabaseClient _client = Supabase.instance.client;
   final StockMovementService _movementService = StockMovementService();
+  final ActivityLogService _activityLogService = ActivityLogService();
 
   Future<DashboardData> loadDashboard() async {
     try {
@@ -27,7 +29,8 @@ class DashboardService {
             await _client.from('inventory_items_with_quantity').select())(),
         (() async => await _client.from('inventory_alerts').select())(),
         (() async => await _client.from('warehouse_locations').select('id'))(),
-        _movementService.getMovements(limit: 10),
+        _movementService.getMovements(limit: 3),
+        _activityLogService.getEntries(limit: 3),
       ]);
 
       final inventoryItems = _rows(results[0]);
@@ -35,6 +38,7 @@ class DashboardService {
       final alertRows = _rows(results[2]);
       final warehouseRows = _rows(results[3]);
       final movements = results[4] as List<StockMovement>;
+      final activity = results[5] as List<ActivityLogEntry>;
 
       final quantityByItem = <String, double>{};
       var totalStockQuantity = 0.0;
@@ -113,12 +117,14 @@ class DashboardService {
           outOfStockItems: outOfStockItems,
           warehouseLocations: warehouseRows.length,
         ),
-        recentMovements: movements.take(5).toList(growable: false),
-        recentActivity: movements.take(5).toList(growable: false),
+        recentMovements: movements,
+        recentActivity: activity,
       );
     } on PostgrestException catch (error) {
       throw DashboardServiceException(_friendlyMessage(error));
     } on StockMovementServiceException catch (error) {
+      throw DashboardServiceException(error.message);
+    } on ActivityLogServiceException catch (error) {
       throw DashboardServiceException(error.message);
     } on DashboardServiceException {
       rethrow;

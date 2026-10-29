@@ -101,6 +101,11 @@ class ItemDetails {
 
   String get unitPriceLabel => '\$${unitPrice.toStringAsFixed(2)}';
 
+  String get minThresholdLabel => minThreshold
+      .toStringAsFixed(3)
+      .replaceFirst(RegExp(r'\.?0+$'), '')
+      .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
+
   List<InfoEntry> get infoEntries => [
     InfoEntry(
       icon: Icons.inventory_2_rounded,

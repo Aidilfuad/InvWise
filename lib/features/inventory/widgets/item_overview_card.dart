@@ -12,6 +12,10 @@ class ItemOverviewCard extends StatelessWidget {
     required this.currentStock,
     required this.unit,
     required this.unitPrice,
+    required this.statusLabel,
+    required this.statusColor,
+    required this.statusBackground,
+    required this.minThreshold,
   });
 
   final String sku;
@@ -19,6 +23,10 @@ class ItemOverviewCard extends StatelessWidget {
   final String currentStock;
   final String unit;
   final String unitPrice;
+  final String statusLabel;
+  final Color statusColor;
+  final Color statusBackground;
+  final String minThreshold;
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +64,24 @@ class ItemOverviewCard extends StatelessWidget {
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
             ),
+          ),
+          AppSpacing.gapSm,
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.xs,
+            children: [
+              _StatusBadge(
+                label: statusLabel,
+                foreground: statusColor,
+                background: statusBackground,
+              ),
+              _StatusBadge(
+                label: 'Min Stock: $minThreshold',
+                foreground: AppColors.onWarningContainer,
+                background: AppColors.warningContainer,
+                icon: Icons.warning_amber_rounded,
+              ),
+            ],
           ),
           AppSpacing.gapXl,
           // Scales down instead of overflowing on very narrow screens.
@@ -124,6 +150,46 @@ class ItemOverviewCard extends StatelessWidget {
   }
 }
 
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({
+    required this.label,
+    required this.foreground,
+    required this.background,
+    this.icon,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(
+      horizontal: AppSpacing.sm,
+      vertical: AppSpacing.xs,
+    ),
+    decoration: BoxDecoration(
+      color: background,
+      borderRadius: AppSpacing.borderRadiusFull,
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (icon != null) ...[
+          Icon(icon, size: 14, color: foreground),
+          const SizedBox(width: AppSpacing.xs),
+        ],
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: foreground, fontWeight: FontWeight.w700),
+        ),
+      ],
+    ),
+  );
+}
+
 class _MetricLabel extends StatelessWidget {
   const _MetricLabel(this.text);
 
@@ -134,10 +200,10 @@ class _MetricLabel extends StatelessWidget {
     return Text(
       text,
       style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.textSecondary,
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-          ),
+        color: AppColors.textSecondary,
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 }
