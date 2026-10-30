@@ -28,6 +28,7 @@ enum AppPermission {
   manageWarehouses,
   accessPersonalSecurity,
   manageSecurity,
+  manageRegistrationRequests,
   viewSupportCenter,
 }
 
@@ -136,6 +137,7 @@ const Set<AppPermission> _inventoryAdministratorPermissions = {
   AppPermission.manageWarehouses,
   AppPermission.accessPersonalSecurity,
   AppPermission.manageSecurity,
+  AppPermission.manageRegistrationRequests,
   AppPermission.viewSupportCenter,
 };
 

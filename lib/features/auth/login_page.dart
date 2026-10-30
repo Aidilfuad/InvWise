@@ -408,6 +408,23 @@ class _LoginPageState extends State<LoginPage> {
                   )
                 : const Text('Sign In'),
           ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            onPressed: _isSigningIn
+                ? null
+                : () =>
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.registrationRequest),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size(double.infinity, 48),
+              foregroundColor: AppColors.primary,
+              side: BorderSide(color: AppColors.primary),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child: const Text('Request Registration'),
+          ),
         ],
       ),
     );

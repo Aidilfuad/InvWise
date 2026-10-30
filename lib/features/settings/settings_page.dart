@@ -215,6 +215,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _onRegistrationApprovalsTap() {
+    Navigator.of(context).pushNamed(AppRoutes.registrationApprovals);
+  }
+
   void _onSignOutTap() {
     // Navigation only: no authentication or session handling exists yet.
     // Clears every route so the back button cannot return to the app.
@@ -356,6 +360,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         SettingsSection(
                           title: 'System',
                           children: [
+                            if (_roleAccess.allows(
+                              AppPermission.manageRegistrationRequests,
+                            ))
+                              SettingsTile(
+                                icon: Icons.how_to_reg_outlined,
+                                title: 'Registration Approvals',
+                                subtitle: 'Review pending account requests',
+                                onTap: _onRegistrationApprovalsTap,
+                              ),
                             if (_roleAccess.allows(
                               AppPermission.viewSupportCenter,
                             ))
