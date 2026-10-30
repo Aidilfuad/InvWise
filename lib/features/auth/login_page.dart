@@ -10,7 +10,7 @@ import 'widgets/login_brand_header.dart';
 import 'widgets/login_field.dart';
 import 'widgets/login_options_row.dart';
 
-/// Login screen. UI only: no authentication or backend logic yet.
+/// Login screen with Supabase email/password authentication.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -21,6 +21,7 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   final _employeeIdController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _authService = AuthService();
 
   bool _obscurePassword = true;
   bool _rememberMe = true;
@@ -40,7 +41,7 @@ class _LoginPageState extends State<LoginPage> {
 
     try {
       debugPrint('[LOGIN-DEBUG] Calling AuthService.signInWithEmail');
-      final user = await AuthService().signInWithEmail(
+      final user = await _authService.signInWithEmail(
         email: _employeeIdController.text.trim(),
         password: _passwordController.text,
       );
@@ -50,7 +51,9 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       if (!mounted) {
-        debugPrint('[LOGIN-DEBUG] LoginPage unmounted after AuthService returned');
+        debugPrint(
+          '[LOGIN-DEBUG] LoginPage unmounted after AuthService returned',
+        );
         return;
       }
 
@@ -70,7 +73,12 @@ class _LoginPageState extends State<LoginPage> {
         '[LOGIN-DEBUG] Calling Navigator.pushReplacementNamed: '
         'route=${AppRoutes.dashboard}',
       );
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pushReplacementNamed(AppRoutes.dashboard);
+      final trackingWarning = _authService.lastTrackingWarning;
+      if (trackingWarning != null) {
+        messenger.showSnackBar(SnackBar(content: Text(trackingWarning)));
+      }
       debugPrint('[LOGIN-DEBUG] Navigator.pushReplacementNamed returned');
     } on AuthServiceException catch (e, st) {
       debugPrint(
@@ -80,9 +88,13 @@ class _LoginPageState extends State<LoginPage> {
       debugPrint('[LOGIN-DEBUG] AuthServiceException stack trace:\n$st');
       if (!mounted) return;
 
+      final trackingWarning = _authService.lastTrackingWarning;
+      final message = trackingWarning == null
+          ? e.message
+          : '${e.message} $trackingWarning';
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text(e.message)));
+        ..showSnackBar(SnackBar(content: Text(message)));
     } catch (e, st) {
       debugPrint(
         '[LOGIN-DEBUG] Unexpected exception caught: '
@@ -97,8 +109,127 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-  void _onForgotPassword() {
-    // TODO: Forgot password flow.
+  Future<void> _onForgotPassword() async {
+    final controller = TextEditingController(
+      text: _employeeIdController.text.contains('@')
+          ? _employeeIdController.text.trim()
+          : '',
+    );
+    final formKey = GlobalKey<FormState>();
+    var isSending = false;
+    String? errorMessage;
+    final email = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Reset Password'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Enter your account email to receive a reset link.'),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.done,
+                  enabled: !isSending,
+                  decoration: const InputDecoration(
+                    labelText: 'Email',
+                    hintText: 'name@example.com',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    final email = value?.trim() ?? '';
+                    if (email.isEmpty ||
+                        !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                            .hasMatch(email)) {
+                      return 'Enter a valid email address.';
+                    }
+                    return null;
+                  },
+                ),
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    errorMessage!,
+                    style: TextStyle(color: AppColors.danger),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSending
+                  ? null
+                  : () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isSending
+                  ? null
+                  : () async {
+                      if (!(formKey.currentState?.validate() ?? false)) return;
+                      setDialogState(() {
+                        isSending = true;
+                        errorMessage = null;
+                      });
+                      try {
+                        await AuthService().resetPasswordForEmail(
+                          controller.text,
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.of(dialogContext)
+                              .pop(controller.text.trim());
+                        }
+                      } on AuthServiceException catch (error) {
+                        if (dialogContext.mounted) {
+                          setDialogState(() {
+                            isSending = false;
+                            errorMessage = error.message;
+                          });
+                        }
+                      } catch (_) {
+                        if (dialogContext.mounted) {
+                          setDialogState(() {
+                            isSending = false;
+                            errorMessage =
+                                'Network error. Check your connection and '
+                                'try again.';
+                          });
+                        }
+                      }
+                    },
+              child: isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Send Reset Link'),
+            ),
+          ],
+        ),
+      ),
+    );
+    controller.dispose();
+
+    if (email != null && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text(
+              'If an account exists for that email, a password reset link '
+              'has been sent.',
+            ),
+          ),
+        );
+    }
   }
 
   void _onCompanySso() {
@@ -208,10 +339,7 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 12),
           Text(
             'Sign in to access your inventory dashboard',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary,
-            ),
+            style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 16),
           LoginField(
@@ -281,10 +409,7 @@ class _LoginPageState extends State<LoginPage> {
       children: [
         Text(
           'Need technical support?',
-          style: TextStyle(
-            fontSize: 14,
-            color: AppColors.textSecondary,
-          ),
+          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
         ),
         const SizedBox(height: 4),
         InkWell(

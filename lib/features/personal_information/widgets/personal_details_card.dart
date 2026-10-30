@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/personal_information_mock_data.dart';
+import '../../../services/profile_service.dart';
 
 /// Shared card shell used by all information cards on this page.
 class InformationCardShell extends StatelessWidget {
@@ -92,9 +92,7 @@ class InformationRow extends StatelessWidget {
         ],
         Text(
           label,
-          style: textTheme.bodySmall?.copyWith(
-            color: AppColors.textSecondary,
-          ),
+          style: textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
         ),
         SizedBox(height: 2),
         Row(
@@ -103,10 +101,7 @@ class InformationRow extends StatelessWidget {
               Container(
                 width: 6,
                 height: 6,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               SizedBox(width: 6),
             ],
@@ -128,9 +123,9 @@ class InformationRow extends StatelessWidget {
 }
 
 class PersonalDetailsCard extends StatelessWidget {
-  const PersonalDetailsCard({super.key, required this.data});
+  const PersonalDetailsCard({super.key, required this.profile});
 
-  final PersonalInformationData data;
+  final ProfileLookupResult profile;
 
   @override
   Widget build(BuildContext context) {
@@ -138,11 +133,18 @@ class PersonalDetailsCard extends StatelessWidget {
       icon: Icons.person_outline,
       title: 'Personal Details',
       children: [
-        InformationRow(label: 'Full Name', value: data.fullName, isFirst: true),
-        InformationRow(label: 'Email', value: data.email),
-        InformationRow(label: 'Phone Number', value: data.phone),
-        InformationRow(label: 'Department', value: data.department),
-        InformationRow(label: 'Role', value: data.role),
+        InformationRow(
+          label: 'Full Name',
+          value: profile.fullName ?? '—',
+          isFirst: true,
+        ),
+        InformationRow(label: 'Email', value: profile.email ?? '—'),
+        InformationRow(
+          label: 'Phone Number',
+          value: profile.phoneNumber ?? '—',
+        ),
+        InformationRow(label: 'Employee ID', value: profile.employeeId ?? '—'),
+        InformationRow(label: 'Role', value: profile.role ?? '—'),
       ],
     );
   }

@@ -59,7 +59,7 @@ class _TypeTile extends StatelessWidget {
         borderRadius: AppSpacing.borderRadiusLg,
         side: selected
             ? BorderSide.none
-            : const BorderSide(color: AppColors.border),
+            : BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

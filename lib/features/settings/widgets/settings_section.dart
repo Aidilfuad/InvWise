@@ -35,7 +35,7 @@ class SettingsSection extends StatelessWidget {
         AppSpacing.gapMd,
         Material(
           color: AppColors.surface,
-          shape: const RoundedRectangleBorder(
+          shape: RoundedRectangleBorder(
             borderRadius: AppSpacing.borderRadiusLg,
             side: BorderSide(color: AppColors.border),
           ),

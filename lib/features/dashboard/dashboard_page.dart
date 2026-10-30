@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/profile_service.dart';
 import '../activity_log/activity_log_page.dart';
 import '../alerts_page/alerts_page.dart';
 import '../inventory/inventory_page.dart';
@@ -33,7 +34,9 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   final DashboardService _service = DashboardService();
+  final ProfileService _profileService = ProfileService();
   DashboardData? _data;
+  ProfileLookupResult? _profile;
   String? _errorMessage;
   bool _isLoading = true;
 
@@ -51,10 +54,24 @@ class _DashboardPageState extends State<DashboardPage> {
     try {
       final data = await _service.loadDashboard();
       if (!mounted) return;
+      ProfileLookupResult? profile;
+      String? profileError;
+      try {
+        profile = await _profileService.getCurrentProfile();
+      } on ProfileServiceException catch (error) {
+        profileError = error.message;
+      }
+      if (!mounted) return;
       setState(() {
         _data = data;
+        _profile = profile;
         _isLoading = false;
       });
+      if (profileError != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(profileError)));
+      }
     } on DashboardServiceException catch (error) {
       if (!mounted) return;
       setState(() {
@@ -75,9 +92,10 @@ class _DashboardPageState extends State<DashboardPage> {
         .push(MaterialPageRoute<void>(builder: (_) => const AlertsPage()));
   }
 
-  void _onProfileTap(BuildContext context) {
-    Navigator.of(context)
+  Future<void> _onProfileTap(BuildContext context) async {
+    await Navigator.of(context)
         .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+    if (mounted) await _loadDashboard();
   }
 
   void _onQuickActionTap(BuildContext context, QuickActionItem action) {
@@ -108,6 +126,8 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   String get _userName {
+    final profileName = _profile?.fullName?.trim();
+    if (profileName?.isNotEmpty == true) return profileName!;
     final user = Supabase.instance.client.auth.currentUser;
     final metadataName =
         user?.userMetadata?['full_name'] as String? ??
@@ -133,13 +153,17 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final userRole =
-        Supabase.instance.client.auth.currentUser?.userMetadata?['role']
-            as String? ??
-        'Inventory workspace';
+    final userRole = _profile?.role?.trim().isNotEmpty == true
+        ? _profile!.role!.trim()
+        : Supabase.instance.client.auth.currentUser?.userMetadata?['role']
+                  as String? ??
+              'Inventory workspace';
+    final overlayStyle = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark.copyWith(
+      value: overlayStyle.copyWith(
         statusBarColor: Colors.transparent,
       ),
       child: Scaffold(

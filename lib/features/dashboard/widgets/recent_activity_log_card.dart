@@ -27,7 +27,7 @@ class RecentActivityLogCard extends StatelessWidget {
       children: [
         Text(
           dateLabel,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.4,
@@ -36,14 +36,14 @@ class RecentActivityLogCard extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         if (entries.isEmpty)
-          const Text(
+          Text(
             'No recent activity.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
         for (var index = 0; index < entries.length; index++) ...[
           if (index > 0) ...[
             const SizedBox(height: 14),
-            const Divider(height: 1, thickness: 1, color: AppColors.border),
+            Divider(height: 1, thickness: 1, color: AppColors.border),
             const SizedBox(height: 14),
           ],
           _ActivityRow(entry: entries[index]),
@@ -119,7 +119,7 @@ class _ActivityRow extends StatelessWidget {
                 entry.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -131,7 +131,7 @@ class _ActivityRow extends StatelessWidget {
                   entry.context,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     color: AppColors.textSecondary,
                   ),
@@ -154,7 +154,7 @@ class _ActivityRow extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           _time(entry.occurredAt),
-          style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
         ),
       ],
     );

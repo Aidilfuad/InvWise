@@ -2,18 +2,30 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
+import '../../../services/security_history_service.dart';
 
 class LoginActivityCard extends StatelessWidget {
-  final String date;
-  final String time;
+  final LoginEvent? latestLogin;
+  final bool isLoading;
+  final String? errorMessage;
   final VoidCallback? onRecentHistory;
 
   const LoginActivityCard({
     super.key,
-    required this.date,
-    required this.time,
+    required this.latestLogin,
+    this.isLoading = false,
+    this.errorMessage,
     this.onRecentHistory,
   });
+
+  String _formatDateTime(DateTime date) {
+    final local = date.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour < 12 ? 'AM' : 'PM';
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')} $hour:$minute $period';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,11 +49,7 @@ class LoginActivityCard extends StatelessWidget {
                   color: AppColors.primary.withAlpha(26),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  Icons.history,
-                  size: 16,
-                  color: AppColors.primary,
-                ),
+                child: Icon(Icons.history, size: 16, color: AppColors.primary),
               ),
               const SizedBox(width: 10),
               Text(
@@ -55,26 +63,24 @@ class LoginActivityCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                date,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimary,
-                ),
+          if (isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (errorMessage != null)
+            Text(
+              errorMessage!,
+              style: TextStyle(fontSize: 12, color: AppColors.danger),
+            )
+          else
+            Text(
+              latestLogin == null
+                  ? 'No successful login recorded.'
+                  : _formatDateTime(latestLogin!.occurredAt),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textPrimary,
               ),
-              Text(
-                time,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
+            ),
           const SizedBox(height: 12),
           Divider(height: 1, thickness: 1, color: AppColors.border),
           InkWell(
@@ -93,11 +99,7 @@ class LoginActivityCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 20,
-                    color: AppColors.primary,
-                  ),
+                  Icon(Icons.chevron_right, size: 20, color: AppColors.primary),
                 ],
               ),
             ),

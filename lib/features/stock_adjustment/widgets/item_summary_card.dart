@@ -38,11 +38,11 @@ class ItemSummaryCard extends StatelessWidget {
           Container(
             width: 48,
             height: 48,
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: AppColors.primaryContainer,
               borderRadius: AppSpacing.borderRadiusMd,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.inventory_2_rounded,
               size: 24,
               color: AppColors.textPrimary,

@@ -16,7 +16,7 @@ class SettingsHeader extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),

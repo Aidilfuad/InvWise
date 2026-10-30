@@ -2,12 +2,27 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/personal_information_mock_data.dart';
+import '../../../services/profile_service.dart';
 
 class ProfileSummaryCard extends StatelessWidget {
-  const ProfileSummaryCard({super.key, required this.data});
+  const ProfileSummaryCard({super.key, required this.profile});
 
-  final PersonalInformationData data;
+  final ProfileLookupResult profile;
+
+  String get _displayName => profile.fullName?.trim().isNotEmpty == true
+      ? profile.fullName!.trim()
+      : profile.email ?? 'Inventory User';
+
+  String get _initials {
+    final parts = _displayName
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length > 1) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return parts.firstOrNull?.substring(0, 1).toUpperCase() ?? 'IU';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +47,7 @@ class ProfileSummaryCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Text(
-              data.initials,
+              _initials,
               style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppColors.primary,
@@ -45,7 +60,7 @@ class ProfileSummaryCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  data.fullName,
+                  _displayName,
                   style: textTheme.titleLarge?.copyWith(
                     fontWeight: FontWeight.w700,
                     color: AppColors.textPrimary,
@@ -53,7 +68,7 @@ class ProfileSummaryCard extends StatelessWidget {
                 ),
                 SizedBox(height: 2),
                 Text(
-                  data.role,
+                  profile.role ?? 'User',
                   style: textTheme.bodyMedium?.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -69,16 +84,13 @@ class ProfileSummaryCard extends StatelessWidget {
                     ),
                     SizedBox(width: AppSpacing.sm),
                     Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: const Color(0xFFEAF0FE),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        data.employeeId,
+                        profile.employeeId ?? '—',
                         style: textTheme.bodySmall?.copyWith(
                           fontWeight: FontWeight.w700,
                           color: AppColors.primary,

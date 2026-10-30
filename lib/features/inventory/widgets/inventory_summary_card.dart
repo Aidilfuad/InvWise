@@ -17,13 +17,13 @@ class InventorySummaryCard extends StatelessWidget {
   final int outOfStockCount;
 
   // Colors follow the reference design (white text on a pale blue card).
-  static final Color _background =
+  static Color get _background =>
       AppColors.primaryContainer.withValues(alpha: 0.6);
-  static const Color _border = AppColors.primaryContainer;
+  static Color get _border => AppColors.primaryContainer;
   static const Color _valueColor = AppColors.textOnPrimary;
-  static final Color _labelColor =
+  static Color get _labelColor =>
       AppColors.textOnPrimary.withValues(alpha: 0.8);
-  static final Color _dividerColor =
+  static Color get _dividerColor =>
       AppColors.textOnPrimary.withValues(alpha: 0.6);
 
   static String _format(int value) => value.toString().replaceAllMapped(

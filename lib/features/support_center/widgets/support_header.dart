@@ -23,7 +23,7 @@ class SupportHeader extends StatelessWidget {
       child: Row(
         children: [
           Material(
-            color: const Color(0xFFEAF0FE),
+            color: AppColors.primaryContainer,
             borderRadius: BorderRadius.circular(14),
             child: InkWell(
               borderRadius: BorderRadius.circular(14),

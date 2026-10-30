@@ -129,6 +129,9 @@ class _InventoryPageState extends State<InventoryPage> {
         .length;
     final currentUser = Supabase.instance.client.auth.currentUser;
     final email = currentUser?.email ?? '';
+    final overlayStyle = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
     final userInitials = email.isEmpty
         ? 'IN'
         : email
@@ -141,7 +144,7 @@ class _InventoryPageState extends State<InventoryPage> {
               .join();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.dark.copyWith(
+      value: overlayStyle.copyWith(
         statusBarColor: Colors.transparent,
       ),
       child: Scaffold(

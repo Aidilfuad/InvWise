@@ -22,7 +22,7 @@ class LocationCard extends StatelessWidget {
 
     return Material(
       color: AppColors.surface,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusLg,
         side: BorderSide(color: AppColors.border),
       ),
@@ -36,7 +36,7 @@ class LocationCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.location_on_rounded,
                 size: 22,
                 color: AppColors.textPrimary,
@@ -68,7 +68,7 @@ class LocationCard extends StatelessWidget {
                 ),
               ),
               AppSpacing.gapMd,
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
                 size: AppSpacing.iconMd,
                 color: AppColors.textPrimary,

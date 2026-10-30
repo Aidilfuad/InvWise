@@ -358,7 +358,7 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
               FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}')),
             ],
             style: textTheme.bodyLarge,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: '0',
               contentPadding: EdgeInsets.symmetric(vertical: AppSpacing.md),
               prefixIcon: Icon(
@@ -404,7 +404,7 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
       minLines: 1,
       maxLines: 4,
       style: Theme.of(context).textTheme.bodyMedium,
-      decoration: const InputDecoration(
+      decoration: InputDecoration(
         hintText: 'Add additional details about this adjustment...',
         hintMaxLines: 2,
         contentPadding: EdgeInsets.symmetric(vertical: AppSpacing.md),

@@ -76,7 +76,7 @@ class SettingsTile extends StatelessWidget {
             ),
             AppSpacing.gapMd,
             trailing ??
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
                   size: 22,
                   color: AppColors.textDisabled,

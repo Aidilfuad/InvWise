@@ -126,7 +126,7 @@ class InventoryItemCard extends StatelessWidget {
                           Container(
                             width: 4,
                             height: 4,
-                            decoration: const BoxDecoration(
+                            decoration: BoxDecoration(
                               color: AppColors.borderStrong,
                               shape: BoxShape.circle,
                             ),
@@ -145,7 +145,7 @@ class InventoryItemCard extends StatelessWidget {
                   ),
                 ),
                 AppSpacing.gapMd,
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
                   size: AppSpacing.iconMd,
                   color: AppColors.textPrimary,

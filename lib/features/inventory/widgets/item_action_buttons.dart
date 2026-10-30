@@ -31,7 +31,7 @@ class ItemActionButtons extends StatelessWidget {
               minimumSize: const Size.fromHeight(_height),
               backgroundColor: AppColors.surface,
               foregroundColor: AppColors.textPrimary,
-              side: const BorderSide(color: AppColors.border),
+              side: BorderSide(color: AppColors.border),
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
               textStyle: labelStyle,
             ),

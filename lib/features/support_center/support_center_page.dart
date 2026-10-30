@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
-import 'data/support_center_mock_data.dart';
+import 'data/support_articles.dart';
+import 'widgets/contact_support_sheet.dart';
 import 'widgets/quick_help_card.dart';
-import 'widgets/support_about_card.dart';
 import 'widgets/support_contact_card.dart';
 import 'widgets/support_header.dart';
 import 'widgets/support_search_bar.dart';
@@ -17,33 +18,85 @@ class SupportCenterPage extends StatefulWidget {
 }
 
 class _SupportCenterPageState extends State<SupportCenterPage> {
+  static const String _supportEmail = 'support@invwise.com';
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _onBack() {
     Navigator.pop(context);
   }
 
   void _onSearchChanged(String value) {
-    // TODO: Search support articles.
+    setState(() => _searchQuery = value.trim().toLowerCase());
   }
 
-  void _onQuickHelpTap(QuickHelpItem item) {
-    // TODO: Open the selected help topic.
+  void _onQuickHelpTap(SupportArticle article) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(article.title),
+        content: SingleChildScrollView(child: Text(article.content)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _onEmailSupportTap() {
-    // TODO: Email IT support.
+  Future<void> _onEmailSupportTap() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: _supportEmail,
+      queryParameters: {'subject': 'InvWise Support Request'},
+    );
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
+          mounted) {
+        _showMessage('No email app is available on this device.');
+      }
+    } catch (error) {
+      if (mounted) _showMessage('Unable to open email: $error');
+    }
   }
 
-  void _onCallSupportTap() {
-    // TODO: Call support.
+  Future<void> _onContactItSupportTap() async {
+    final submitted = await ContactSupportSheet.show(context);
+    if (submitted && mounted) {
+      _showMessage('Your support request has been submitted.');
+    }
   }
 
-  void _onContactItSupportTap() {
-    // TODO: Contact IT support.
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  List<SupportArticle> get _filteredArticles {
+    if (_searchQuery.isEmpty) return SupportArticles.all;
+    return SupportArticles.all.where((article) {
+      final searchable = [
+        article.title,
+        article.description,
+        article.content,
+        ...article.keywords,
+      ].join(' ').toLowerCase();
+      return searchable.contains(_searchQuery);
+    }).toList(growable: false);
   }
 
   @override
   Widget build(BuildContext context) {
-    final items = SupportCenterMockData.quickHelp;
+    final articles = _filteredArticles;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -62,16 +115,45 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SupportSearchBar(onChanged: _onSearchChanged),
+                    SupportSearchBar(
+                      controller: _searchController,
+                      onChanged: _onSearchChanged,
+                    ),
                     SizedBox(height: AppSpacing.lg),
                     _SectionHeader(
-                      title: 'Quick Help',
-                      trailing: 'Browse by topic',
+                      title: 'Help Topics',
+                      trailing: _searchQuery.isEmpty
+                          ? 'Browse by topic'
+                          : '${articles.length} result${articles.length == 1 ? '' : 's'}',
                     ),
                     SizedBox(height: AppSpacing.md),
-                    _quickHelpRow(items[0], items[1]),
-                    SizedBox(height: AppSpacing.md),
-                    _quickHelpRow(items[2], items[3]),
+                    if (articles.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: AppSpacing.xl,
+                        ),
+                        child: Center(
+                          child: Text(
+                            'No help topics match your search.',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      )
+                    else
+                      for (var index = 0; index < articles.length; index += 2)
+                        Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index + 2 < articles.length
+                                ? AppSpacing.md
+                                : 0,
+                          ),
+                          child: _quickHelpRow(
+                            articles[index],
+                            index + 1 < articles.length
+                                ? articles[index + 1]
+                                : null,
+                          ),
+                        ),
                     SizedBox(height: AppSpacing.lg),
                     _SectionHeader(
                       title: 'Contact Support',
@@ -81,24 +163,9 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
                     SupportContactCard(
                       icon: Icons.mail_outline,
                       title: 'IT Support',
-                      subtitle: SupportCenterMockData.itSupportEmail,
+                      subtitle: _supportEmail,
                       buttonLabel: 'Email Support',
                       onPressed: _onEmailSupportTap,
-                    ),
-                    SizedBox(height: AppSpacing.md),
-                    SupportContactCard(
-                      icon: Icons.phone_outlined,
-                      title: 'Call Support',
-                      subtitle: SupportCenterMockData.callSupportPhone,
-                      buttonLabel: 'Call Support',
-                      onPressed: _onCallSupportTap,
-                    ),
-                    SizedBox(height: AppSpacing.lg),
-                    _SectionHeader(title: 'About'),
-                    SizedBox(height: AppSpacing.md),
-                    SupportAboutCard(
-                      version: SupportCenterMockData.appVersion,
-                      organization: SupportCenterMockData.organization,
                     ),
                   ],
                 ),
@@ -145,24 +212,27 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
     );
   }
 
-  Widget _quickHelpRow(QuickHelpItem left, QuickHelpItem right) {
+  Widget _quickHelpRow(SupportArticle left, SupportArticle? right) {
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
             child: QuickHelpCard(
-              item: left,
+              article: left,
               onTap: () => _onQuickHelpTap(left),
             ),
           ),
-          SizedBox(width: AppSpacing.md),
-          Expanded(
-            child: QuickHelpCard(
-              item: right,
-              onTap: () => _onQuickHelpTap(right),
+          if (right != null) ...[
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: QuickHelpCard(
+                article: right,
+                onTap: () => _onQuickHelpTap(right),
+              ),
             ),
-          ),
+          ] else
+            const Spacer(),
         ],
       ),
     );

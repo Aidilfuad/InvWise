@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
+import '../../../services/security_history_service.dart';
 
 class CurrentDeviceCard extends StatelessWidget {
-  final String deviceName;
-  final String lastActive;
+  final List<DeviceSession> sessions;
+  final bool isLoading;
+  final String? errorMessage;
   final VoidCallback? onViewSessions;
 
   const CurrentDeviceCard({
     super.key,
-    required this.deviceName,
-    required this.lastActive,
+    required this.sessions,
+    this.isLoading = false,
+    this.errorMessage,
     this.onViewSessions,
   });
 
@@ -45,7 +48,7 @@ class CurrentDeviceCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               Text(
-                'Current Device',
+                'Active Sessions',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
@@ -55,22 +58,40 @@ class CurrentDeviceCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Text(
-            deviceName,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textPrimary,
+          if (isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (errorMessage != null)
+            Text(
+              errorMessage!,
+              style: TextStyle(fontSize: 12, color: AppColors.danger),
+            )
+          else if (sessions.isEmpty)
+            Text(
+              'No active sessions found.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            )
+          else ...[
+            Text(
+              '${sessions.length} active session${sessions.length == 1 ? '' : 's'}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Last Active: $lastActive',
-            style: TextStyle(
-              fontSize: 12,
-              color: AppColors.textSecondary,
+            const SizedBox(height: 8),
+            Text(
+              '${sessions.first.deviceName} · ${sessions.first.platform}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
-          ),
+            const SizedBox(height: 4),
+            Text(
+              'Last active: ${_formatDateTime(sessions.first.lastActiveAt)}',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          ],
           const SizedBox(height: 14),
           OutlinedButton(
             onPressed: onViewSessions,
@@ -93,5 +114,15 @@ class CurrentDeviceCard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatDateTime(DateTime? date) {
+    if (date == null) return '—';
+    final local = date.toLocal();
+    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
+    final minute = local.minute.toString().padLeft(2, '0');
+    final period = local.hour < 12 ? 'AM' : 'PM';
+    return '${local.year}-${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')} $hour:$minute $period';
   }
 }

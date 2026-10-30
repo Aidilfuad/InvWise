@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
-import '../settings/data/settings_mock_data.dart';
+import '../../services/profile_service.dart';
 import '../settings/widgets/edit_profile_sheet.dart';
-import 'data/personal_information_mock_data.dart';
-import 'widgets/account_information_card.dart';
 import 'widgets/personal_details_card.dart';
 import 'widgets/personal_information_header.dart';
 import 'widgets/profile_summary_card.dart';
@@ -20,32 +18,68 @@ class PersonalInformationPage extends StatefulWidget {
 }
 
 class _PersonalInformationPageState extends State<PersonalInformationPage> {
+  final ProfileService _profileService = ProfileService();
+  ProfileLookupResult? _profile;
+  String? _errorMessage;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final profile = await _profileService.getCurrentProfile();
+      if (!mounted) return;
+      setState(() {
+        _profile = profile;
+        _isLoading = false;
+        if (profile == null) {
+          _errorMessage = 'Sign in to view your profile.';
+        }
+      });
+    } on ProfileServiceException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = error.message;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Unable to load profile: $error';
+        _isLoading = false;
+      });
+    }
+  }
+
   void _onBack() {
     Navigator.pop(context);
   }
 
-  void _onEditInformationTap() {
-    final data = PersonalInformationMockData.profile;
-
-    EditProfileSheet.show(
+  Future<void> _onEditInformationTap() async {
+    final profile = _profile;
+    if (profile == null) return;
+    final updatedProfile = await EditProfileDialog.show(
       context,
-      SettingsProfile(
-        name: data.fullName,
-        role: data.role,
-        accessLabel: data.accessLevel,
-        initials: data.initials,
-        employeeId: data.employeeId,
-        email: data.email,
-        phone: data.phone,
-        department: data.department,
-      ),
+      profile: profile,
+      onSave: _profileService.updateCurrentProfile,
     );
+    if (updatedProfile != null && mounted) {
+      setState(() => _profile = updatedProfile);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final data = PersonalInformationMockData.profile;
     final textTheme = Theme.of(context).textTheme;
+    final profile = _profile;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -54,20 +88,40 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
           children: [
             PersonalInformationHeader(onBack: _onBack),
             Expanded(
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(AppSpacing.lg),
-                child: Column(
-                  children: [
-                    ProfileSummaryCard(data: data),
-                    SizedBox(height: AppSpacing.md),
-                    PersonalDetailsCard(data: data),
-                    SizedBox(height: AppSpacing.md),
-                    WorkInformationCard(data: data),
-                    SizedBox(height: AppSpacing.md),
-                    AccountInformationCard(data: data),
-                  ],
-                ),
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : profile == null
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(AppSpacing.lg),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _errorMessage ?? 'Profile not found.',
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            TextButton(
+                              onPressed: _loadProfile,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : SingleChildScrollView(
+                      padding: EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        children: [
+                          ProfileSummaryCard(profile: profile),
+                          SizedBox(height: AppSpacing.md),
+                          PersonalDetailsCard(profile: profile),
+                          SizedBox(height: AppSpacing.md),
+                          WorkInformationCard(profile: profile),
+                        ],
+                      ),
+                    ),
             ),
             Container(
               padding: EdgeInsets.fromLTRB(
@@ -81,7 +135,9 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                 width: double.infinity,
                 height: 54,
                 child: ElevatedButton.icon(
-                  onPressed: _onEditInformationTap,
+                  onPressed: profile == null || _isLoading
+                      ? null
+                      : _onEditInformationTap,
                   label: Text(
                     'Edit Information',
                     style: textTheme.titleSmall?.copyWith(

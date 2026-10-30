@@ -2,16 +2,33 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/settings_mock_data.dart';
+import '../../../services/profile_service.dart';
 
 /// Profile card: avatar, name, role and access badge.
 class SettingsProfileCard extends StatelessWidget {
   const SettingsProfileCard({
     super.key,
     required this.profile,
+    required this.onEdit,
   });
 
-  final SettingsProfile profile;
+  final ProfileLookupResult profile;
+  final VoidCallback onEdit;
+
+  String get _displayName => profile.fullName?.trim().isNotEmpty == true
+      ? profile.fullName!.trim()
+      : profile.email ?? 'Inventory User';
+
+  String get _initials {
+    final parts = _displayName
+        .split(RegExp(r'\s+'))
+        .where((part) => part.isNotEmpty)
+        .toList();
+    if (parts.length > 1) {
+      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
+    }
+    return parts.firstOrNull?.substring(0, 1).toUpperCase() ?? 'IU';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,20 +58,20 @@ class SettingsProfileCard extends StatelessWidget {
               shape: BoxShape.circle,
             ),
             child: Text(
-              profile.initials,
+              _initials,
               style: textTheme.titleLarge?.copyWith(
                 color: AppColors.textOnPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          AppSpacing.gapXl,
+          AppSpacing.gapMd,
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  profile.name,
+                  _displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.titleLarge?.copyWith(
@@ -64,7 +81,7 @@ class SettingsProfileCard extends StatelessWidget {
                 ),
                 AppSpacing.gapXs,
                 Text(
-                  profile.role,
+                  profile.role ?? 'User',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: textTheme.bodyMedium?.copyWith(
@@ -73,14 +90,16 @@ class SettingsProfileCard extends StatelessWidget {
                 ),
                 AppSpacing.gapSm,
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceVariant,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    profile.accessLabel,
+                    profile.role ?? 'Standard Access',
                     style: textTheme.labelSmall?.copyWith(
                       color: AppColors.textPrimary,
                       fontSize: 10,
@@ -90,6 +109,11 @@ class SettingsProfileCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+          IconButton(
+            tooltip: 'Edit profile',
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined),
           ),
         ],
       ),

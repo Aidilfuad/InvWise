@@ -57,7 +57,7 @@ class ExportReportActions extends StatelessWidget {
                   minimumSize: const Size.fromHeight(_height),
                   backgroundColor: AppColors.surface,
                   foregroundColor: AppColors.primary,
-                  side: const BorderSide(color: AppColors.borderStrong),
+                  side: BorderSide(color: AppColors.borderStrong),
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpacing.md,
                   ),

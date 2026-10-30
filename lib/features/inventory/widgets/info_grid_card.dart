@@ -42,7 +42,7 @@ class InfoGridCard extends StatelessWidget {
         horizontal: AppSpacing.xl,
         vertical: 28,
       ),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -65,7 +65,7 @@ class _InfoCell extends StatelessWidget {
         Container(
           width: 40,
           height: 40,
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.border,
             borderRadius: AppSpacing.borderRadiusMd,
           ),

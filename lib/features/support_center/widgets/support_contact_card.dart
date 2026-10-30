@@ -39,7 +39,7 @@ class SupportContactCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFEAF0FE),
+                  color: AppColors.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, size: 20, color: AppColors.primary),
@@ -75,7 +75,7 @@ class SupportContactCard extends StatelessWidget {
             child: ElevatedButton(
               onPressed: onPressed,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFEAF0FE),
+                backgroundColor: AppColors.primaryContainer,
                 foregroundColor: AppColors.primary,
                 elevation: 0,
                 shape: RoundedRectangleBorder(

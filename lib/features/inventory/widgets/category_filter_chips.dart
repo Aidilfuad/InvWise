@@ -54,7 +54,7 @@ class _CategoryChip extends StatelessWidget {
 
     return Material(
       color: AppColors.surface,
-      shape: const RoundedRectangleBorder(
+      shape: RoundedRectangleBorder(
         borderRadius: AppSpacing.borderRadiusMd,
         side: BorderSide(color: AppColors.border),
       ),
@@ -70,7 +70,7 @@ class _CategoryChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (selected) ...[
-                const Icon(
+                Icon(
                   Icons.check_rounded,
                   size: 16,
                   color: AppColors.textPrimary,

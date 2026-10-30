@@ -45,7 +45,7 @@ class AlertEntry {
 }
 
 abstract final class AlertsMockData {
-  static const List<AlertEntry> alerts = [
+  static List<AlertEntry> get alerts => [
     AlertEntry(
       category: AlertCategory.urgent,
       title: 'Critical Stock Out',

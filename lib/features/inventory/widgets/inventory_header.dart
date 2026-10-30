@@ -31,7 +31,7 @@ class InventoryHeader extends StatelessWidget {
     final topInset = MediaQuery.paddingOf(context).top;
 
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.border)),
       ),
@@ -111,7 +111,7 @@ class InventoryHeader extends StatelessWidget {
                     contentPadding: const EdgeInsets.symmetric(
                       vertical: AppSpacing.md,
                     ),
-                    prefixIcon: const Icon(
+                    prefixIcon: Icon(
                       Icons.search_rounded,
                       size: AppSpacing.iconMd,
                       color: AppColors.textPrimary,
@@ -126,14 +126,14 @@ class InventoryHeader extends StatelessWidget {
               AppSpacing.gapMd,
               Material(
                 color: AppColors.surface,
-                shape: const RoundedRectangleBorder(
+                shape: RoundedRectangleBorder(
                   borderRadius: AppSpacing.borderRadiusMd,
                   side: BorderSide(color: AppColors.border),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: InkWell(
                   onTap: onFilterTap,
-                  child: const SizedBox(
+                  child: SizedBox(
                     width: 48,
                     height: 48,
                     child: Icon(

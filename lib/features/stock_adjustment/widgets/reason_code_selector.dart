@@ -55,9 +55,7 @@ class _ReasonPill extends StatelessWidget {
     return Material(
       color: selected ? AppColors.primary : AppColors.surface,
       shape: StadiumBorder(
-        side: selected
-            ? BorderSide.none
-            : const BorderSide(color: AppColors.border),
+        side: selected ? BorderSide.none : BorderSide(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(

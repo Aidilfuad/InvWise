@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
-import '../data/support_center_mock_data.dart';
+import '../data/support_articles.dart';
 
 class QuickHelpCard extends StatelessWidget {
-  const QuickHelpCard({super.key, required this.item, required this.onTap});
+  const QuickHelpCard({super.key, required this.article, required this.onTap});
 
-  final QuickHelpItem item;
+  final SupportArticle article;
   final VoidCallback onTap;
 
   @override
@@ -35,10 +35,10 @@ class QuickHelpCard extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEAF0FE),
+                      color: AppColors.primaryContainer,
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(item.icon, size: 20, color: AppColors.primary),
+                    child: Icon(article.icon, size: 20, color: AppColors.primary),
                   ),
                   Spacer(),
                   Icon(
@@ -50,7 +50,7 @@ class QuickHelpCard extends StatelessWidget {
               ),
               SizedBox(height: AppSpacing.md),
               Text(
-                item.title,
+                article.title,
                 style: textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
@@ -58,7 +58,7 @@ class QuickHelpCard extends StatelessWidget {
               ),
               SizedBox(height: 2),
               Text(
-                item.description,
+                article.description,
                 style: textTheme.bodySmall?.copyWith(
                   color: AppColors.textSecondary,
                 ),
