@@ -5,10 +5,16 @@ import '../../../app/constants/app_spacing.dart';
 import '../data/inventory_categories_mock_data.dart';
 
 class CategoryCard extends StatelessWidget {
-  const CategoryCard({super.key, required this.category, this.onEdit});
+  const CategoryCard({
+    super.key,
+    required this.category,
+    this.onEdit,
+    this.onDelete,
+  });
 
   final InventoryCategory category;
   final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -59,38 +65,52 @@ class CategoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onEdit != null)
-                InkWell(
-                  borderRadius: BorderRadius.circular(20),
-                  onTap: onEdit,
-                  child: Container(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: AppColors.border),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.edit_outlined,
-                          size: 14,
-                          color: AppColors.primary,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          'Edit',
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
+              if (onEdit != null || onDelete != null)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (onEdit != null)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(20),
+                        onTap: onEdit,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.md,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.border),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.edit_outlined,
+                                size: 14,
+                                color: AppColors.primary,
+                              ),
+                              SizedBox(width: 4),
+                              Text(
+                                'Edit',
+                                style: textTheme.bodySmall?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                    if (onDelete != null)
+                      IconButton(
+                        tooltip: 'Delete category',
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline_rounded),
+                        color: AppColors.danger,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
                 ),
             ],
           ),

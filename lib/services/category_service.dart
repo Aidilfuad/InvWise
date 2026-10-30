@@ -192,10 +192,9 @@ class CategoryService {
     }
   }
 
-  /// Permanently deletes the category with [id].
+  /// Archives the category with [id] so it no longer appears in active lists.
   ///
-  /// A category that is still used by inventory items cannot be deleted;
-  /// deactivate it with [updateCategory] instead.
+  /// Existing inventory items keep their category reference.
   /// Throws [CategoryServiceException] on invalid input or failure.
   Future<void> deleteCategory(String id) async {
     final trimmedId = _validatedId(id);
@@ -205,8 +204,12 @@ class CategoryService {
     try {
       rows = await _client
           .from(_table)
-          .delete()
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
           .eq('id', trimmedId)
+          .eq('is_active', true)
           .select('id');
     } on PostgrestException catch (e) {
       throw CategoryServiceException(
@@ -221,7 +224,31 @@ class CategoryService {
 
     if (rows.isEmpty) {
       throw const CategoryServiceException(
-        'Category not found, or you do not have permission to delete it.',
+        'Category not found, already archived, or you do not have permission '
+        'to delete it.',
+      );
+    }
+  }
+
+  /// Returns the exact number of inventory rows referencing [categoryId].
+  Future<int> getCategoryItemCount(String categoryId) async {
+    final trimmedId = _validatedId(categoryId);
+    try {
+      final response = await _client
+          .from('inventory_items')
+          .select('id')
+          .eq('category_id', trimmedId)
+          .count(CountOption.exact);
+      return response.count;
+    } on PostgrestException catch (error) {
+      throw CategoryServiceException(
+        _friendlyMessage(error, 'check category usage'),
+      );
+    } on CategoryServiceException {
+      rethrow;
+    } catch (_) {
+      throw const CategoryServiceException(
+        'Unable to verify how many inventory items use this category.',
       );
     }
   }

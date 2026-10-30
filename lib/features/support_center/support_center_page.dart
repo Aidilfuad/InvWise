@@ -69,9 +69,14 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
   }
 
   Future<void> _onContactItSupportTap() async {
-    final submitted = await ContactSupportSheet.show(context);
-    if (submitted && mounted) {
-      _showMessage('Your support request has been submitted.');
+    final result = await ContactSupportSheet.show(context);
+    if (result != null && mounted) {
+      _showMessage(
+        result.notificationSent
+            ? 'Your support request has been submitted.'
+            : 'Your request was saved, but the administrator email could not '
+                  'be sent. Contact IT directly if the issue is urgent.',
+      );
     }
   }
 

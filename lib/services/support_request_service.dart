@@ -11,6 +11,16 @@ class SupportRequestServiceException implements Exception {
   String toString() => 'SupportRequestServiceException: $message';
 }
 
+class SupportRequestSubmissionResult {
+  const SupportRequestSubmissionResult({
+    required this.notificationSent,
+    this.notificationError,
+  });
+
+  final bool notificationSent;
+  final String? notificationError;
+}
+
 class SupportRequestService {
   SupportRequestService({
     ProfileService? profileService,
@@ -23,7 +33,7 @@ class SupportRequestService {
   final ProfileService _profileService;
   final SupabaseClient _client;
 
-  Future<void> createRequest({
+  Future<SupportRequestSubmissionResult> createRequest({
     required String subject,
     required String message,
   }) async {
@@ -43,17 +53,40 @@ class SupportRequestService {
         );
       }
 
-      await _client.from(_table).insert({
-        'profile_id': profile.id,
-        'subject': trimmedSubject,
-        'message': trimmedMessage,
-      });
+      final request = await _client
+          .from(_table)
+          .insert({
+            'profile_id': profile.id,
+            'subject': trimmedSubject,
+            'message': trimmedMessage,
+          })
+          .select('id')
+          .single();
+
+      try {
+        final response = await _client.functions.invoke(
+          'notify-support-request',
+          body: {'request_id': request['id']},
+        );
+        final data = response.data;
+        if (data is Map && data['notification_sent'] == true) {
+          return const SupportRequestSubmissionResult(notificationSent: true);
+        }
+        return const SupportRequestSubmissionResult(
+          notificationSent: false,
+          notificationError:
+              'The notification service did not confirm delivery.',
+        );
+      } catch (error) {
+        return SupportRequestSubmissionResult(
+          notificationSent: false,
+          notificationError: error.toString(),
+        );
+      }
     } on ProfileServiceException catch (error) {
       throw SupportRequestServiceException(error.message);
     } on PostgrestException catch (error) {
-      throw SupportRequestServiceException(
-        _friendlyMessage(error),
-      );
+      throw SupportRequestServiceException(_friendlyMessage(error));
     }
   }
 

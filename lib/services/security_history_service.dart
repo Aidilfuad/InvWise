@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'profile_service.dart';
+import 'security_session_tracker.dart';
 
 class SecurityHistoryServiceException implements Exception {
   const SecurityHistoryServiceException(this.message);
@@ -53,6 +54,7 @@ class DeviceSession {
     this.userAgent,
     this.ipAddress,
     this.startedAt,
+    this.isCurrentSession = false,
   });
 
   final String id;
@@ -62,6 +64,7 @@ class DeviceSession {
   final String? userAgent;
   final String? ipAddress;
   final DateTime? startedAt;
+  final bool isCurrentSession;
 
   factory DeviceSession.fromMap(Map<String, dynamic> map) => DeviceSession(
     id: _requiredString(map, 'id'),
@@ -71,6 +74,7 @@ class DeviceSession {
     userAgent: map['user_agent'] as String?,
     ipAddress: map['ip_address'] as String?,
     startedAt: _dateValue(map['started_at']),
+    isCurrentSession: map['is_current_session'] as bool? ?? false,
   );
 }
 
@@ -159,8 +163,15 @@ class SecurityHistoryService {
           .isFilter('revoked_at', null)
           .order('last_active_at', ascending: false)
           .order('id', ascending: false);
+      final currentSessionRowId =
+          SecuritySessionTracker.instance.currentSessionRowId;
       return rows
-          .map<DeviceSession>(DeviceSession.fromMap)
+          .map<DeviceSession>(
+            (row) => DeviceSession.fromMap({
+              ...row,
+              'is_current_session': row['id'] == currentSessionRowId,
+            }),
+          )
           .toList(growable: false);
     } on PostgrestException catch (error) {
       throw SecurityHistoryServiceException(

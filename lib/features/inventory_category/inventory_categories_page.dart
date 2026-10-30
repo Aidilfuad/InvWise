@@ -244,6 +244,58 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     return null;
   }
 
+  Future<void> _onDeleteTap(Category category) async {
+    if (!_roleAccess.allows(AppPermission.manageCategories)) return;
+    int itemCount;
+    try {
+      itemCount = await _service.getCategoryItemCount(category.id);
+    } on CategoryServiceException catch (error) {
+      _showMessage(error.message);
+      return;
+    }
+    if (!mounted) return;
+
+    final itemDescription =
+        '$itemCount inventory item${itemCount == 1 ? '' : 's'} '
+        '${itemCount == 1 ? 'uses' : 'use'} this category.';
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete category?'),
+        content: Text(
+          '$itemDescription\n\n'
+          'Archiving "${category.name}" removes it from category management. '
+          'It will not delete existing inventory records or their history.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (shouldDelete != true || !mounted) return;
+
+    try {
+      await _service.deleteCategory(category.id);
+      if (!mounted) return;
+      setState(() {
+        _categories = _categories
+            .where((item) => item.id != category.id)
+            .toList(growable: false);
+      });
+      _showMessage('Category deleted.');
+    } on CategoryServiceException catch (error) {
+      _showMessage(error.message);
+    }
+  }
+
   Widget _buildLoadingState() {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
@@ -382,6 +434,10 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
                         onEdit:
                             _roleAccess.allows(AppPermission.manageCategories)
                             ? () => _onEditTap(category)
+                            : null,
+                        onDelete:
+                            _roleAccess.allows(AppPermission.manageCategories)
+                            ? () => _onDeleteTap(category)
                             : null,
                       ),
                       SizedBox(height: AppSpacing.md),

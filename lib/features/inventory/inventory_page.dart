@@ -14,6 +14,21 @@ import 'widgets/inventory_summary_card.dart';
 import '../inventory_item/inventory_item_page.dart';
 import '../settings/settings_page.dart';
 
+enum InventoryStockFilter {
+  all('All stock', null),
+  inStock('In stock', InventoryStockStatus.inStock),
+  lowStock('Low stock', InventoryStockStatus.lowStock),
+  outOfStock('Out of stock', InventoryStockStatus.outOfStock);
+
+  const InventoryStockFilter(this.label, this.stockStatus);
+
+  final String label;
+  final InventoryStockStatus? stockStatus;
+
+  bool matches(InventoryStockStatus status) =>
+      stockStatus == null || stockStatus == status;
+}
+
 class InventoryPage extends StatefulWidget {
   const InventoryPage({super.key});
 
@@ -30,6 +45,7 @@ class _InventoryPageState extends State<InventoryPage> {
   final _roleAccess = RoleAccessService.instance;
   List<InventoryItem> _items = const [];
   String? _selectedCategory;
+  InventoryStockFilter _stockFilter = InventoryStockFilter.all;
   String? _errorMessage;
   bool _isLoading = true;
 
@@ -84,6 +100,51 @@ class _InventoryPageState extends State<InventoryPage> {
     });
   }
 
+  Future<void> _onFilterTap() async {
+    final selectedFilter = await showModalBottomSheet<InventoryStockFilter>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: AppSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                ),
+                child: Text(
+                  'Filter by stock status',
+                  style: Theme.of(sheetContext).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ),
+              for (final filter in InventoryStockFilter.values)
+                ListTile(
+                  title: Text(filter.label),
+                  trailing: _stockFilter == filter
+                      ? Icon(Icons.check_rounded, color: AppColors.primary)
+                      : null,
+                  onTap: () => Navigator.pop(sheetContext, filter),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selectedFilter != null && mounted) {
+      setState(() => _stockFilter = selectedFilter);
+    }
+  }
+
   Future<void> _onItemTap(InventoryItem item) async {
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -135,7 +196,8 @@ class _InventoryPageState extends State<InventoryPage> {
           final matchesCategory =
               _selectedCategory == null ||
               item.categoryName == _selectedCategory;
-          return matchesSearch && matchesCategory;
+          final matchesStockStatus = _stockFilter.matches(item.status);
+          return matchesSearch && matchesCategory && matchesStockStatus;
         })
         .toList(growable: false);
     final lowStockCount = _items
@@ -191,6 +253,8 @@ class _InventoryPageState extends State<InventoryPage> {
                   userInitials: userInitials.isEmpty ? 'IN' : userInitials,
                   searchController: _searchController,
                   onSearchChanged: (_) => setState(() {}),
+                  onFilterTap: _onFilterTap,
+                  isFilterActive: _stockFilter != InventoryStockFilter.all,
                   onProfileTap: _onProfileTap,
                 ),
                 Expanded(

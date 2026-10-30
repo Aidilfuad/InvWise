@@ -14,6 +14,7 @@ class InventoryHeader extends StatelessWidget {
     this.title = 'Inventory',
     this.onSearchChanged,
     this.onFilterTap,
+    this.isFilterActive = false,
     this.onProfileTap,
   });
 
@@ -23,6 +24,7 @@ class InventoryHeader extends StatelessWidget {
   final TextEditingController searchController;
   final ValueChanged<String>? onSearchChanged;
   final VoidCallback? onFilterTap;
+  final bool isFilterActive;
   final VoidCallback? onProfileTap;
 
   @override
@@ -139,7 +141,9 @@ class InventoryHeader extends StatelessWidget {
                     child: Icon(
                       Icons.tune_rounded,
                       size: 20,
-                      color: AppColors.textPrimary,
+                      color: isFilterActive
+                          ? AppColors.primary
+                          : AppColors.textPrimary,
                     ),
                   ),
                 ),

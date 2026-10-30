@@ -165,6 +165,26 @@ class _SessionCard extends StatelessWidget {
                         color: AppColors.textPrimary,
                       ),
                     ),
+                    if (session.isCurrentSession) ...[
+                      const SizedBox(height: AppSpacing.xs),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.sm,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withAlpha(26),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Current Session',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 2),
                     Text(
                       session.platform,

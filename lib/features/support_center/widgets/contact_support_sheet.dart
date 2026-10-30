@@ -7,14 +7,15 @@ import '../../../services/support_request_service.dart';
 class ContactSupportSheet extends StatefulWidget {
   const ContactSupportSheet({super.key});
 
-  static Future<bool> show(BuildContext context) async {
-    return await showModalBottomSheet<bool>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: AppColors.surface,
-          builder: (_) => const ContactSupportSheet(),
-        ) ??
-        false;
+  static Future<SupportRequestSubmissionResult?> show(
+    BuildContext context,
+  ) async {
+    return await showModalBottomSheet<SupportRequestSubmissionResult>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      builder: (_) => const ContactSupportSheet(),
+    );
   }
 
   @override
@@ -44,11 +45,11 @@ class _ContactSupportSheetState extends State<ContactSupportSheet> {
     });
 
     try {
-      await _requestService.createRequest(
+      final result = await _requestService.createRequest(
         subject: _subjectController.text,
         message: _messageController.text,
       );
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) Navigator.of(context).pop(result);
     } on SupportRequestServiceException catch (error) {
       if (mounted) {
         setState(() {

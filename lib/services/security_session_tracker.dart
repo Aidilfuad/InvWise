@@ -11,6 +11,7 @@ class SecuritySessionTracker with WidgetsBindingObserver {
   final SupabaseClient _client = Supabase.instance.client;
   Timer? _timer;
   String? _sessionRowId;
+  String? get currentSessionRowId => _sessionRowId;
   bool _isUpdating = false;
   bool _isObserving = false;
 

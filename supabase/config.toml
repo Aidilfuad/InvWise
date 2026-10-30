@@ -437,3 +437,7 @@ verify_jwt = true
 [functions.complete-registration-setup]
 enabled = true
 verify_jwt = true
+
+[functions.notify-support-request]
+enabled = true
+verify_jwt = true

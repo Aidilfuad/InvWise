@@ -251,6 +251,7 @@ class InventoryService {
       final rows = await _client
           .from(_table)
           .select(_selectColumns)
+          .eq('is_active', true)
           .order('name', ascending: true);
       return await _withQuantities(rows);
     } on PostgrestException catch (e) {
@@ -270,6 +271,7 @@ class InventoryService {
           .from(_table)
           .select(_selectColumns)
           .eq('id', itemId)
+          .eq('is_active', true)
           .maybeSingle();
       if (row == null) {
         throw const InventoryServiceException('Inventory item not found.');
@@ -447,11 +449,14 @@ class InventoryService {
       if (item == null) {
         throw const InventoryServiceException('Inventory item not found.');
       }
-      await _client.from(_stockLevelsTable).delete().eq('item_id', itemId);
       final rows = await _client
           .from(_table)
-          .delete()
+          .update({
+            'is_active': false,
+            'updated_at': DateTime.now().toUtc().toIso8601String(),
+          })
           .eq('id', itemId)
+          .eq('is_active', true)
           .select('id');
       if (rows.isEmpty) {
         throw const InventoryServiceException(
@@ -461,7 +466,7 @@ class InventoryService {
       await _recordActivity(
         type: ActivityEventType.inventoryDeleted,
         description:
-            'Deleted inventory item ${item['name']} (SKU ${item['sku']}).',
+            'Archived inventory item ${item['name']} (SKU ${item['sku']}).',
         details: {
           'deleted_item_id': itemId,
           'item_name': item['name'],
