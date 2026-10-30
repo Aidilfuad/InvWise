@@ -9,17 +9,13 @@ class LoginBrandHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Container(
-          width: 66,
-          height: 66,
-          decoration: BoxDecoration(
-            color: AppColors.primaryContainer,
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Icon(
-            Icons.inventory_2_outlined,
-            size: 30,
-            color: AppColors.primary,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Image.asset(
+            'assets/logo/invwise_logo.png',
+            width: 90,
+            height: 90,
+            fit: BoxFit.cover,
           ),
         ),
         const SizedBox(height: 12),
