@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/warehouse_location_service.dart';
+import '../../services/role_access_service.dart';
 import 'widgets/add_location_dialog.dart';
 import 'widgets/locations_summary_card.dart';
 import 'widgets/warehouse_location_card.dart';
@@ -17,6 +18,7 @@ class WarehouseLocationsPage extends StatefulWidget {
 
 class _WarehouseLocationsPageState extends State<WarehouseLocationsPage> {
   final WarehouseLocationService _service = WarehouseLocationService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
 
   List<WarehouseLocation> _locations = const [];
   WarehouseLocationsSummary _summary = const WarehouseLocationsSummary(
@@ -79,6 +81,7 @@ class _WarehouseLocationsPageState extends State<WarehouseLocationsPage> {
   }
 
   Future<void> _showLocationDialog({WarehouseLocation? location}) async {
+    if (!_roleAccess.allows(AppPermission.manageWarehouses)) return;
     final messenger = ScaffoldMessenger.of(context);
     await showDialog<void>(
       context: context,
@@ -134,6 +137,7 @@ class _WarehouseLocationsPageState extends State<WarehouseLocationsPage> {
   }
 
   Future<void> _deleteLocation(WarehouseLocation location) async {
+    if (!_roleAccess.allows(AppPermission.manageWarehouses)) return;
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -243,9 +247,18 @@ class _WarehouseLocationsPageState extends State<WarehouseLocationsPage> {
                         for (final location in _locations) ...[
                           WarehouseLocationCard(
                             location: location,
-                            onEdit: () =>
-                                _showLocationDialog(location: location),
-                            onDelete: () => _deleteLocation(location),
+                            onEdit:
+                                _roleAccess.allows(
+                                  AppPermission.manageWarehouses,
+                                )
+                                ? () => _showLocationDialog(location: location)
+                                : null,
+                            onDelete:
+                                _roleAccess.allows(
+                                  AppPermission.manageWarehouses,
+                                )
+                                ? () => _deleteLocation(location)
+                                : null,
                           ),
                           const SizedBox(height: 12),
                         ],
@@ -255,18 +268,22 @@ class _WarehouseLocationsPageState extends State<WarehouseLocationsPage> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showLocationDialog(),
-        backgroundColor: AppColors.primary,
-        foregroundColor: AppColors.textOnPrimary,
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        icon: const Icon(Icons.add),
-        label: const Text(
-          'Add Location',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        ),
-      ),
+      floatingActionButton: _roleAccess.allows(AppPermission.manageWarehouses)
+          ? FloatingActionButton.extended(
+              onPressed: () => _showLocationDialog(),
+              backgroundColor: AppColors.primary,
+              foregroundColor: AppColors.textOnPrimary,
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text(
+                'Add Location',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            )
+          : null,
     );
   }
 

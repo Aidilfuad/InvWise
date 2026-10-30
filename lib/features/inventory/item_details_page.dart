@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/inventory_service.dart';
+import '../../services/role_access_service.dart';
 import '../activity_log/activity_log_page.dart';
 import '../inventory_item/data/inventory_item_form_data.dart';
 import '../inventory_item/inventory_item_page.dart';
@@ -27,6 +28,7 @@ class ItemDetailsPage extends StatefulWidget {
 
 class _ItemDetailsPageState extends State<ItemDetailsPage> {
   final _service = InventoryService();
+  final _roleAccess = RoleAccessService.instance;
   InventoryItem? _item;
   String? _errorMessage;
   bool _isLoading = true;
@@ -61,12 +63,18 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
   }
 
   Future<void> _onEditTap() async {
+    if (!_roleAccess.allows(AppPermission.editInventory)) return;
     final item = _item;
     if (item == null) return;
     final updatedItem = await Navigator.of(context).push<InventoryItem>(
       MaterialPageRoute<InventoryItem>(
-        builder: (_) =>
-            InventoryItemPage(mode: InventoryItemMode.edit, initialItem: item),
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.editInventory,
+          child: InventoryItemPage(
+            mode: InventoryItemMode.edit,
+            initialItem: item,
+          ),
+        ),
       ),
     );
     if (updatedItem != null && mounted) {
@@ -75,6 +83,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
   }
 
   Future<void> _onDeleteTap() async {
+    if (!_roleAccess.allows(AppPermission.deleteInventory)) return;
     final item = _item;
     if (item == null || _isDeleting) return;
 
@@ -120,11 +129,18 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
   }
 
   Future<void> _openStockAdjustment(AdjustmentType type) async {
+    if (!_roleAccess.allows(AppPermission.adjustStock)) return;
     final item = _item;
     if (item == null) return;
     await Navigator.of(context).push<bool>(
       MaterialPageRoute<bool>(
-        builder: (_) => StockAdjustmentPage(itemId: item.id, initialType: type),
+        builder: (_) => RoleAccessGuard(
+          permission: type == AdjustmentType.add
+              ? AppPermission.receiveStock
+              : AppPermission.issueStock,
+          additionalPermissions: const {AppPermission.adjustStock},
+          child: StockAdjustmentPage(itemId: item.id, initialType: type),
+        ),
       ),
     );
     if (mounted) await _loadItem();
@@ -164,16 +180,18 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
         ),
         actions: [
           if (item != null && !_isDeleting) ...[
-            IconButton(
-              tooltip: 'Edit',
-              icon: const Icon(Icons.edit_rounded),
-              onPressed: _onEditTap,
-            ),
-            IconButton(
-              tooltip: 'Delete',
-              icon: const Icon(Icons.delete_outline_rounded),
-              onPressed: _onDeleteTap,
-            ),
+            if (_roleAccess.allows(AppPermission.editInventory))
+              IconButton(
+                tooltip: 'Edit',
+                icon: const Icon(Icons.edit_rounded),
+                onPressed: _onEditTap,
+              ),
+            if (_roleAccess.allows(AppPermission.deleteInventory))
+              IconButton(
+                tooltip: 'Delete',
+                icon: const Icon(Icons.delete_outline_rounded),
+                onPressed: _onDeleteTap,
+              ),
           ],
           AppSpacing.gapSm,
         ],
@@ -244,10 +262,21 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                           horizontal: AppSpacing.xl,
                         ),
                         child: ItemActionButtons(
-                          onAddStockTap: () =>
-                              _openStockAdjustment(AdjustmentType.add),
-                          onAdjustStockTap: () =>
-                              _openStockAdjustment(AdjustmentType.remove),
+                          onAddStockTap:
+                              _roleAccess.allowsAny(const {
+                                AppPermission.receiveStock,
+                                AppPermission.adjustStock,
+                              })
+                              ? () => _openStockAdjustment(AdjustmentType.add)
+                              : null,
+                          onAdjustStockTap:
+                              _roleAccess.allowsAny(const {
+                                AppPermission.issueStock,
+                                AppPermission.adjustStock,
+                              })
+                              ? () =>
+                                    _openStockAdjustment(AdjustmentType.remove)
+                              : null,
                         ),
                       ),
                       AppSpacing.gapMd,
@@ -263,7 +292,10 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
                             onViewAllTap: () {
                               Navigator.of(context).push(
                                 MaterialPageRoute<void>(
-                                  builder: (_) => const ActivityLogPage(),
+                                  builder: (_) => RoleAccessGuard(
+                                    permission: AppPermission.viewActivityLog,
+                                    child: const ActivityLogPage(),
+                                  ),
                                 ),
                               );
                             },

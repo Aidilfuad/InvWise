@@ -132,7 +132,9 @@ class CategoryService {
         'description': cleanedDescription,
       });
     } on PostgrestException catch (e) {
-      throw CategoryServiceException(_friendlyMessage(e, 'create the category'));
+      throw CategoryServiceException(
+        _friendlyMessage(e, 'create the category'),
+      );
     } catch (_) {
       throw const CategoryServiceException(
         'Unable to create the category. Please check your connection and try '
@@ -160,7 +162,7 @@ class CategoryService {
       'name': trimmedName,
       'description': cleanedDescription,
       'updated_at': DateTime.now().toUtc().toIso8601String(),
-      if (isActive != null) 'is_active': isActive,
+      'is_active': ?isActive,
     };
 
     List<Map<String, dynamic>> rows;
@@ -172,7 +174,9 @@ class CategoryService {
           .eq('id', trimmedId)
           .select('id');
     } on PostgrestException catch (e) {
-      throw CategoryServiceException(_friendlyMessage(e, 'update the category'));
+      throw CategoryServiceException(
+        _friendlyMessage(e, 'update the category'),
+      );
     } catch (_) {
       throw const CategoryServiceException(
         'Unable to update the category. Please check your connection and try '
@@ -205,7 +209,9 @@ class CategoryService {
           .eq('id', trimmedId)
           .select('id');
     } on PostgrestException catch (e) {
-      throw CategoryServiceException(_friendlyMessage(e, 'delete the category'));
+      throw CategoryServiceException(
+        _friendlyMessage(e, 'delete the category'),
+      );
     } catch (_) {
       throw const CategoryServiceException(
         'Unable to delete the category. Please check your connection and try '

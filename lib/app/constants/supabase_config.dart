@@ -5,7 +5,7 @@
 ///
 ///   flutter run \
 ///     --dart-define=SUPABASE_URL=https://your-project.supabase.co \
-///     --dart-define=SUPABASE_ANON_KEY=your-anon-key
+///     --dart-define=SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ///
 /// Never put the service_role key in the app.
 class SupabaseConfig {
@@ -16,8 +16,11 @@ class SupabaseConfig {
     defaultValue: 'https://avpgjbhgiuhowsdpwbms.supabase.co',
   );
 
-  static const String anonKey = String.fromEnvironment(
-    'SUPABASE_ANON_KEY',
-    defaultValue: 'sb_publishable_IMK7UOCKlpNHFJBujykQ8w_C-vVQIAt',
+  static const String publishableKey = String.fromEnvironment(
+    'SUPABASE_PUBLISHABLE_KEY',
+    defaultValue: String.fromEnvironment(
+      'SUPABASE_ANON_KEY',
+      defaultValue: 'sb_publishable_IMK7UOCKlpNHFJBujykQ8w_C-vVQIAt',
+    ),
   );
 }

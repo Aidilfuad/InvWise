@@ -18,7 +18,7 @@ class SupportCenterPage extends StatefulWidget {
 }
 
 class _SupportCenterPageState extends State<SupportCenterPage> {
-  static const String _supportEmail = 'support@invwise.com';
+  static const String _supportEmail = 'aidrusaidil@gmail.com';
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
 

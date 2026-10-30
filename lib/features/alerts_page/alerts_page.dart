@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
+import '../../services/role_access_service.dart';
 import '../inventory/inventory_page.dart';
 import 'data/alerts_mock_data.dart';
 import 'widgets/alert_card.dart';
@@ -27,12 +28,24 @@ class _AlertsPageState extends State<AlertsPage> {
     switch (entry.action) {
       case AlertAction.viewItem:
       case AlertAction.viewDetails:
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const InventoryPage()));
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RoleAccessGuard(
+              permission: AppPermission.viewInventory,
+              child: const InventoryPage(),
+            ),
+          ),
+        );
         break;
       case AlertAction.restock:
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => const InventoryPage()));
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => RoleAccessGuard(
+              permission: AppPermission.viewInventory,
+              child: const InventoryPage(),
+            ),
+          ),
+        );
         break;
       case AlertAction.none:
         break;

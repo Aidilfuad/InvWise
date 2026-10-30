@@ -8,13 +8,13 @@ class StockUnitCard extends StatelessWidget {
   const StockUnitCard({
     super.key,
     required this.unit,
-    required this.onEdit,
-    required this.onDelete,
+    this.onEdit,
+    this.onDelete,
   });
 
   final MeasurementUnit unit;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
+  final VoidCallback? onEdit;
+  final VoidCallback? onDelete;
 
   IconData get _icon {
     final name = unit.name.toLowerCase();
@@ -83,38 +83,39 @@ class StockUnitCard extends StatelessWidget {
                   ],
                 ),
               ),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: onEdit,
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.edit_outlined,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Edit',
-                        style: textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+              if (onEdit != null)
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: onEdit,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 14,
                           color: AppColors.primary,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 4),
+                        Text(
+                          'Edit',
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           SizedBox(height: AppSpacing.md),
@@ -125,15 +126,16 @@ class StockUnitCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: onDelete,
-              icon: const Icon(Icons.delete_outline_rounded, size: 18),
-              label: const Text('Delete'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+          if (onDelete != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                label: const Text('Delete'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              ),
             ),
-          ),
         ],
       ),
     );

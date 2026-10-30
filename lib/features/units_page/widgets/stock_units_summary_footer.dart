@@ -7,11 +7,11 @@ class StockUnitsSummaryFooter extends StatelessWidget {
   const StockUnitsSummaryFooter({
     super.key,
     required this.activeUnits,
-    required this.onAddUnit,
+    this.onAddUnit,
   });
 
   final int activeUnits;
-  final VoidCallback onAddUnit;
+  final VoidCallback? onAddUnit;
 
   static const Color _green = Color(0xFF16A34A);
 
@@ -62,27 +62,28 @@ class StockUnitsSummaryFooter extends StatelessWidget {
             ),
           ),
           SizedBox(width: AppSpacing.md),
-          ElevatedButton.icon(
-            onPressed: onAddUnit,
-            icon: Icon(Icons.add, color: Colors.white),
-            label: Text(
-              'Add Unit',
-              style: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+          if (onAddUnit != null)
+            ElevatedButton.icon(
+              onPressed: onAddUnit,
+              icon: Icon(Icons.add, color: Colors.white),
+              label: Text(
+                'Add Unit',
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                minimumSize: Size(0, 54),
+                padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 4,
-              minimumSize: Size(0, 54),
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
         ],
       ),
     );

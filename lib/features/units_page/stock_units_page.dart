@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/unit_service.dart';
+import '../../services/role_access_service.dart';
 import 'widgets/add_stock_unit_dialog.dart';
 import 'widgets/stock_unit_card.dart';
 import 'widgets/stock_units_header.dart';
@@ -20,6 +21,7 @@ class StockUnitsPage extends StatefulWidget {
 
 class _StockUnitsPageState extends State<StockUnitsPage> {
   final _service = UnitService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
   String _query = '';
   UnitSort? _sort;
   List<MeasurementUnit> _units = const [];
@@ -82,6 +84,7 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
   void _onBack() => Navigator.pop(context);
 
   Future<void> _onAddUnitTap() async {
+    if (!_roleAccess.allows(AppPermission.manageUnits)) return;
     await AddStockUnitDialog.show(context, onSave: _onSaveUnit);
   }
 
@@ -90,6 +93,9 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
     String abbreviation,
     String description,
   ) async {
+    if (!_roleAccess.allows(AppPermission.manageUnits)) {
+      return 'Your role does not have permission to create units.';
+    }
     try {
       await _service.createUnit(
         name: name,
@@ -145,6 +151,7 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
   }
 
   Future<void> _onEditTap(MeasurementUnit unit) async {
+    if (!_roleAccess.allows(AppPermission.manageUnits)) return;
     await AddStockUnitDialog.show(
       context,
       initialName: unit.name,
@@ -161,6 +168,9 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
     String abbreviation,
     String description,
   ) async {
+    if (!_roleAccess.allows(AppPermission.manageUnits)) {
+      return 'Your role does not have permission to edit units.';
+    }
     try {
       await _service.updateUnit(
         id: id,
@@ -176,6 +186,7 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
   }
 
   Future<void> _onDeleteTap(MeasurementUnit unit) async {
+    if (!_roleAccess.allows(AppPermission.manageUnits)) return;
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -217,7 +228,12 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
       body: SafeArea(
         child: Column(
           children: [
-            StockUnitsHeader(onBack: _onBack, onAddUnit: _onAddUnitTap),
+            StockUnitsHeader(
+              onBack: _onBack,
+              onAddUnit: _roleAccess.allows(AppPermission.manageUnits)
+                  ? _onAddUnitTap
+                  : null,
+            ),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _loadUnits,
@@ -324,8 +340,13 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
                       for (final unit in units) ...[
                         StockUnitCard(
                           unit: unit,
-                          onEdit: () => _onEditTap(unit),
-                          onDelete: () => _onDeleteTap(unit),
+                          onEdit: _roleAccess.allows(AppPermission.manageUnits)
+                              ? () => _onEditTap(unit)
+                              : null,
+                          onDelete:
+                              _roleAccess.allows(AppPermission.manageUnits)
+                              ? () => _onDeleteTap(unit)
+                              : null,
                         ),
                         SizedBox(height: AppSpacing.md),
                       ],
@@ -335,7 +356,9 @@ class _StockUnitsPageState extends State<StockUnitsPage> {
             ),
             StockUnitsSummaryFooter(
               activeUnits: _units.length,
-              onAddUnit: _onAddUnitTap,
+              onAddUnit: _roleAccess.allows(AppPermission.manageUnits)
+                  ? _onAddUnitTap
+                  : null,
             ),
           ],
         ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/category_service.dart';
+import '../../services/role_access_service.dart';
 // Only the InventoryCategory display model is still used (by CategoryCard).
 import 'data/inventory_categories_mock_data.dart';
 import 'widgets/add_category_dialog.dart';
@@ -25,6 +26,7 @@ class InventoryCategoriesPage extends StatefulWidget {
 
 class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
   final CategoryService _service = CategoryService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
 
   List<Category> _categories = const [];
   bool _isLoading = true;
@@ -87,9 +89,7 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
         .toList();
 
     if (_sort != null) {
-      list.sort(
-        (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-      );
+      list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
       if (_sort == CategorySort.nameDesc) {
         return list.reversed.toList();
       }
@@ -142,11 +142,15 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
   }
 
   void _onAddCategoryTap() {
+    if (!_roleAccess.allows(AppPermission.manageCategories)) return;
     AddCategoryDialog.show(context, onSave: _createCategory);
   }
 
   /// Returns an error message for the dialog, or null on success.
   Future<String?> _createCategory(String name, String description) async {
+    if (!_roleAccess.allows(AppPermission.manageCategories)) {
+      return 'Your role does not have permission to create categories.';
+    }
     try {
       await _service.createCategory(name: name, description: description);
     } on CategoryServiceException catch (e) {
@@ -195,9 +199,8 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     return ListTile(
       title: Text(
         label,
-        style: Theme.of(sheetContext).textTheme.bodyLarge?.copyWith(
-              color: AppColors.textPrimary,
-            ),
+        style: Theme.of(sheetContext).textTheme.bodyLarge
+            ?.copyWith(color: AppColors.textPrimary),
       ),
       trailing: _sort == value
           ? Icon(Icons.check, color: AppColors.primary)
@@ -207,6 +210,7 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
   }
 
   void _onEditTap(Category category) {
+    if (!_roleAccess.allows(AppPermission.manageCategories)) return;
     AddCategoryDialog.show(
       context,
       initialName: category.name,
@@ -222,6 +226,9 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
     String name,
     String description,
   ) async {
+    if (!_roleAccess.allows(AppPermission.manageCategories)) {
+      return 'Your role does not have permission to edit categories.';
+    }
     try {
       await _service.updateCategory(
         id: category.id,
@@ -240,9 +247,7 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
   Widget _buildLoadingState() {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: AppSpacing.xxl),
-      child: Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      ),
+      child: Center(child: CircularProgressIndicator(color: AppColors.primary)),
     );
   }
 
@@ -289,7 +294,9 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
           children: [
             InventoryCategoriesHeader(
               onBack: _onBack,
-              onAddCategory: _onAddCategoryTap,
+              onAddCategory: _roleAccess.allows(AppPermission.manageCategories)
+                  ? _onAddCategoryTap
+                  : null,
             ),
             Expanded(
               child: ListView(
@@ -372,7 +379,10 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
                     for (final category in categories) ...[
                       CategoryCard(
                         category: _toDisplay(category),
-                        onEdit: () => _onEditTap(category),
+                        onEdit:
+                            _roleAccess.allows(AppPermission.manageCategories)
+                            ? () => _onEditTap(category)
+                            : null,
                       ),
                       SizedBox(height: AppSpacing.md),
                     ],
@@ -382,7 +392,9 @@ class _InventoryCategoriesPageState extends State<InventoryCategoriesPage> {
             ),
             CategorySummaryFooter(
               totalItems: _totalItems,
-              onAddCategory: _onAddCategoryTap,
+              onAddCategory: _roleAccess.allows(AppPermission.manageCategories)
+                  ? _onAddCategoryTap
+                  : null,
             ),
           ],
         ),

@@ -7,11 +7,11 @@ class CategorySummaryFooter extends StatelessWidget {
   const CategorySummaryFooter({
     super.key,
     required this.totalItems,
-    required this.onAddCategory,
+    this.onAddCategory,
   });
 
   final int totalItems;
-  final VoidCallback onAddCategory;
+  final VoidCallback? onAddCategory;
 
   static const Color _green = Color(0xFF16A34A);
 
@@ -62,27 +62,28 @@ class CategorySummaryFooter extends StatelessWidget {
             ),
           ),
           SizedBox(width: AppSpacing.md),
-          ElevatedButton.icon(
-            onPressed: onAddCategory,
-            icon: Icon(Icons.add, color: Colors.white),
-            label: Text(
-              'Add Category',
-              style: textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+          if (onAddCategory != null)
+            ElevatedButton.icon(
+              onPressed: onAddCategory,
+              icon: Icon(Icons.add, color: Colors.white),
+              label: Text(
+                'Add Category',
+                style: textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 4,
+                minimumSize: Size(0, 54),
+                padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 4,
-              minimumSize: Size(0, 54),
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-          ),
         ],
       ),
     );

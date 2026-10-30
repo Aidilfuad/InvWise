@@ -4,14 +4,10 @@ import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
 
 class StockUnitsHeader extends StatelessWidget {
-  const StockUnitsHeader({
-    super.key,
-    required this.onBack,
-    required this.onAddUnit,
-  });
+  const StockUnitsHeader({super.key, required this.onBack, this.onAddUnit});
 
   final VoidCallback onBack;
-  final VoidCallback onAddUnit;
+  final VoidCallback? onAddUnit;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +32,7 @@ class StockUnitsHeader extends StatelessWidget {
                 onTap: onBack,
                 child: Padding(
                   padding: EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.arrow_back,
-                    color: AppColors.textPrimary,
-                  ),
+                  child: Icon(Icons.arrow_back, color: AppColors.textPrimary),
                 ),
               ),
               SizedBox(width: AppSpacing.sm),
@@ -52,34 +45,35 @@ class StockUnitsHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Material(
-                color: const Color(0xFFEAF0FE),
-                borderRadius: BorderRadius.circular(20),
-                child: InkWell(
+              if (onAddUnit != null)
+                Material(
+                  color: const Color(0xFFEAF0FE),
                   borderRadius: BorderRadius.circular(20),
-                  onTap: onAddUnit,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, size: 16, color: AppColors.primary),
-                        SizedBox(width: 4),
-                        Text(
-                          'Add Unit',
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: onAddUnit,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, size: 16, color: AppColors.primary),
+                          SizedBox(width: 4),
+                          Text(
+                            'Add Unit',
+                            style: textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           SizedBox(height: AppSpacing.sm),

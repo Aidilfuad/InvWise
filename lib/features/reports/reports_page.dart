@@ -7,6 +7,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/report_export_service.dart';
 import '../../services/reports_service.dart';
+import '../../services/role_access_service.dart';
 import 'widgets/export_report_actions.dart';
 import 'widgets/report_card.dart';
 import 'widgets/report_section_header.dart';
@@ -23,6 +24,7 @@ class _ReportsPageState extends State<ReportsPage> {
 
   final ReportsService _reportsService = ReportsService();
   final ReportExportService _exportService = const ReportExportService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
 
   ReportType _selectedReport = ReportType.inventorySummary;
   ReportsData? _data;
@@ -64,6 +66,10 @@ class _ReportsPageState extends State<ReportsPage> {
   }
 
   Future<void> _export({required bool excel}) async {
+    if (!_roleAccess.allows(AppPermission.exportReports)) {
+      _showMessage('Your role does not have permission to export reports.');
+      return;
+    }
     final data = _data;
     if (data == null || _isExporting) return;
     setState(() => _isExporting = true);
@@ -209,11 +215,12 @@ class _ReportsPageState extends State<ReportsPage> {
                       AppSpacing.gapMd,
                       _buildReportTable(data[_selectedReport]),
                       AppSpacing.gapMd,
-                      ExportReportActions(
-                        isExporting: _isExporting,
-                        onExportCsvTap: () => _export(excel: false),
-                        onExportExcelTap: () => _export(excel: true),
-                      ),
+                      if (_roleAccess.allows(AppPermission.exportReports))
+                        ExportReportActions(
+                          isExporting: _isExporting,
+                          onExportCsvTap: () => _export(excel: false),
+                          onExportExcelTap: () => _export(excel: true),
+                        ),
                     ],
                   ),
                 ),

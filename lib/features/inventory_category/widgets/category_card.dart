@@ -5,14 +5,10 @@ import '../../../app/constants/app_spacing.dart';
 import '../data/inventory_categories_mock_data.dart';
 
 class CategoryCard extends StatelessWidget {
-  const CategoryCard({
-    super.key,
-    required this.category,
-    required this.onEdit,
-  });
+  const CategoryCard({super.key, required this.category, this.onEdit});
 
   final InventoryCategory category;
-  final VoidCallback onEdit;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -39,11 +35,7 @@ class CategoryCard extends StatelessWidget {
                   color: const Color(0xFFEAF0FE),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  category.icon,
-                  size: 24,
-                  color: AppColors.primary,
-                ),
+                child: Icon(category.icon, size: 24, color: AppColors.primary),
               ),
               SizedBox(width: AppSpacing.md),
               Expanded(
@@ -67,38 +59,39 @@ class CategoryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: onEdit,
-                child: Container(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: AppSpacing.md,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.edit_outlined,
-                        size: 14,
-                        color: AppColors.primary,
-                      ),
-                      SizedBox(width: 4),
-                      Text(
-                        'Edit',
-                        style: textTheme.bodySmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+              if (onEdit != null)
+                InkWell(
+                  borderRadius: BorderRadius.circular(20),
+                  onTap: onEdit,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.md,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.edit_outlined,
+                          size: 14,
                           color: AppColors.primary,
                         ),
-                      ),
-                    ],
+                        SizedBox(width: 4),
+                        Text(
+                          'Edit',
+                          style: textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
           SizedBox(height: AppSpacing.md),

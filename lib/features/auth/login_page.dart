@@ -244,8 +244,17 @@ class _LoginPageState extends State<LoginPage> {
       );
   }
 
-  void _onContactIt() {
-    ContactItSheet.show(context);
+  Future<void> _onContactIt() async {
+    final submitted = await ContactItSheet.show(context);
+    if (submitted && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Your support request has been submitted.'),
+          ),
+        );
+    }
   }
 
   @override

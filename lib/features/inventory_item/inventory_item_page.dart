@@ -4,6 +4,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/category_service.dart';
 import '../../services/inventory_service.dart';
+import '../../services/role_access_service.dart';
 import '../../services/unit_service.dart';
 import 'data/inventory_item_form_data.dart';
 import 'widgets/inventory_item_actions.dart';
@@ -35,6 +36,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
   late final TextEditingController _notesController;
 
   final _inventoryService = InventoryService();
+  final _roleAccess = RoleAccessService.instance;
   final _categoryService = CategoryService();
   final _unitService = UnitService();
   List<Category> _categories = const [];
@@ -185,6 +187,13 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
   }
 
   Future<void> _onSubmit() async {
+    final permission = _isEdit
+        ? AppPermission.editInventory
+        : AppPermission.createInventory;
+    if (!_roleAccess.allows(permission)) {
+      _showMessage('Your role does not have permission to save inventory.');
+      return;
+    }
     if (_isSaving ||
         _isLoadingCategories ||
         _isLoadingUnits ||

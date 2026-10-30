@@ -4,6 +4,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/auth_service.dart';
 import '../../services/security_history_service.dart';
+import '../../services/role_access_service.dart';
 import 'active_sessions_page.dart';
 import 'data/security_mock_data.dart';
 import 'login_history_page.dart';
@@ -94,19 +95,25 @@ class _SecurityPageState extends State<SecurityPage> {
   );
 
   void _onViewActiveSessionsTap() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const ActiveSessionsPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.accessPersonalSecurity,
+          child: const ActiveSessionsPage(),
+        ),
+      ),
+    );
   }
 
   void _onRecentLoginHistoryTap() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute<void>(builder: (_) => const LoginHistoryPage()));
-  }
-
-  void _onReviewSecuritySettingsTap() {
-    // TODO: Review security settings.
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.accessPersonalSecurity,
+          child: const LoginHistoryPage(),
+        ),
+      ),
+    );
   }
 
   @override
@@ -145,34 +152,6 @@ class _SecurityPageState extends State<SecurityPage> {
                   score: SecurityMockData.securityScore,
                 ),
               ],
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.sm,
-                AppSpacing.lg,
-                AppSpacing.lg,
-              ),
-              child: ElevatedButton.icon(
-                onPressed: _onReviewSecuritySettingsTap,
-                icon: const Icon(Icons.shield_outlined, size: 18),
-                label: const Text(
-                  'Review Security Settings',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 54),
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.textOnPrimary,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-              ),
             ),
           ),
         ],

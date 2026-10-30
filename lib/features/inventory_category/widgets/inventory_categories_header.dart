@@ -7,11 +7,11 @@ class InventoryCategoriesHeader extends StatelessWidget {
   const InventoryCategoriesHeader({
     super.key,
     required this.onBack,
-    required this.onAddCategory,
+    this.onAddCategory,
   });
 
   final VoidCallback onBack;
-  final VoidCallback onAddCategory;
+  final VoidCallback? onAddCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +36,7 @@ class InventoryCategoriesHeader extends StatelessWidget {
                 onTap: onBack,
                 child: Padding(
                   padding: EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.arrow_back,
-                    color: AppColors.textPrimary,
-                  ),
+                  child: Icon(Icons.arrow_back, color: AppColors.textPrimary),
                 ),
               ),
               SizedBox(width: AppSpacing.sm),
@@ -52,34 +49,35 @@ class InventoryCategoriesHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              Material(
-                color: const Color(0xFFEAF0FE),
-                borderRadius: BorderRadius.circular(20),
-                child: InkWell(
+              if (onAddCategory != null)
+                Material(
+                  color: const Color(0xFFEAF0FE),
                   borderRadius: BorderRadius.circular(20),
-                  onTap: onAddCategory,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, size: 16, color: AppColors.primary),
-                        SizedBox(width: 4),
-                        Text(
-                          'Add Category',
-                          style: textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.primary,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: onAddCategory,
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: 10,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add, size: 16, color: AppColors.primary),
+                          SizedBox(width: 4),
+                          Text(
+                            'Add Category',
+                            style: textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primary,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           SizedBox(height: AppSpacing.sm),

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/inventory_service.dart';
+import '../../services/role_access_service.dart';
 import 'data/stock_adjustment_options.dart';
 import 'widgets/adjustment_type_selector.dart';
 import 'widgets/item_summary_card.dart';
@@ -30,6 +31,7 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
   final _quantityController = TextEditingController();
   final _notesController = TextEditingController();
   final _service = InventoryService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
 
   late AdjustmentType _type = widget.initialType;
   ReasonCode _reason = ReasonCode.restock;
@@ -145,6 +147,20 @@ class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
   }
 
   Future<void> _onSaveTap() async {
+    final allowedPermissions = switch (_type) {
+      AdjustmentType.add => const {
+        AppPermission.receiveStock,
+        AppPermission.adjustStock,
+      },
+      AdjustmentType.remove => const {
+        AppPermission.issueStock,
+        AppPermission.adjustStock,
+      },
+    };
+    if (!_roleAccess.allowsAny(allowedPermissions)) {
+      _showMessage('Your role does not have permission to adjust stock.');
+      return;
+    }
     if (_isSaving || _item == null || _locationId == null) return;
     final quantity = double.tryParse(_quantityController.text.trim());
     if (quantity == null || !quantity.isFinite || quantity <= 0) {

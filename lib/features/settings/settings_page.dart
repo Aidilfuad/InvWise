@@ -6,6 +6,7 @@ import '../../app/constants/app_spacing.dart';
 import '../../app/routes/app_routes.dart';
 import '../../app/theme/app_theme_controller.dart';
 import '../../services/profile_service.dart';
+import '../../services/role_access_service.dart';
 import 'widgets/edit_profile_sheet.dart';
 import 'widgets/settings_header.dart';
 import 'widgets/settings_profile_card.dart';
@@ -32,6 +33,7 @@ class _SettingsPageState extends State<SettingsPage> {
   static const double _sectionGap = AppSpacing.xxxl;
 
   final ProfileService _profileService = ProfileService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
   ProfileLookupResult? _profile;
   String? _profileError;
   bool _isLoadingProfile = true;
@@ -50,6 +52,7 @@ class _SettingsPageState extends State<SettingsPage> {
     try {
       final profile = await _profileService.getCurrentProfile();
       if (!mounted) return;
+      _roleAccess.updateRole(profile?.role);
       setState(() {
         _profile = profile;
         if (profile == null) {
@@ -59,12 +62,14 @@ class _SettingsPageState extends State<SettingsPage> {
       });
     } on ProfileServiceException catch (error) {
       if (!mounted) return;
+      _roleAccess.updateRole(null);
       setState(() {
         _profileError = error.message;
         _isLoadingProfile = false;
       });
     } catch (error) {
       if (!mounted) return;
+      _roleAccess.updateRole(null);
       setState(() {
         _profileError = 'Unable to load profile: $error';
         _isLoadingProfile = false;
@@ -97,25 +102,47 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _onSecurityTap() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const SecurityPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.accessPersonalSecurity,
+          child: const SecurityPage(),
+        ),
+      ),
+    );
   }
 
   void _onWarehouseLocationsTap() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const WarehouseLocationsPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.manageWarehouses,
+          child: const WarehouseLocationsPage(),
+        ),
+      ),
+    );
   }
 
   void _onStockUnitsTap() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const StockUnitsPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.manageUnits,
+          child: const StockUnitsPage(),
+        ),
+      ),
+    );
   }
 
   void _onInventoryCategoriesTap() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const InventoryCategoriesPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.manageCategories,
+          child: const InventoryCategoriesPage(),
+        ),
+      ),
+    );
   }
 
   Future<void> _onThemeTap() async {
@@ -178,8 +205,14 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _onSupportCenterTap() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const SupportCenterPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.viewSupportCenter,
+          child: const SupportCenterPage(),
+        ),
+      ),
+    );
   }
 
   void _onSignOutTap() {
@@ -198,9 +231,7 @@ class _SettingsPageState extends State<SettingsPage> {
         : SystemUiOverlayStyle.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: overlayStyle.copyWith(
-        statusBarColor: Colors.transparent,
-      ),
+      value: overlayStyle.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
         body: Center(
           child: ConstrainedBox(
@@ -251,36 +282,46 @@ class _SettingsPageState extends State<SettingsPage> {
                               subtitle: 'Manage your profile details',
                               onTap: _onPersonalInformationTap,
                             ),
-                            SettingsTile(
-                              icon: Icons.lock_outline_rounded,
-                              title: 'Security',
-                              subtitle: 'Password and biometrics',
-                              onTap: _onSecurityTap,
-                            ),
+                            if (_roleAccess.allows(
+                              AppPermission.accessPersonalSecurity,
+                            ))
+                              SettingsTile(
+                                icon: Icons.lock_outline_rounded,
+                                title: 'Security',
+                                subtitle: 'Password and biometrics',
+                                onTap: _onSecurityTap,
+                              ),
                           ],
                         ),
                         const SizedBox(height: _sectionGap),
                         SettingsSection(
                           title: 'Warehouse Config',
                           children: [
-                            SettingsTile(
-                              icon: Icons.warehouse_rounded,
-                              title: 'Warehouse Locations',
-                              subtitle: 'Manage your warehouse locations',
-                              onTap: _onWarehouseLocationsTap,
-                            ),
-                            SettingsTile(
-                              icon: Icons.inventory_2_outlined,
-                              title: 'Stock Units',
-                              subtitle: 'Standardized measurement units',
-                              onTap: _onStockUnitsTap,
-                            ),
-                            SettingsTile(
-                              icon: Icons.category_outlined,
-                              title: 'Inventory Categories',
-                              subtitle: 'Organize items by category',
-                              onTap: _onInventoryCategoriesTap,
-                            ),
+                            if (_roleAccess.allows(
+                              AppPermission.manageWarehouses,
+                            ))
+                              SettingsTile(
+                                icon: Icons.warehouse_rounded,
+                                title: 'Warehouse Locations',
+                                subtitle: 'Manage your warehouse locations',
+                                onTap: _onWarehouseLocationsTap,
+                              ),
+                            if (_roleAccess.allows(AppPermission.manageUnits))
+                              SettingsTile(
+                                icon: Icons.inventory_2_outlined,
+                                title: 'Stock Units',
+                                subtitle: 'Standardized measurement units',
+                                onTap: _onStockUnitsTap,
+                              ),
+                            if (_roleAccess.allows(
+                              AppPermission.manageCategories,
+                            ))
+                              SettingsTile(
+                                icon: Icons.category_outlined,
+                                title: 'Inventory Categories',
+                                subtitle: 'Organize items by category',
+                                onTap: _onInventoryCategoriesTap,
+                              ),
                           ],
                         ),
                         const SizedBox(height: _sectionGap),
@@ -315,12 +356,15 @@ class _SettingsPageState extends State<SettingsPage> {
                         SettingsSection(
                           title: 'System',
                           children: [
-                            SettingsTile(
-                              icon: Icons.help_outline_rounded,
-                              title: 'Support Center',
-                              subtitle: 'Contact system administrator.',
-                              onTap: _onSupportCenterTap,
-                            ),
+                            if (_roleAccess.allows(
+                              AppPermission.viewSupportCenter,
+                            ))
+                              SettingsTile(
+                                icon: Icons.help_outline_rounded,
+                                title: 'Support Center',
+                                subtitle: 'Contact system administrator.',
+                                onTap: _onSupportCenterTap,
+                              ),
                             SettingsTile(
                               icon: Icons.info_outline_rounded,
                               title: 'Version',

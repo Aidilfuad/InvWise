@@ -6,6 +6,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/dashboard_service.dart';
 import '../../services/profile_service.dart';
+import '../../services/role_access_service.dart';
 import '../activity_log/activity_log_page.dart';
 import '../alerts_page/alerts_page.dart';
 import '../inventory/inventory_page.dart';
@@ -35,6 +36,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final DashboardService _service = DashboardService();
   final ProfileService _profileService = ProfileService();
+  final RoleAccessService _roleAccess = RoleAccessService.instance;
   DashboardData? _data;
   ProfileLookupResult? _profile;
   String? _errorMessage;
@@ -62,6 +64,7 @@ class _DashboardPageState extends State<DashboardPage> {
         profileError = error.message;
       }
       if (!mounted) return;
+      _roleAccess.updateRole(profile?.role);
       setState(() {
         _data = data;
         _profile = profile;
@@ -88,13 +91,25 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   void _onNotificationsTap(BuildContext context) {
-    Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => const AlertsPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.viewAlerts,
+          child: const AlertsPage(),
+        ),
+      ),
+    );
   }
 
   Future<void> _onProfileTap(BuildContext context) async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => const SettingsPage()));
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.viewSettings,
+          child: const SettingsPage(),
+        ),
+      ),
+    );
     if (mounted) await _loadDashboard();
   }
 
@@ -102,18 +117,39 @@ class _DashboardPageState extends State<DashboardPage> {
     switch (action.type) {
       case QuickActionType.addItem:
         Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const InventoryItemPage()),
+          MaterialPageRoute<void>(
+            builder: (_) => RoleAccessGuard(
+              permission: AppPermission.createInventory,
+              child: const InventoryItemPage(),
+            ),
+          ),
         );
       case QuickActionType.inventory:
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute<void>(builder: (_) => const InventoryPage()));
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => RoleAccessGuard(
+              permission: AppPermission.viewInventory,
+              child: const InventoryPage(),
+            ),
+          ),
+        );
       case QuickActionType.reports:
-        Navigator.of(context)
-            .push(MaterialPageRoute<void>(builder: (_) => const ReportsPage()));
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => RoleAccessGuard(
+              permission: AppPermission.viewReports,
+              child: const ReportsPage(),
+            ),
+          ),
+        );
       case QuickActionType.activityLog:
         Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const ActivityLogPage()),
+          MaterialPageRoute<void>(
+            builder: (_) => RoleAccessGuard(
+              permission: AppPermission.viewActivityLog,
+              child: const ActivityLogPage(),
+            ),
+          ),
         );
     }
   }
@@ -163,9 +199,7 @@ class _DashboardPageState extends State<DashboardPage> {
         : SystemUiOverlayStyle.dark;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: overlayStyle.copyWith(
-        statusBarColor: Colors.transparent,
-      ),
+      value: overlayStyle.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
         backgroundColor: AppColors.background,
         body: SafeArea(
@@ -203,73 +237,96 @@ class _DashboardPageState extends State<DashboardPage> {
     BuildContext context,
     DashboardData data,
     String userRole,
-  ) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      DashboardHomeHeader(
-        greeting: _greeting,
-        name: _userName,
-        role: userRole,
-        initials: _userInitials,
-        onNotificationsTap: () => _onNotificationsTap(context),
-        onProfileTap: () => _onProfileTap(context),
-      ),
-      AppSpacing.gapXl,
-      InventoryOverviewCard(summary: data),
-      AppSpacing.gapLg,
-      KpiGrid(stats: data.kpis),
-      AppSpacing.gapXl,
-      DashboardSectionHeader(
-        title: 'Attention Required',
-        actionLabel: 'View Alerts',
-        onActionTap: () => Navigator.of(context)
-            .push(MaterialPageRoute<void>(builder: (_) => const AlertsPage())),
-      ),
-      AppSpacing.gapMd,
-      AttentionRequiredCard(items: data.attentionItems),
-      AppSpacing.gapXl,
-      const DashboardSectionHeader(title: 'Quick Actions'),
-      AppSpacing.gapMd,
-      QuickActionsGrid(
-        actions: dashboardQuickActions,
-        onActionTap: (action) => _onQuickActionTap(context, action),
-      ),
-      AppSpacing.gapXl,
-      DashboardSectionHeader(
-        title: 'Recent Stock Movements',
-        actionLabel: 'View All',
-        onActionTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const ActivityLogPage()),
+  ) {
+    final visibleActions = dashboardQuickActions
+        .where((action) {
+          final permission = switch (action.type) {
+            QuickActionType.addItem => AppPermission.createInventory,
+            QuickActionType.inventory => AppPermission.viewInventory,
+            QuickActionType.reports => AppPermission.viewReports,
+            QuickActionType.activityLog => AppPermission.viewActivityLog,
+          };
+          return _roleAccess.allows(permission);
+        })
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DashboardHomeHeader(
+          greeting: _greeting,
+          name: _userName,
+          role: userRole,
+          initials: _userInitials,
+          onNotificationsTap: () => _onNotificationsTap(context),
+          onProfileTap: () => _onProfileTap(context),
         ),
-      ),
-      AppSpacing.gapMd,
-      RecentActivityCard(
-        dateLabel: 'LATEST MOVEMENTS',
-        entries: data.recentMovements,
-      ),
-      AppSpacing.gapXl,
-      DashboardSectionHeader(
-        title: 'Recent Activity',
-        actionLabel: 'View All',
-        onActionTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const ActivityLogPage()),
+        AppSpacing.gapXl,
+        InventoryOverviewCard(summary: data),
+        AppSpacing.gapLg,
+        KpiGrid(stats: data.kpis),
+        AppSpacing.gapXl,
+        DashboardSectionHeader(
+          title: 'Attention Required',
+          actionLabel: 'View Alerts',
+          onActionTap: () => _onNotificationsTap(context),
         ),
-      ),
-      AppSpacing.gapMd,
-      RecentActivityLogCard(
-        dateLabel: data.activityDate,
-        entries: data.recentActivity,
-      ),
-      AppSpacing.gapXl,
-      const DashboardSectionHeader(title: 'Live Inventory Summary'),
-      AppSpacing.gapMd,
-      MonthlyInsightsCard(
-        month: data.insightsMonth,
-        range: 'Current totals',
-        insights: data.insights,
-      ),
-    ],
-  );
+        AppSpacing.gapMd,
+        AttentionRequiredCard(items: data.attentionItems),
+        AppSpacing.gapXl,
+        const DashboardSectionHeader(title: 'Quick Actions'),
+        AppSpacing.gapMd,
+        QuickActionsGrid(
+          actions: visibleActions,
+          onActionTap: (action) => _onQuickActionTap(context, action),
+        ),
+        AppSpacing.gapXl,
+        DashboardSectionHeader(
+          title: 'Recent Stock Movements',
+          actionLabel: 'View All',
+          onActionTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => RoleAccessGuard(
+                permission: AppPermission.viewActivityLog,
+                child: const ActivityLogPage(),
+              ),
+            ),
+          ),
+        ),
+        AppSpacing.gapMd,
+        RecentActivityCard(
+          dateLabel: 'LATEST MOVEMENTS',
+          entries: data.recentMovements,
+        ),
+        AppSpacing.gapXl,
+        DashboardSectionHeader(
+          title: 'Recent Activity',
+          actionLabel: 'View All',
+          onActionTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => RoleAccessGuard(
+                permission: AppPermission.viewActivityLog,
+                child: const ActivityLogPage(),
+              ),
+            ),
+          ),
+        ),
+        AppSpacing.gapMd,
+        RecentActivityLogCard(
+          dateLabel: data.activityDate,
+          entries: data.recentActivity,
+        ),
+        AppSpacing.gapXl,
+        const DashboardSectionHeader(title: 'Live Inventory Summary'),
+        AppSpacing.gapMd,
+        MonthlyInsightsCard(
+          month: data.insightsMonth,
+          range: 'Current totals',
+          insights: data.insights,
+        ),
+      ],
+    );
+  }
 
   Widget _buildErrorState() => Center(
     child: Padding(

@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/inventory_service.dart';
+import '../../services/role_access_service.dart';
 import 'item_details_page.dart';
 import 'widgets/category_filter_chips.dart';
 import 'widgets/inventory_header.dart';
@@ -26,6 +27,7 @@ class _InventoryPageState extends State<InventoryPage> {
 
   final _searchController = TextEditingController();
   final _service = InventoryService();
+  final _roleAccess = RoleAccessService.instance;
   List<InventoryItem> _items = const [];
   String? _selectedCategory;
   String? _errorMessage;
@@ -66,8 +68,14 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   void _onProfileTap() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const SettingsPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.viewSettings,
+          child: const SettingsPage(),
+        ),
+      ),
+    );
   }
 
   void _onCategorySelected(int index, List<String> categories) {
@@ -78,15 +86,24 @@ class _InventoryPageState extends State<InventoryPage> {
 
   Future<void> _onItemTap(InventoryItem item) async {
     await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(builder: (_) => ItemDetailsPage(itemId: item.id)),
+      MaterialPageRoute<void>(
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.viewInventory,
+          child: ItemDetailsPage(itemId: item.id),
+        ),
+      ),
     );
     if (mounted) await _loadInventory();
   }
 
   Future<void> _onAddItemTap() async {
+    if (!_roleAccess.allows(AppPermission.createInventory)) return;
     await Navigator.of(context).push<InventoryItem>(
       MaterialPageRoute<InventoryItem>(
-        builder: (_) => const InventoryItemPage(),
+        builder: (_) => RoleAccessGuard(
+          permission: AppPermission.createInventory,
+          child: const InventoryItemPage(),
+        ),
       ),
     );
     if (mounted) await _loadInventory();
@@ -144,26 +161,26 @@ class _InventoryPageState extends State<InventoryPage> {
               .join();
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: overlayStyle.copyWith(
-        statusBarColor: Colors.transparent,
-      ),
+      value: overlayStyle.copyWith(statusBarColor: Colors.transparent),
       child: Scaffold(
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: _onAddItemTap,
-          elevation: 4,
-          shape: const StadiumBorder(),
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.textOnPrimary,
-          icon: const Icon(Icons.add_rounded),
-          label: Text(
-            'Add Item',
-            style: textTheme.labelLarge?.copyWith(
-              color: AppColors.textOnPrimary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
+        floatingActionButton: _roleAccess.allows(AppPermission.createInventory)
+            ? FloatingActionButton.extended(
+                onPressed: _onAddItemTap,
+                elevation: 4,
+                shape: const StadiumBorder(),
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.textOnPrimary,
+                icon: const Icon(Icons.add_rounded),
+                label: Text(
+                  'Add Item',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: AppColors.textOnPrimary,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              )
+            : null,
         body: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: _maxContentWidth),

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
+import '../../../services/support_request_service.dart';
 
 class ContactItSheet extends StatefulWidget {
   const ContactItSheet({super.key});
 
-  static Future<void> show(BuildContext context) {
-    return showModalBottomSheet<void>(
+  static Future<bool> show(BuildContext context) async {
+    return await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: AppColors.background,
@@ -14,7 +15,7 @@ class ContactItSheet extends StatefulWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => const ContactItSheet(),
-    );
+    ) ?? false;
   }
 
   @override
@@ -22,9 +23,13 @@ class ContactItSheet extends StatefulWidget {
 }
 
 class _ContactItSheetState extends State<ContactItSheet> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _employeeIdController = TextEditingController();
   final _problemController = TextEditingController();
+  final _supportRequestService = SupportRequestService();
+  bool _isSending = false;
+  String? _errorMessage;
 
   @override
   void dispose() {
@@ -34,19 +39,41 @@ class _ContactItSheetState extends State<ContactItSheet> {
     super.dispose();
   }
 
-  void _onSendRequest() {
-    // TODO: Send support request (requires backend).
-    final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pop();
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Support request feature will be available after backend integration.',
-          ),
-        ),
+  Future<void> _onSendRequest() async {
+    if (_isSending || !(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      _isSending = true;
+      _errorMessage = null;
+    });
+
+    final message = [
+      'Contact email: ${_emailController.text.trim()}',
+      'Employee ID: ${_employeeIdController.text.trim()}',
+      '',
+      _problemController.text.trim(),
+    ].join('\n');
+
+    try {
+      await _supportRequestService.createRequest(
+        subject: 'IT support request',
+        message: message,
       );
+      if (mounted) Navigator.of(context).pop(true);
+    } on SupportRequestServiceException catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = error.message;
+          _isSending = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Unable to send the support request: $error';
+          _isSending = false;
+        });
+      }
+    }
   }
 
   void _onClose() {
@@ -68,8 +95,9 @@ class _ContactItSheetState extends State<ContactItSheet> {
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: TextField(
+      child: TextFormField(
         controller: controller,
+        enabled: !_isSending,
         keyboardType: keyboardType,
         minLines: maxLines,
         maxLines: maxLines,
@@ -89,6 +117,19 @@ class _ContactItSheetState extends State<ContactItSheet> {
           enabledBorder: _border(AppColors.border),
           focusedBorder: _border(AppColors.primary),
         ),
+        validator: (value) {
+          if (value == null || value.trim().isEmpty) {
+            return hint == 'Describe the problem'
+                ? 'Describe the problem.'
+                : 'This field is required.';
+          }
+          if (hint == 'IT support email' &&
+              !RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                  .hasMatch(value.trim())) {
+            return 'Enter a valid email address.';
+          }
+          return null;
+        },
       ),
     );
   }
@@ -102,7 +143,9 @@ class _ContactItSheetState extends State<ContactItSheet> {
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
-          child: Column(
+          child: Form(
+            key: _formKey,
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -151,8 +194,15 @@ class _ContactItSheetState extends State<ContactItSheet> {
                 keyboardType: TextInputType.multiline,
                 maxLines: 4,
               ),
+              if (_errorMessage != null) ...[
+                Text(
+                  _errorMessage!,
+                  style: TextStyle(color: AppColors.danger),
+                ),
+                const SizedBox(height: 12),
+              ],
               FilledButton(
-                onPressed: _onSendRequest,
+                onPressed: _isSending ? null : _onSendRequest,
                 style: FilledButton.styleFrom(
                   minimumSize: const Size(double.infinity, 52),
                   backgroundColor: AppColors.primary,
@@ -161,17 +211,23 @@ class _ContactItSheetState extends State<ContactItSheet> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text(
-                  'Send request',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                child: _isSending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Send request',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
               ),
               const SizedBox(height: 12),
               OutlinedButton(
-                onPressed: _onClose,
+                onPressed: _isSending ? null : _onClose,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(double.infinity, 52),
                   side: BorderSide(color: AppColors.border),
@@ -192,6 +248,7 @@ class _ContactItSheetState extends State<ContactItSheet> {
           ),
         ),
       ),
+    ),
     );
   }
 }
