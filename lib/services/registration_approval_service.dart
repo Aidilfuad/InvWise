@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'profile_service.dart';
@@ -13,8 +15,10 @@ class RegistrationRequest {
     required this.email,
     required this.requestedRole,
     required this.status,
+    required this.provisioningStatus,
     required this.createdAt,
     this.department,
+    this.provisioningError,
   });
 
   final String id;
@@ -24,6 +28,8 @@ class RegistrationRequest {
   final String? department;
   final String requestedRole;
   final RegistrationRequestStatus status;
+  final String provisioningStatus;
+  final String? provisioningError;
   final DateTime createdAt;
 
   factory RegistrationRequest.fromMap(Map<String, dynamic> map) {
@@ -50,6 +56,9 @@ class RegistrationRequest {
       department: map['department'] as String?,
       requestedRole: map['requested_role'] as String,
       status: status,
+      provisioningStatus:
+          map['provisioning_status'] as String? ?? 'not_started',
+      provisioningError: map['provisioning_error'] as String?,
       createdAt: DateTime.parse(createdAtValue),
     );
   }
@@ -86,7 +95,7 @@ class RegistrationApprovalService {
           .from(_table)
           .select(
             'id, full_name, employee_id, email, department, requested_role, '
-            'status, created_at',
+            'status, provisioning_status, provisioning_error, created_at',
           )
           .eq('status', 'pending')
           .order('created_at', ascending: true);
@@ -107,6 +116,104 @@ class RegistrationApprovalService {
         'Unable to load registration requests. $error',
       );
     }
+  }
+
+  Future<List<RegistrationRequest>> getApprovedRequests() async {
+    _requireAdmin();
+    try {
+      final rows = await _client
+          .from(_table)
+          .select(
+            'id, full_name, employee_id, email, department, requested_role, '
+            'status, provisioning_status, provisioning_error, created_at',
+          )
+          .eq('status', 'approved')
+          .order('created_at', ascending: false);
+      return rows
+          .map(
+            (row) =>
+                RegistrationRequest.fromMap(Map<String, dynamic>.from(row)),
+          )
+          .toList(growable: false);
+    } on PostgrestException catch (error) {
+      throw RegistrationApprovalServiceException(
+        _friendlyMessage(error, 'load approved registration requests'),
+      );
+    } on RegistrationApprovalServiceException {
+      rethrow;
+    } catch (error) {
+      throw RegistrationApprovalServiceException(
+        'Unable to load approved registration requests. $error',
+      );
+    }
+  }
+
+  Future<void> provisionApprovedRequest(String requestId) async {
+    _requireAdmin();
+    try {
+      final response = await _client.functions.invoke(
+        'provision-approved-registration',
+        body: {'request_id': requestId},
+      );
+      if (response.status < 200 || response.status >= 300) {
+        throw RegistrationApprovalServiceException(
+          _functionErrorMessage(response.data) ??
+              'Edge Function returned HTTP ${response.status} without an '
+                  'error message.',
+        );
+      }
+    } on FunctionException catch (error) {
+      final message = _functionErrorMessage(error.details);
+      if (error.status == 0) {
+        throw RegistrationApprovalServiceException(
+          'Could not reach the provision-approved-registration Edge Function. '
+          '${message ?? error.reasonPhrase ?? 'Check network connectivity.'}',
+        );
+      }
+      final reason = error.reasonPhrase == null
+          ? ''
+          : ' (${error.reasonPhrase})';
+      throw RegistrationApprovalServiceException(
+        'provision-approved-registration returned HTTP ${error.status}'
+        '$reason${message == null ? '.' : ': $message'}',
+      );
+    } on RegistrationApprovalServiceException {
+      rethrow;
+    } catch (error) {
+      throw RegistrationApprovalServiceException(
+        'Unable to provision the approved registration. $error',
+      );
+    }
+  }
+
+  String? _functionErrorMessage(dynamic details) {
+    if (details is Map) {
+      final message = details['error'] ?? details['message'];
+      if (message != null && message.toString().trim().isNotEmpty) {
+        final code = details['code'];
+        final prefix = code == null ? '' : '$code: ';
+        return '$prefix${message.toString().trim()}';
+      }
+      return details.toString();
+    }
+    if (details is String && details.trim().isNotEmpty) {
+      final text = details.trim();
+      try {
+        final decoded = jsonDecode(text);
+        if (decoded is Map) {
+          final message = decoded['error'] ?? decoded['message'];
+          if (message != null && message.toString().trim().isNotEmpty) {
+            return message.toString().trim();
+          }
+        }
+      } on FormatException {
+        return text;
+      }
+      return text;
+    }
+    if (details is Error) return details.toString();
+    if (details != null) return details.toString();
+    return null;
   }
 
   Future<void> updateRequestStatus({

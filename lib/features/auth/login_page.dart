@@ -352,8 +352,8 @@ class _LoginPageState extends State<LoginPage> {
           ),
           const SizedBox(height: 16),
           LoginField(
-            label: 'Employee ID',
-            hint: 'Enter Employee ID',
+            label: 'Email',
+            hint: 'Enter your email',
             controller: _employeeIdController,
             textInputAction: TextInputAction.next,
           ),

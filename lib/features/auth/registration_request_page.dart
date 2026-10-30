@@ -22,14 +22,10 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
   final _employeeIdController = TextEditingController();
   final _emailController = TextEditingController();
   final _departmentController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
   final _service = RegistrationRequestService();
 
   String? _requestedRole;
   bool _isSubmitting = false;
-  bool _obscurePassword = true;
-  bool _obscureConfirmation = true;
   String? _errorMessage;
 
   @override
@@ -38,8 +34,6 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
     _employeeIdController.dispose();
     _emailController.dispose();
     _departmentController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -129,9 +123,9 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
                 const SizedBox(height: AppSpacing.sm),
                 Text(
                   'Submit your details and requested role. This form only '
-                  'stores a request; it does not create an account. '
-                  'Your password is used only for confirmation and is not '
-                  'saved or submitted.',
+                  'stores a request; it does not create an account. If '
+                  'approved, you will receive an invitation to set your '
+                  'password.',
                   style: Theme.of(context).textTheme.bodyMedium
                       ?.copyWith(color: AppColors.textSecondary),
                 ),
@@ -177,49 +171,6 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
                   onChanged: _isSubmitting
                       ? null
                       : (role) => setState(() => _requestedRole = role),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _textField(
-                  label: 'Password',
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  suffixIcon: IconButton(
-                    tooltip: _obscurePassword
-                        ? 'Show password'
-                        : 'Hide password',
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.md),
-                _textField(
-                  label: 'Confirm Password',
-                  controller: _confirmPasswordController,
-                  obscureText: _obscureConfirmation,
-                  textInputAction: TextInputAction.done,
-                  validator: (value) =>
-                      RegistrationRequestValidation.confirmation(
-                        password: _passwordController.text,
-                        confirmation: value,
-                      ),
-                  suffixIcon: IconButton(
-                    tooltip: _obscureConfirmation
-                        ? 'Show password'
-                        : 'Hide password',
-                    onPressed: () => setState(
-                      () => _obscureConfirmation = !_obscureConfirmation,
-                    ),
-                    icon: Icon(
-                      _obscureConfirmation
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                  ),
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: AppSpacing.md),

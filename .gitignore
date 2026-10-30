@@ -32,6 +32,10 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+activation-portal/node_modules/
+activation-portal/dist/
+activation-portal/.env.local
+activation-portal/.env.*.local
 
 # Symbolication related
 app.*.symbols

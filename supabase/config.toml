@@ -157,11 +157,15 @@ max_indexes = 5
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
 # in emails.
-site_url = "http://127.0.0.1:3000"
+site_url = "https://invwise-activation.vercel.app"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = [
+  "http://localhost:5173",
+  "https://invwise-activation.vercel.app",
+  "invwise://auth/registration-setup"
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
@@ -425,3 +429,11 @@ entrypoint = "./functions/login-with-employee-id/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/login-with-employee-id/*.html" ]
+
+[functions.provision-approved-registration]
+enabled = true
+verify_jwt = true
+
+[functions.complete-registration-setup]
+enabled = true
+verify_jwt = true

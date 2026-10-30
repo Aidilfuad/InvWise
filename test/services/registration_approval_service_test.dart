@@ -10,6 +10,8 @@ void main() {
     'department': 'Operations',
     'requested_role': 'Storekeeper',
     'status': 'pending',
+    'provisioning_status': 'not_started',
+    'provisioning_error': null,
     'created_at': '2026-10-30T10:15:00Z',
   };
 
@@ -23,7 +25,20 @@ void main() {
     expect(request.department, 'Operations');
     expect(request.requestedRole, 'Storekeeper');
     expect(request.status, RegistrationRequestStatus.pending);
+    expect(request.provisioningStatus, 'not_started');
     expect(request.createdAt, DateTime.utc(2026, 10, 30, 10, 15));
+  });
+
+  test('parses provisioning status for approved requests', () {
+    final request = RegistrationRequest.fromMap({
+      ...pendingRequestMap,
+      'status': 'approved',
+      'provisioning_status': 'failed',
+      'provisioning_error': 'Invitation email could not be sent.',
+    });
+
+    expect(request.provisioningStatus, 'failed');
+    expect(request.provisioningError, 'Invitation email could not be sent.');
   });
 
   test('parses approved and rejected statuses', () {
