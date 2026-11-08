@@ -16,6 +16,9 @@ class InventoryHeader extends StatelessWidget {
     this.onFilterTap,
     this.isFilterActive = false,
     this.onProfileTap,
+    this.onSelectionTap,
+    this.isSelectionMode = false,
+    this.topInset,
   });
 
   final String title;
@@ -26,11 +29,14 @@ class InventoryHeader extends StatelessWidget {
   final VoidCallback? onFilterTap;
   final bool isFilterActive;
   final VoidCallback? onProfileTap;
+  final VoidCallback? onSelectionTap;
+  final bool isSelectionMode;
+  final double? topInset;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final topInset = MediaQuery.paddingOf(context).top;
+    final effectiveTopInset = topInset ?? MediaQuery.paddingOf(context).top;
 
     return Container(
       decoration: BoxDecoration(
@@ -39,7 +45,7 @@ class InventoryHeader extends StatelessWidget {
       ),
       padding: EdgeInsets.fromLTRB(
         AppSpacing.xl,
-        topInset + AppSpacing.lg,
+        effectiveTopInset + AppSpacing.lg,
         AppSpacing.xl,
         AppSpacing.lg,
       ),
@@ -72,6 +78,18 @@ class InventoryHeader extends StatelessWidget {
                 ),
               ),
               AppSpacing.gapMd,
+              if (onSelectionTap != null) ...[
+                OutlinedButton.icon(
+                  onPressed: onSelectionTap,
+                  icon: Icon(
+                    isSelectionMode
+                        ? Icons.close_rounded
+                        : Icons.checklist_rounded,
+                  ),
+                  label: Text(isSelectionMode ? 'Cancel' : 'Select'),
+                ),
+                AppSpacing.gapSm,
+              ],
               Material(
                 color: AppColors.primary,
                 shape: const CircleBorder(),

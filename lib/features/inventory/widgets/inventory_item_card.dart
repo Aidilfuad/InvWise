@@ -7,10 +7,20 @@ import '../../../services/inventory_service.dart';
 /// One row in the stock list: status icon, SKU + location, centered name,
 /// quantity with status, and a trailing chevron.
 class InventoryItemCard extends StatelessWidget {
-  const InventoryItemCard({super.key, required this.item, this.onTap});
+  const InventoryItemCard({
+    super.key,
+    required this.item,
+    this.onTap,
+    this.onLongPress,
+    this.isSelectionMode = false,
+    this.isSelected = false,
+  });
 
   final InventoryItem item;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -49,11 +59,16 @@ class InventoryItemCard extends StatelessWidget {
         type: MaterialType.transparency,
         child: InkWell(
           onTap: onTap,
+          onLongPress: onLongPress,
           borderRadius: borderRadius,
           child: Padding(
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: Row(
               children: [
+                if (isSelectionMode) ...[
+                  Checkbox(value: isSelected, onChanged: (_) => onTap?.call()),
+                  AppSpacing.gapSm,
+                ],
                 Container(
                   width: 48,
                   height: 48,
@@ -145,11 +160,12 @@ class InventoryItemCard extends StatelessWidget {
                   ),
                 ),
                 AppSpacing.gapMd,
-                Icon(
-                  Icons.chevron_right_rounded,
-                  size: AppSpacing.iconMd,
-                  color: AppColors.textPrimary,
-                ),
+                if (!isSelectionMode)
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: AppSpacing.iconMd,
+                    color: AppColors.textPrimary,
+                  ),
               ],
             ),
           ),

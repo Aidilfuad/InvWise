@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'profile_service.dart';
 
 enum AppRole {
+  superAdmin,
   inventoryAdministrator,
   warehouseSupervisor,
   storekeeper,
@@ -26,10 +27,17 @@ enum AppPermission {
   manageCategories,
   manageUnits,
   manageWarehouses,
+  bulkChangeCategory,
+  bulkChangeWarehouse,
+  bulkArchiveInventory,
+  bulkDeleteInventory,
   accessPersonalSecurity,
   manageSecurity,
   manageRegistrationRequests,
   viewSupportCenter,
+  viewCurrencySettings,
+  changeDisplayCurrency,
+  manageExchangeRate,
 }
 
 class RoleAccessService extends ChangeNotifier {
@@ -110,6 +118,7 @@ class RoleAccessService extends ChangeNotifier {
   AppRole _parseRole(String? value) {
     final normalized = value?.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
     return switch (normalized) {
+      'superadmin' => AppRole.superAdmin,
       'inventoryadministrator' => AppRole.inventoryAdministrator,
       'warehousesupervisor' => AppRole.warehouseSupervisor,
       'storekeeper' => AppRole.storekeeper,
@@ -135,10 +144,16 @@ const Set<AppPermission> _inventoryAdministratorPermissions = {
   AppPermission.manageCategories,
   AppPermission.manageUnits,
   AppPermission.manageWarehouses,
+  AppPermission.bulkChangeCategory,
+  AppPermission.bulkChangeWarehouse,
+  AppPermission.bulkArchiveInventory,
+  AppPermission.bulkDeleteInventory,
   AppPermission.accessPersonalSecurity,
   AppPermission.manageSecurity,
   AppPermission.manageRegistrationRequests,
   AppPermission.viewSupportCenter,
+  AppPermission.viewCurrencySettings,
+  AppPermission.changeDisplayCurrency,
 };
 
 const Set<AppPermission> _dashboardPermissions = {
@@ -150,15 +165,22 @@ const Set<AppPermission> _dashboardPermissions = {
 
 const Set<AppPermission> _warehouseSupervisorPermissions = {
   ..._dashboardPermissions,
+  AppPermission.viewCurrencySettings,
+  AppPermission.changeDisplayCurrency,
   AppPermission.viewInventory,
   AppPermission.adjustStock,
   AppPermission.manageWarehouses,
+  AppPermission.bulkChangeCategory,
+  AppPermission.bulkChangeWarehouse,
+  AppPermission.bulkArchiveInventory,
   AppPermission.viewReports,
   AppPermission.exportReports,
 };
 
 const Set<AppPermission> _storekeeperPermissions = {
   ..._dashboardPermissions,
+  AppPermission.viewCurrencySettings,
+  AppPermission.changeDisplayCurrency,
   AppPermission.viewInventory,
   AppPermission.adjustStock,
   AppPermission.receiveStock,
@@ -167,6 +189,7 @@ const Set<AppPermission> _storekeeperPermissions = {
 };
 
 const Map<AppRole, Set<AppPermission>> _permissionsByRole = {
+  AppRole.superAdmin: {...AppPermission.values},
   AppRole.inventoryAdministrator: _inventoryAdministratorPermissions,
   AppRole.warehouseSupervisor: _warehouseSupervisorPermissions,
   AppRole.storekeeper: _storekeeperPermissions,

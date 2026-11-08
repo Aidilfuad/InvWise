@@ -5,6 +5,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../app/routes/app_routes.dart';
 import '../../app/theme/app_theme_controller.dart';
+import '../../services/currency_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
 import 'widgets/edit_profile_sheet.dart';
@@ -12,6 +13,7 @@ import 'widgets/settings_header.dart';
 import 'widgets/settings_profile_card.dart';
 import 'widgets/settings_section.dart';
 import 'widgets/settings_tile.dart';
+import 'currency_settings_page.dart';
 import '../inventory_category/inventory_categories_page.dart';
 import '../units_page/stock_units_page.dart';
 import '../support_center/support_center_page.dart';
@@ -53,6 +55,17 @@ class _SettingsPageState extends State<SettingsPage> {
       final profile = await _profileService.getCurrentProfile();
       if (!mounted) return;
       _roleAccess.updateRole(profile?.role);
+      String? currencyError;
+      if (profile != null) {
+        try {
+          await CurrencyService.instance.loadForProfile(profile.id);
+        } on CurrencyServiceException catch (error) {
+          currencyError = error.message;
+        } catch (error) {
+          currencyError = 'Unable to load currency settings: $error';
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _profile = profile;
         if (profile == null) {
@@ -60,6 +73,11 @@ class _SettingsPageState extends State<SettingsPage> {
         }
         _isLoadingProfile = false;
       });
+      if (currencyError != null) {
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(currencyError)));
+      }
     } on ProfileServiceException catch (error) {
       if (!mounted) return;
       _roleAccess.updateRole(null);
@@ -99,6 +117,19 @@ class _SettingsPageState extends State<SettingsPage> {
       context,
     ).push(MaterialPageRoute(builder: (_) => const PersonalInformationPage()));
     if (mounted) await _loadProfile();
+  }
+
+  void _onCurrencyTap() {
+    final profileId = _profile?.id;
+    if (profileId == null ||
+        !_roleAccess.allows(AppPermission.viewCurrencySettings)) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CurrencySettingsPage(profileId: profileId),
+      ),
+    );
   }
 
   void _onSecurityTap() {
@@ -348,6 +379,20 @@ class _SettingsPageState extends State<SettingsPage> {
                                 );
                               },
                             ),
+                            if (_profile != null &&
+                                _roleAccess.allows(
+                                  AppPermission.viewCurrencySettings,
+                                ))
+                              AnimatedBuilder(
+                                animation: CurrencyService.instance,
+                                builder: (context, child) => SettingsTile(
+                                  icon: Icons.attach_money_rounded,
+                                  title: 'Currency',
+                                  subtitle:
+                                      'Display: ${CurrencyService.instance.currencyCode}',
+                                  onTap: _onCurrencyTap,
+                                ),
+                              ),
                             SettingsTile(
                               icon: Icons.language_rounded,
                               title: 'Language',

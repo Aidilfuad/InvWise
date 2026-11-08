@@ -201,7 +201,7 @@ abstract final class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: buttonSize,
+          minimumSize: const Size(0, AppSpacing.buttonHeight),
           foregroundColor: AppColors.primary,
           side: BorderSide(color: scheme.outline),
           shape: buttonShape,

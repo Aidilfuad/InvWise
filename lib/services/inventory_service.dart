@@ -11,6 +11,13 @@ class InventoryServiceException implements Exception {
   String toString() => 'InventoryServiceException: $message';
 }
 
+class _InventoryItemsCache {
+  const _InventoryItemsCache({required this.items, required this.loadedAt});
+
+  final List<InventoryItem> items;
+  final DateTime loadedAt;
+}
+
 class InventoryLocation {
   const InventoryLocation({required this.id, required this.name});
 
@@ -39,9 +46,14 @@ class InventoryItem {
     required this.unitPrice,
     this.categoryId,
     this.categoryName,
+    this.description,
     this.notes,
     this.location,
     this.warehouse,
+    this.createdBy,
+    this.createdAt,
+    this.updatedBy,
+    this.updatedAt,
   });
 
   final String id;
@@ -49,6 +61,7 @@ class InventoryItem {
   final String name;
   final String? categoryId;
   final String? categoryName;
+  final String? description;
   final String unitId;
   final String unitName;
   final String unitAbbreviation;
@@ -60,10 +73,15 @@ class InventoryItem {
   final String? notes;
   final String? location;
   final String? warehouse;
+  final String? createdBy;
+  final DateTime? createdAt;
+  final String? updatedBy;
+  final DateTime? updatedAt;
 
   String get unit => '$unitName ($unitAbbreviation)';
   String get unitLabel => unitAbbreviation.toUpperCase();
   String get quantityLabel => '${_formatQuantity(quantity)} $unitLabel';
+  double get inventoryValue => quantity * unitPrice;
 
   InventoryStockStatus get status {
     if (quantity <= 0) return InventoryStockStatus.outOfStock;
@@ -105,9 +123,14 @@ class InventoryItem {
       locationId: locationId,
       minStock: _doubleValue(map['minimum_stock']),
       unitPrice: _doubleValue(map['unit_price']),
+      description: map['description'] as String?,
       notes: map['notes'] as String?,
       location: locationName,
       warehouse: null,
+      createdBy: map['created_by'] as String?,
+      createdAt: _dateTimeValue(map['created_at']),
+      updatedBy: map['updated_by'] as String?,
+      updatedAt: _dateTimeValue(map['updated_at']),
     );
   }
 }
@@ -135,6 +158,25 @@ class InventoryService {
   static const String _stockLevelsTable = 'stock_levels';
   static const String _selectColumns =
       '*, category:categories(name), unit:units(name,abbreviation)';
+  static const Duration _itemsCacheDuration = Duration(seconds: 30);
+  static final Map<String, _InventoryItemsCache> _itemsCache = {};
+  static final Map<String, Future<List<InventoryItem>>> _itemsRequests = {};
+  static final Map<String, int> _itemsCacheVersions = {};
+
+  String get _itemsCacheKey => _client.auth.currentUser?.id ?? 'anonymous';
+
+  List<InventoryItem>? get cachedItems => _itemsCache[_itemsCacheKey]?.items;
+
+  static void invalidateItemsCache() {
+    final key = Supabase.instance.client.auth.currentUser?.id ?? 'anonymous';
+    _itemsCache.remove(key);
+    _itemsRequests.remove(key);
+    _itemsCacheVersions.update(
+      key,
+      (version) => version + 1,
+      ifAbsent: () => 1,
+    );
+  }
 
   Future<List<InventoryLocation>> getLocations() async {
     try {
@@ -181,6 +223,194 @@ class InventoryService {
         'Unable to load the stock quantity. Please try again.',
       );
     }
+  }
+
+  Future<Map<String, Map<String, double>>> getStockLevelsForItems(
+    List<String> itemIds,
+  ) async {
+    final ids = _validatedIds(itemIds);
+    try {
+      final rows = await _client
+          .from(_stockLevelsTable)
+          .select('item_id,location_id,quantity')
+          .inFilter('item_id', ids);
+      final levels = <String, Map<String, double>>{};
+      for (final row in rows) {
+        final itemId = _requiredString(row, 'item_id');
+        final locationId = _requiredString(row, 'location_id');
+        levels.putIfAbsent(itemId, () => {})[locationId] = _doubleValue(
+          row['quantity'],
+        );
+      }
+      return levels;
+    } on PostgrestException catch (e) {
+      throw InventoryServiceException(
+        _friendlyMessage(e, 'load selected stock levels'),
+      );
+    } catch (e) {
+      if (e is InventoryServiceException) rethrow;
+      throw const InventoryServiceException(
+        'Unable to load selected stock levels. Please try again.',
+      );
+    }
+  }
+
+  Future<void> setEmptyStockLocation({
+    required String itemId,
+    required String locationId,
+  }) async {
+    final id = _validatedId(itemId);
+    final location = _validatedId(locationId);
+    try {
+      final levels = await getStockLevelsForItems([id]);
+      final total = levels[id]?.values.fold<double>(
+        0,
+        (sum, quantity) => sum + quantity,
+      );
+      if (total != null && total > 0) {
+        throw const InventoryServiceException(
+          'Stock changed while moving the item. Refresh inventory and try '
+          'again.',
+        );
+      }
+      await _client
+          .from(_stockLevelsTable)
+          .delete()
+          .eq('item_id', id)
+          .lte('quantity', 0);
+      await _client.from(_stockLevelsTable).upsert({
+        'item_id': id,
+        'location_id': location,
+        'quantity': 0,
+        'updated_at': DateTime.now().toUtc().toIso8601String(),
+      }, onConflict: 'item_id,location_id');
+      invalidateItemsCache();
+    } on PostgrestException catch (e) {
+      throw InventoryServiceException(
+        _friendlyMessage(e, 'assign the empty item to the warehouse'),
+      );
+    } on InventoryServiceException {
+      rethrow;
+    } catch (e) {
+      if (e is InventoryServiceException) rethrow;
+      throw const InventoryServiceException(
+        'Unable to assign the empty item to the warehouse. Please try again.',
+      );
+    }
+  }
+
+  Future<Map<String, String>> changeCategoryForItems(
+    List<String> itemIds,
+    String? categoryId,
+  ) async {
+    final ids = _validatedIds(itemIds);
+    final category = categoryId == null ? null : _validatedId(categoryId);
+    final failures = <String, String>{};
+    for (final id in ids) {
+      try {
+        final rows = await _client
+            .from(_table)
+            .update({
+              'category_id': category,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', id)
+            .eq('is_active', true)
+            .select('id');
+        if (rows.isEmpty) {
+          throw const InventoryServiceException(
+            'Item could not be updated. Refresh inventory and try again.',
+          );
+        }
+        await _recordActivity(
+          type: ActivityEventType.inventoryUpdated,
+          description: 'Changed the category for inventory item $id.',
+          itemId: id,
+          details: {'bulk_action': 'change_category', 'category_id': category},
+        );
+        invalidateItemsCache();
+      } on PostgrestException catch (error) {
+        failures[id] = _friendlyMessage(
+          error,
+          'change the category for this item',
+        );
+      } on InventoryServiceException catch (error) {
+        failures[id] = error.message;
+      } catch (_) {
+        failures[id] = 'Unable to change this item category. Please try again.';
+      }
+    }
+    return failures;
+  }
+
+  Future<Map<String, String>> archiveItems(List<String> itemIds) async {
+    final ids = _validatedIds(itemIds);
+    final failures = <String, String>{};
+    for (final id in ids) {
+      try {
+        final rows = await _client
+            .from(_table)
+            .update({
+              'is_active': false,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', id)
+            .eq('is_active', true)
+            .select('id');
+        if (rows.isEmpty) {
+          throw const InventoryServiceException(
+            'Item could not be archived. Refresh inventory and try again.',
+          );
+        }
+        await _recordActivity(
+          type: ActivityEventType.inventoryUpdated,
+          description: 'Archived inventory item $id.',
+          itemId: id,
+          details: {'bulk_action': 'archive'},
+        );
+        invalidateItemsCache();
+      } on PostgrestException catch (error) {
+        failures[id] = _friendlyMessage(error, 'archive this item');
+      } on InventoryServiceException catch (error) {
+        failures[id] = error.message;
+      } catch (_) {
+        failures[id] = 'Unable to archive this item. Please try again.';
+      }
+    }
+    return failures;
+  }
+
+  Future<Map<String, String>> deleteItemsPermanently(
+    List<String> itemIds,
+  ) async {
+    final ids = _validatedIds(itemIds);
+    final failures = <String, String>{};
+    for (final id in ids) {
+      try {
+        final rows = await _client
+            .from(_table)
+            .delete()
+            .eq('id', id)
+            .select('id');
+        if (rows.isEmpty) {
+          throw const InventoryServiceException(
+            'Item could not be deleted. Refresh inventory and try again.',
+          );
+        }
+        invalidateItemsCache();
+      } on PostgrestException catch (error) {
+        failures[id] = error.code == '23503'
+            ? 'Item is referenced by stock or activity history and cannot be '
+                  'permanently deleted. Archive it instead.'
+            : _friendlyMessage(error, 'permanently delete this item');
+      } on InventoryServiceException catch (error) {
+        failures[id] = error.message;
+      } catch (_) {
+        failures[id] =
+            'Unable to permanently delete this item. Please try again.';
+      }
+    }
+    return failures;
   }
 
   Future<double> adjustStock({
@@ -232,6 +462,7 @@ class InventoryService {
           'updated_quantity': updatedQuantity,
         },
       );
+      invalidateItemsCache();
       return updatedQuantity;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(
@@ -246,7 +477,38 @@ class InventoryService {
     }
   }
 
-  Future<List<InventoryItem>> getItems() async {
+  Future<List<InventoryItem>> getItems({bool forceRefresh = false}) async {
+    final key = _itemsCacheKey;
+    final cached = _itemsCache[key];
+    if (!forceRefresh &&
+        cached != null &&
+        DateTime.now().difference(cached.loadedAt) < _itemsCacheDuration) {
+      return cached.items;
+    }
+
+    final pending = _itemsRequests[key];
+    if (pending != null) return pending;
+
+    final request = _fetchItems();
+    final version = _itemsCacheVersions[key] ?? 0;
+    _itemsRequests[key] = request;
+    try {
+      final items = await request;
+      if ((_itemsCacheVersions[key] ?? 0) == version) {
+        _itemsCache[key] = _InventoryItemsCache(
+          items: items,
+          loadedAt: DateTime.now(),
+        );
+      }
+      return items;
+    } finally {
+      if (identical(_itemsRequests[key], request)) {
+        _itemsRequests.remove(key);
+      }
+    }
+  }
+
+  Future<List<InventoryItem>> _fetchItems() async {
     try {
       final rows = await _client
           .from(_table)
@@ -353,6 +615,7 @@ class InventoryService {
           'initial_quantity': quantity,
         },
       );
+      invalidateItemsCache();
       return item;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'create the item'));
@@ -424,6 +687,7 @@ class InventoryService {
           'quantity': quantity,
         },
       );
+      invalidateItemsCache();
       return item;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'update the item'));
@@ -569,22 +833,27 @@ class InventoryService {
         .order('location_id', ascending: true);
     final quantities = <String, double>{};
     final locationIds = <String>{};
-    final itemLocations = <String, String>{};
-    final locationQuantities = <String, double>{};
+    final positiveLocations = <String, String>{};
+    final fallbackLocations = <String, String>{};
+    final quantitiesByLocation = <String, Map<String, double>>{};
     for (final stock in stockRows) {
       final itemId = stock['item_id'] as String;
       final locationId = stock['location_id'] as String;
       final quantity = _doubleValue(stock['quantity']);
       locationIds.add(locationId);
-      itemLocations.putIfAbsent(itemId, () => locationId);
+      fallbackLocations.putIfAbsent(itemId, () => locationId);
+      if (quantity > 0) positiveLocations.putIfAbsent(itemId, () => locationId);
       quantities.update(
         itemId,
         (total) => total + quantity,
         ifAbsent: () => quantity,
       );
-      if (itemLocations[itemId] == locationId) {
-        locationQuantities[itemId] = quantity;
-      }
+      quantitiesByLocation.putIfAbsent(itemId, () => {})[locationId] = quantity;
+    }
+    final itemLocations = <String, String>{};
+    for (final itemId in itemIds) {
+      final locationId = positiveLocations[itemId] ?? fallbackLocations[itemId];
+      if (locationId != null) itemLocations[itemId] = locationId;
     }
     final List<Map<String, dynamic>> locations = locationIds.isEmpty
         ? const []
@@ -601,7 +870,10 @@ class InventoryService {
           (row) => InventoryItem.fromMap(
             row,
             quantity: quantities[row['id'] as String] ?? 0,
-            locationQuantity: locationQuantities[row['id'] as String] ?? 0,
+            locationQuantity:
+                quantitiesByLocation[row['id']
+                    as String]?[itemLocations[row['id'] as String]] ??
+                0,
             locationId: itemLocations[row['id'] as String],
             locationName: locationNames[itemLocations[row['id'] as String]],
           ),
@@ -615,6 +887,16 @@ class InventoryService {
       throw const InventoryServiceException('Inventory item not found.');
     }
     return trimmed;
+  }
+
+  List<String> _validatedIds(List<String> ids) {
+    final normalized = ids.map((id) => id.trim()).toSet().toList();
+    if (normalized.isEmpty || normalized.any((id) => id.isEmpty)) {
+      throw const InventoryServiceException(
+        'Select at least one valid inventory item.',
+      );
+    }
+    return normalized;
   }
 
   String _friendlyMessage(PostgrestException e, String action) {
@@ -651,6 +933,12 @@ double _doubleValue(Object? value) {
     if (parsed != null && parsed.isFinite) return parsed;
   }
   throw const FormatException('Inventory item contains an invalid number.');
+}
+
+DateTime? _dateTimeValue(Object? value) {
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  return null;
 }
 
 String _formatQuantity(double value) =>

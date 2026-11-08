@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
+import '../../../services/currency_service.dart';
 
 enum ActivityType {
   received(
@@ -41,18 +42,17 @@ class ActivityEntry {
     required this.title,
     required this.date,
     required this.actor,
-    required this.amount,
+    required this.amountLabel,
     required this.type,
   });
 
   final String title;
   final String date;
   final String actor;
-  final int amount;
+  final String amountLabel;
   final ActivityType type;
 
   String get subtitle => '$date • $actor';
-  String get amountLabel => amount > 0 ? '+$amount' : '$amount';
 }
 
 class InfoEntry {
@@ -74,10 +74,12 @@ class ItemDetails {
     required this.currentStock,
     required this.unit,
     required this.unitPrice,
+    required this.inventoryValue,
     required this.warehouse,
-    required this.binLocation,
     required this.category,
     required this.minThreshold,
+    required this.description,
+    required this.notes,
     this.activities = const [],
   });
 
@@ -86,10 +88,12 @@ class ItemDetails {
   final double currentStock;
   final String unit;
   final double unitPrice;
+  final double inventoryValue;
   final String warehouse;
-  final String binLocation;
   final String category;
   final double minThreshold;
+  final String description;
+  final String notes;
   final List<ActivityEntry> activities;
 
   String get currentStockLabel {
@@ -99,36 +103,12 @@ class ItemDetails {
     return value.replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
   }
 
-  String get unitPriceLabel => '\$${unitPrice.toStringAsFixed(2)}';
+  String get unitPriceLabel => CurrencyService.instance.formatMyr(unitPrice);
+  String get inventoryValueLabel =>
+      CurrencyService.instance.formatMyr(inventoryValue);
 
   String get minThresholdLabel => minThreshold
       .toStringAsFixed(3)
       .replaceFirst(RegExp(r'\.?0+$'), '')
       .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
-
-  List<InfoEntry> get infoEntries => [
-    InfoEntry(
-      icon: Icons.inventory_2_rounded,
-      label: 'Warehouse',
-      value: warehouse,
-    ),
-    InfoEntry(
-      icon: Icons.location_on_rounded,
-      label: 'Bin Location',
-      value: binLocation,
-    ),
-    InfoEntry(
-      icon: Icons.precision_manufacturing_rounded,
-      label: 'Category',
-      value: category,
-    ),
-    InfoEntry(
-      icon: Icons.warning_amber_rounded,
-      label: 'Min. Threshold',
-      value: '${_formatQuantity(minThreshold)} $unit',
-    ),
-  ];
-
-  static String _formatQuantity(double value) =>
-      value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
 }

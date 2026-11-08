@@ -1,149 +1,202 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
+import '../../../services/currency_service.dart';
 
-/// Three-column statistics card: Total SKU Count / Low Stock / Out of Stock.
-/// Columns are start-, center- and end-aligned, separated by thin dividers.
+/// Responsive inventory metrics with an emphasized asset value.
 class InventorySummaryCard extends StatelessWidget {
   const InventorySummaryCard({
     super.key,
     required this.totalSkuCount,
+    required this.totalAssetValue,
     required this.lowStockCount,
     required this.outOfStockCount,
   });
 
   final int totalSkuCount;
+  final double totalAssetValue;
   final int lowStockCount;
   final int outOfStockCount;
 
-  // Colors follow the reference design (white text on a pale blue card).
-  static Color get _background =>
-      AppColors.primaryContainer.withValues(alpha: 0.6);
-  static Color get _border => AppColors.primaryContainer;
-  static const Color _valueColor = AppColors.textOnPrimary;
-  static Color get _labelColor =>
-      AppColors.textOnPrimary.withValues(alpha: 0.8);
-  static Color get _dividerColor =>
-      AppColors.textOnPrimary.withValues(alpha: 0.6);
-
   static String _format(int value) => value.toString().replaceAllMapped(
-        RegExp(r'\B(?=(\d{3})+(?!\d))'),
-        (_) => ',',
-      );
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => ',',
+  );
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      decoration: BoxDecoration(
-        color: _background,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _Stat(
-              label: 'Total SKU Count',
-              value: _format(totalSkuCount),
-              alignment: CrossAxisAlignment.start,
-              labelColor: _labelColor,
-              valueColor: _valueColor,
+    return AnimatedBuilder(
+      animation: CurrencyService.instance,
+      builder: (context, _) => Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.border),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x100F172A),
+              blurRadius: 16,
+              offset: Offset(0, 5),
             ),
-          ),
-          _StatDivider(color: _dividerColor),
-          Expanded(
-            child: _Stat(
-              label: 'Low Stock',
-              value: _format(lowStockCount),
-              alignment: CrossAxisAlignment.center,
-              labelColor: _labelColor,
-              valueColor: _valueColor,
-            ),
-          ),
-          _StatDivider(color: _dividerColor),
-          Expanded(
-            child: _Stat(
-              label: 'Out of Stock',
-              value: _format(outOfStockCount),
-              alignment: CrossAxisAlignment.end,
-              labelColor: _labelColor,
-              valueColor: _valueColor,
-            ),
-          ),
-        ],
+          ],
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 560;
+            final assetValueStyle = Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(
+                  color: AppColors.textOnPrimary,
+                  fontSize: isCompact ? 25 : 30,
+                  fontWeight: FontWeight.w800,
+                );
+            final metrics = [
+              _Metric(
+                label: 'Total SKU Count',
+                value: _format(totalSkuCount),
+                icon: Icons.inventory_2_outlined,
+                color: AppColors.primary,
+              ),
+              _Metric(
+                label: 'Low Stock',
+                value: _format(lowStockCount),
+                icon: Icons.warning_amber_rounded,
+                color: AppColors.warning,
+              ),
+              _Metric(
+                label: 'Out of Stock',
+                value: _format(outOfStockCount),
+                icon: Icons.remove_shopping_cart_outlined,
+                color: AppColors.danger,
+              ),
+            ];
+            final columns = isCompact ? 2 : 3;
+            final spacing = 10.0;
+            final metricWidth =
+                (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isCompact ? 16 : 20,
+                    vertical: isCompact ? 16 : 18,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total Asset Value',
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: AppColors.textOnPrimary.withValues(
+                            alpha: 0.88,
+                          ),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          CurrencyService.instance.formatMyr(totalAssetValue),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: assetValueStyle,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  children: [
+                    for (final metric in metrics)
+                      SizedBox(
+                        width: metricWidth,
+                        child: _MetricTile(metric: metric),
+                      ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class _Stat extends StatelessWidget {
-  const _Stat({
+class _Metric {
+  const _Metric({
     required this.label,
     required this.value,
-    required this.alignment,
-    required this.labelColor,
-    required this.valueColor,
+    required this.icon,
+    required this.color,
   });
 
   final String label;
   final String value;
-  final CrossAxisAlignment alignment;
-  final Color labelColor;
-  final Color valueColor;
+  final IconData icon;
+  final Color color;
+}
 
-  TextAlign get _textAlign => switch (alignment) {
-        CrossAxisAlignment.center => TextAlign.center,
-        CrossAxisAlignment.end => TextAlign.end,
-        _ => TextAlign.start,
-      };
+class _MetricTile extends StatelessWidget {
+  const _MetricTile({required this.metric});
+
+  final _Metric metric;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-
-    return Column(
-      crossAxisAlignment: alignment,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: _textAlign,
-          style: textTheme.labelSmall?.copyWith(
-            color: labelColor,
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          maxLines: 1,
-          textAlign: _textAlign,
-          style: textTheme.headlineSmall?.copyWith(
-            color: valueColor,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatDivider extends StatelessWidget {
-  const _StatDivider({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
     return Container(
-      width: 1,
-      height: 32,
-      margin: const EdgeInsets.symmetric(horizontal: 8),
-      color: color,
+      constraints: const BoxConstraints(minHeight: 76),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            metric.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: textTheme.labelMedium?.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(metric.icon, size: 16, color: metric.color),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  metric.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleMedium?.copyWith(
+                    color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

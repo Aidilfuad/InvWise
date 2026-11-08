@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
 
-/// Top card of the Item Details screen: SKU, name, current stock, unit price.
+/// Summary card for item identity, stock status, and financial metrics.
 class ItemOverviewCard extends StatelessWidget {
   const ItemOverviewCard({
     super.key,
@@ -12,6 +12,7 @@ class ItemOverviewCard extends StatelessWidget {
     required this.currentStock,
     required this.unit,
     required this.unitPrice,
+    required this.inventoryValue,
     required this.statusLabel,
     required this.statusColor,
     required this.statusBackground,
@@ -23,6 +24,7 @@ class ItemOverviewCard extends StatelessWidget {
   final String currentStock;
   final String unit;
   final String unitPrice;
+  final String inventoryValue;
   final String statusLabel;
   final Color statusColor;
   final Color statusBackground;
@@ -33,7 +35,7 @@ class ItemOverviewCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(28),
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: AppSpacing.borderRadiusXl,
@@ -84,70 +86,67 @@ class ItemOverviewCard extends StatelessWidget {
             ],
           ),
           AppSpacing.gapXl,
-          // Scales down instead of overflowing on very narrow screens.
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _MetricLabel('Current Stock'),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.baseline,
-                      textBaseline: TextBaseline.alphabetic,
-                      children: [
-                        Text(
-                          currentStock,
-                          style: textTheme.headlineLarge?.copyWith(
-                            fontSize: 36,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.textPrimary,
-                          ),
+          Wrap(
+            spacing: AppSpacing.xl,
+            runSpacing: AppSpacing.md,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const _MetricLabel('Current Stock'),
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    alignment: WrapAlignment.start,
+                    spacing: AppSpacing.xs,
+                    children: [
+                      Text(
+                        currentStock,
+                        style: textTheme.headlineLarge?.copyWith(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
                         ),
-                        AppSpacing.gapXs,
-                        Text(
-                          unit,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Container(
-                  width: 1,
-                  height: 48,
-                  margin: const EdgeInsets.symmetric(horizontal: 24),
-                  color: AppColors.border,
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _MetricLabel('Unit Price'),
-                    Text(
-                      unitPrice,
-                      style: textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
                       ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                      Text(
+                        unit,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              _MetricValue(label: 'Inventory Value', value: inventoryValue),
+              _MetricValue(label: 'Unit Price', value: unitPrice),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+class _MetricValue extends StatelessWidget {
+  const _MetricValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _MetricLabel(label),
+      Text(
+        value,
+        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+          fontWeight: FontWeight.w800,
+          color: AppColors.textPrimary,
+        ),
+      ),
+    ],
+  );
 }
 
 class _StatusBadge extends StatelessWidget {

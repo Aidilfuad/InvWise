@@ -122,23 +122,38 @@ class ActivityLogService {
 
   static const String _table = 'activity_log';
 
-  Future<List<ActivityLogEntry>> getEntries({int limit = 100}) async {
+  Future<List<ActivityLogEntry>> getEntries({
+    int limit = 100,
+    String? itemId,
+  }) async {
     if (limit <= 0) {
       throw const ActivityLogServiceException(
         'The activity result limit must be greater than zero.',
       );
     }
+    if (itemId != null && itemId.trim().isEmpty) {
+      throw const ActivityLogServiceException(
+        'The activity item identifier must not be empty.',
+      );
+    }
 
     try {
-      final rows = await _client
+      final selectedRows = _client
           .from(_table)
           .select(
             'id,event_type,description,actor_profile_id,item_id,location_id,'
             'stock_movement_id,details,occurred_at',
-          )
-          .order('occurred_at', ascending: false)
-          .order('id', ascending: false)
-          .limit(limit);
+          );
+      final rows = itemId == null
+          ? await selectedRows
+                .order('occurred_at', ascending: false)
+                .order('id', ascending: false)
+                .limit(limit)
+          : await selectedRows
+                .eq('item_id', itemId.trim())
+                .order('occurred_at', ascending: false)
+                .order('id', ascending: false)
+                .limit(limit);
       if (rows.isEmpty) return const [];
 
       final itemIds = rows

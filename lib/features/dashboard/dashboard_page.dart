@@ -50,7 +50,7 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _loadDashboard() async {
     setState(() {
-      _isLoading = true;
+      if (_data == null) _isLoading = true;
       _errorMessage = null;
     });
     try {
@@ -110,13 +110,15 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
-    if (mounted) await _loadDashboard();
   }
 
-  void _onQuickActionTap(BuildContext context, QuickActionItem action) {
+  Future<void> _onQuickActionTap(
+    BuildContext context,
+    QuickActionItem action,
+  ) async {
     switch (action.type) {
       case QuickActionType.addItem:
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RoleAccessGuard(
               permission: AppPermission.createInventory,
@@ -124,8 +126,9 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
         );
+        if (mounted) await _loadDashboard();
       case QuickActionType.inventory:
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RoleAccessGuard(
               permission: AppPermission.viewInventory,
@@ -133,8 +136,9 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           ),
         );
+        if (mounted) await _loadDashboard();
       case QuickActionType.reports:
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RoleAccessGuard(
               permission: AppPermission.viewReports,
@@ -143,7 +147,7 @@ class _DashboardPageState extends State<DashboardPage> {
           ),
         );
       case QuickActionType.activityLog:
-        Navigator.of(context).push(
+        await Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RoleAccessGuard(
               permission: AppPermission.viewActivityLog,

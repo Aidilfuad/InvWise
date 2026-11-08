@@ -16,14 +16,74 @@ class UserSettingsService {
 
   static const String _table = 'user_settings';
   static const String _defaultLanguageCode = 'en';
+  static const String _defaultCurrencyCode = 'MYR';
 
   final SupabaseClient _client;
+
+  Future<String> loadOrCreateCurrencyCode(String profileId) async {
+    try {
+      final row = await _client
+          .from(_table)
+          .select('currency_code')
+          .eq('profile_id', profileId)
+          .maybeSingle();
+      if (row != null) return _parseCurrencyCode(row['currency_code']);
+
+      final now = DateTime.now().toUtc().toIso8601String();
+      final createdRow = await _client
+          .from(_table)
+          .insert({
+            'profile_id': profileId,
+            'language_code': _defaultLanguageCode,
+            'theme_mode': 'system',
+            'currency_code': _defaultCurrencyCode,
+            'created_at': now,
+            'updated_at': now,
+          })
+          .select('currency_code')
+          .single();
+      return _parseCurrencyCode(createdRow['currency_code']);
+    } on PostgrestException catch (error) {
+      if (error.code == '23505') return _loadCurrencyCode(profileId);
+      throw UserSettingsServiceException(
+        'Unable to load currency preference. ${error.message}',
+      );
+    }
+  }
+
+  Future<void> saveCurrencyCode({
+    required String profileId,
+    required String currencyCode,
+  }) async {
+    final selectedCurrency = _parseCurrencyCode(currencyCode);
+    try {
+      final existingRow = await _client
+          .from(_table)
+          .select('language_code,theme_mode,created_at')
+          .eq('profile_id', profileId)
+          .maybeSingle();
+      final now = DateTime.now().toUtc().toIso8601String();
+      await _client.from(_table).upsert({
+        'profile_id': profileId,
+        'language_code':
+            existingRow?['language_code'] ?? _defaultLanguageCode,
+        'theme_mode': existingRow?['theme_mode'] ?? 'system',
+        'currency_code': selectedCurrency,
+        'created_at': existingRow?['created_at'] ?? now,
+        'updated_at': now,
+      }, onConflict: 'profile_id');
+    } on PostgrestException catch (error) {
+      throw UserSettingsServiceException(
+        'Unable to save currency preference. ${error.message}',
+      );
+    }
+  }
 
   Future<ThemeMode> loadOrCreateThemeMode(String profileId) async {
     try {
       final row = await _client
           .from(_table)
-          .select('theme_mode')
+          .select('theme_mode,currency_code')
           .eq('profile_id', profileId)
           .maybeSingle();
       if (row != null) {
@@ -37,6 +97,7 @@ class UserSettingsService {
             'profile_id': profileId,
             'language_code': _defaultLanguageCode,
             'theme_mode': 'system',
+            'currency_code': _defaultCurrencyCode,
             'created_at': now,
             'updated_at': now,
           })
@@ -57,7 +118,7 @@ class UserSettingsService {
     try {
       final row = await _client
           .from(_table)
-          .select('language_code')
+          .select('language_code,currency_code')
           .eq('profile_id', profileId)
           .maybeSingle();
       if (row != null) {
@@ -71,6 +132,7 @@ class UserSettingsService {
             'profile_id': profileId,
             'language_code': _defaultLanguageCode,
             'theme_mode': 'system',
+            'currency_code': _defaultCurrencyCode,
             'created_at': now,
             'updated_at': now,
           })
@@ -94,7 +156,7 @@ class UserSettingsService {
     try {
       final existingRow = await _client
           .from(_table)
-          .select('language_code,created_at')
+          .select('language_code,currency_code,created_at')
           .eq('profile_id', profileId)
           .maybeSingle();
 
@@ -102,6 +164,8 @@ class UserSettingsService {
       final payload = <String, dynamic>{
         'profile_id': profileId,
         'language_code': existingRow?['language_code'] ?? _defaultLanguageCode,
+        'currency_code':
+            existingRow?['currency_code'] ?? _defaultCurrencyCode,
         'theme_mode': _themeModeValue(themeMode),
         'created_at': existingRow?['created_at'] ?? now,
         'updated_at': now,
@@ -123,7 +187,7 @@ class UserSettingsService {
     try {
       final existingRow = await _client
           .from(_table)
-          .select('theme_mode,created_at')
+          .select('theme_mode,currency_code,created_at')
           .eq('profile_id', profileId)
           .maybeSingle();
 
@@ -132,6 +196,8 @@ class UserSettingsService {
         'profile_id': profileId,
         'language_code': selectedLanguage,
         'theme_mode': existingRow?['theme_mode'] ?? 'system',
+        'currency_code':
+            existingRow?['currency_code'] ?? _defaultCurrencyCode,
         'created_at': existingRow?['created_at'] ?? now,
         'updated_at': now,
       };
@@ -174,6 +240,21 @@ class UserSettingsService {
     }
   }
 
+  Future<String> _loadCurrencyCode(String profileId) async {
+    try {
+      final row = await _client
+          .from(_table)
+          .select('currency_code')
+          .eq('profile_id', profileId)
+          .single();
+      return _parseCurrencyCode(row['currency_code']);
+    } on PostgrestException catch (error) {
+      throw UserSettingsServiceException(
+        'Unable to load the saved currency preference. ${error.message}',
+      );
+    }
+  }
+
   ThemeMode _parseThemeMode(Object? value) {
     return switch (value) {
       'light' => ThemeMode.light,
@@ -199,6 +280,16 @@ class UserSettingsService {
       'ms' => 'ms',
       _ => throw UserSettingsServiceException(
         'The saved language preference is not supported: $value',
+      ),
+    };
+  }
+
+  String _parseCurrencyCode(Object? value) {
+    return switch (value) {
+      'MYR' => 'MYR',
+      'USD' => 'USD',
+      _ => throw UserSettingsServiceException(
+        'The saved currency preference is not supported: $value',
       ),
     };
   }

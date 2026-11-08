@@ -127,13 +127,16 @@ class _ActivityRow extends StatelessWidget {
             ),
           ),
           AppSpacing.gapMd,
-          Text(
-            entry.amountLabel,
-            style: textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: entry.type.amountColor,
+          if (entry.amountLabel.isNotEmpty) ...[
+            AppSpacing.gapMd,
+            Text(
+              entry.amountLabel,
+              style: textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: entry.type.amountColor,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
