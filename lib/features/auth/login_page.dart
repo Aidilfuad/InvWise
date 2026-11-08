@@ -4,6 +4,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../app/routes/app_routes.dart';
 import '../../services/auth_service.dart';
+import '../../services/login_preferences_service.dart';
 import 'widgets/company_sso_card.dart';
 import 'widgets/contact_it_sheet.dart';
 import 'widgets/login_brand_header.dart';
@@ -24,8 +25,15 @@ class _LoginPageState extends State<LoginPage> {
   final _authService = AuthService();
 
   bool _obscurePassword = true;
-  bool _rememberMe = true;
+  bool _rememberMe = LoginPreferencesService.instance.rememberMe;
   bool _isSigningIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _employeeIdController.text =
+        LoginPreferencesService.instance.rememberedEmail ?? '';
+  }
 
   @override
   void dispose() {
@@ -44,6 +52,7 @@ class _LoginPageState extends State<LoginPage> {
       final user = await _authService.signInWithEmail(
         email: _employeeIdController.text.trim(),
         password: _passwordController.text,
+        rememberMe: _rememberMe,
       );
       debugPrint(
         '[LOGIN-DEBUG] AuthService returned: '
@@ -379,7 +388,20 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 16),
           LoginOptionsRow(
             rememberMe: _rememberMe,
-            onRememberChanged: (value) => setState(() => _rememberMe = value),
+            onRememberChanged: (value) {
+              setState(() => _rememberMe = value);
+              LoginPreferencesService.instance.setRememberMe(value).catchError((
+                Object error,
+              ) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Unable to save login preference: $error'),
+                    ),
+                  );
+                }
+              });
+            },
             onForgotPassword: _onForgotPassword,
           ),
           const SizedBox(height: 24),

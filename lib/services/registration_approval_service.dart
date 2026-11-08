@@ -1,9 +1,11 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'profile_service.dart';
 import 'role_access_service.dart';
+import 'system_activity_log_service.dart';
 
 enum RegistrationRequestStatus { pending, approved, rejected }
 
@@ -250,6 +252,21 @@ class RegistrationApprovalService {
           'This request is no longer pending. Refresh the list and try again.',
         );
       }
+      try {
+        await SystemActivityLogService(client: _client).record(
+          category: 'Registration Approvals',
+          action: status == RegistrationRequestStatus.approved
+              ? 'Approved registration'
+              : 'Rejected registration',
+          description: 'Registration request $requestId ${status.name}.',
+          entityType: 'registration_request',
+          entityId: requestId,
+        );
+      } catch (error) {
+        debugPrint(
+          '[RegistrationApprovalService] Unable to record decision: $error',
+        );
+      }
     } on ProfileServiceException catch (error) {
       throw RegistrationApprovalServiceException(error.message);
     } on PostgrestException catch (error) {
@@ -268,7 +285,8 @@ class RegistrationApprovalService {
   void _requireAdmin() {
     if (!_roleAccess.allows(AppPermission.manageRegistrationRequests)) {
       throw const RegistrationApprovalServiceException(
-        'Only an Inventory Administrator can manage registration requests.',
+        'Only an Inventory Administrator or Super Admin can manage '
+        'registration requests.',
       );
     }
   }

@@ -8,11 +8,13 @@ class DashboardSectionHeader extends StatelessWidget {
     required this.title,
     this.actionLabel,
     this.onActionTap,
+    this.compact = false,
   });
 
   final String title;
   final String? actionLabel;
   final VoidCallback? onActionTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +24,7 @@ class DashboardSectionHeader extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 17,
+              fontSize: compact ? 14 : 17,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary,
             ),

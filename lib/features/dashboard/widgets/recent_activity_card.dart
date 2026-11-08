@@ -8,15 +8,17 @@ class RecentActivityCard extends StatelessWidget {
     super.key,
     required this.dateLabel,
     required this.entries,
+    this.compact = false,
   });
 
   final String dateLabel;
   final List<StockMovement> entries;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    padding: const EdgeInsets.all(16),
+    padding: EdgeInsets.all(compact ? 10 : 16),
     decoration: BoxDecoration(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
@@ -25,16 +27,18 @@ class RecentActivityCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          dateLabel,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.4,
-            color: AppColors.textSecondary,
+        if (!compact) ...[
+          Text(
+            dateLabel,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.4,
+              color: AppColors.textSecondary,
+            ),
           ),
-        ),
-        const SizedBox(height: 14),
+          const SizedBox(height: 14),
+        ],
         if (entries.isEmpty)
           Text(
             'No recent activity.',
@@ -42,11 +46,11 @@ class RecentActivityCard extends StatelessWidget {
           ),
         for (var i = 0; i < entries.length; i++) ...[
           if (i > 0) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: compact ? 6 : 14),
             Divider(height: 1, thickness: 1, color: AppColors.border),
-            const SizedBox(height: 14),
+            SizedBox(height: compact ? 6 : 14),
           ],
-          _ActivityRow(entry: entries[i]),
+          _ActivityRow(entry: entries[i], compact: compact),
         ],
       ],
     ),
@@ -54,9 +58,10 @@ class RecentActivityCard extends StatelessWidget {
 }
 
 class _ActivityRow extends StatelessWidget {
-  const _ActivityRow({required this.entry});
+  const _ActivityRow({required this.entry, required this.compact});
 
   final StockMovement entry;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -91,61 +96,78 @@ class _ActivityRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          width: 36,
-          height: 36,
+          width: compact ? 26 : 36,
+          height: compact ? 26 : 36,
           decoration: BoxDecoration(
             color: color.withAlpha(26),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 18, color: color),
+          child: Icon(icon, size: compact ? 14 : 18, color: color),
         ),
-        const SizedBox(width: 12),
+        SizedBox(width: compact ? 7 : 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: color,
+          child: compact
+              ? Text(
+                  '$label · ${entry.itemName} · $change',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      entry.itemName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${entry.sku} · ${entry.description}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      change,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: color,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                entry.itemName,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${entry.sku} · ${entry.description}',
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                change,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
         ),
         const SizedBox(width: 8),
         Text(
-          _time(entry.occurredAt),
-          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          compact ? _compactTime(entry.occurredAt) : _time(entry.occurredAt),
+          style: TextStyle(
+            fontSize: compact ? 9 : 11,
+            color: AppColors.textSecondary,
+          ),
         ),
       ],
     );
@@ -159,5 +181,11 @@ class _ActivityRow extends StatelessWidget {
     final hour = date.hour % 12 == 0 ? 12 : date.hour % 12;
     return '$hour:${date.minute.toString().padLeft(2, '0')} '
         '${date.hour < 12 ? 'AM' : 'PM'}';
+  }
+
+  String _compactTime(DateTime dateTime) {
+    final date = dateTime.toLocal();
+    return '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
   }
 }

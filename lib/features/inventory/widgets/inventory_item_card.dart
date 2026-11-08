@@ -14,6 +14,9 @@ class InventoryItemCard extends StatelessWidget {
     this.onLongPress,
     this.isSelectionMode = false,
     this.isSelected = false,
+    this.onArchive,
+    this.onRestore,
+    this.onPermanentDelete,
   });
 
   final InventoryItem item;
@@ -21,6 +24,9 @@ class InventoryItemCard extends StatelessWidget {
   final VoidCallback? onLongPress;
   final bool isSelectionMode;
   final bool isSelected;
+  final VoidCallback? onArchive;
+  final VoidCallback? onRestore;
+  final VoidCallback? onPermanentDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -160,7 +166,42 @@ class InventoryItemCard extends StatelessWidget {
                   ),
                 ),
                 AppSpacing.gapMd,
-                if (!isSelectionMode)
+                if (!isSelectionMode &&
+                    (onArchive != null ||
+                        onRestore != null ||
+                        onPermanentDelete != null))
+                  PopupMenuButton<String>(
+                    tooltip: 'Inventory actions',
+                    onSelected: (action) {
+                      switch (action) {
+                        case 'archive':
+                          onArchive?.call();
+                        case 'restore':
+                          onRestore?.call();
+                        case 'delete':
+                          onPermanentDelete?.call();
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (onArchive != null)
+                        const PopupMenuItem(
+                          value: 'archive',
+                          child: Text('Archive'),
+                        ),
+                      if (onRestore != null)
+                        const PopupMenuItem(
+                          value: 'restore',
+                          child: Text('Restore'),
+                        ),
+                      if (onPermanentDelete != null)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Permanently delete'),
+                        ),
+                    ],
+                    icon: const Icon(Icons.more_vert_rounded),
+                  )
+                else if (!isSelectionMode)
                   Icon(
                     Icons.chevron_right_rounded,
                     size: AppSpacing.iconMd,

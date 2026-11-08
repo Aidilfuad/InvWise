@@ -57,7 +57,7 @@ Deno.serve(async (request) => {
 
   const { data: profile, error: profileError } = await admin
     .from("profiles")
-    .select("role")
+    .select("role, is_active")
     .eq("auth_user_id", userData.user.id)
     .maybeSingle();
   if (profileError) {
@@ -66,10 +66,13 @@ Deno.serve(async (request) => {
       stage: "administrator-role-check",
     }, 500);
   }
-  if (profile?.role !== "Inventory Administrator") {
+  if (
+    !profile?.is_active ||
+    !["Inventory Administrator", "Super Admin"].includes(profile.role)
+  ) {
     return jsonResponse(
       {
-        error: "Only an Inventory Administrator can provision accounts.",
+        error: "Only an active Inventory Administrator or Super Admin can provision accounts.",
         stage: "administrator-role-check",
       },
       403,

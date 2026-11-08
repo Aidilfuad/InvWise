@@ -1,17 +1,17 @@
-# invwise
+# InvWise
 
-A new Flutter project.
+## Publishing app updates
 
-## Getting Started
+InvWise checks the latest stable release from the public GitHub Releases API for
+`Aidilfuad/InvWise`. Publish a GitHub Release with a semantic version tag
+(for example, `v2.0.1`) and attach the release APK. The app uses that APK asset
+URL, the release body, and the published date for update prompts and release
+history; no `app_versions` database row is needed.
 
-This project is a starting point for a Flutter application.
+To require an update, include a standalone line `force_update: true` in the
+release body. The marker is hidden from the displayed release notes. Omitting
+it (or setting it to `false`) keeps the update optional.
 
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+The legacy Supabase `app_versions` table and migrations are intentionally left
+in place for compatibility with older app versions, but InvWise 2.0.0 no
+longer reads from or writes to that table.

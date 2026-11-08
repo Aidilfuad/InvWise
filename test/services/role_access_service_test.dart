@@ -62,7 +62,6 @@ void main() {
         AppPermission.viewInventory,
         AppPermission.createInventory,
         AppPermission.editInventory,
-        AppPermission.deleteInventory,
         AppPermission.adjustStock,
         AppPermission.receiveStock,
         AppPermission.issueStock,
@@ -76,13 +75,15 @@ void main() {
         AppPermission.bulkChangeCategory,
         AppPermission.bulkChangeWarehouse,
         AppPermission.bulkArchiveInventory,
-        AppPermission.bulkDeleteInventory,
+        AppPermission.restoreArchivedInventory,
         AppPermission.accessPersonalSecurity,
         AppPermission.manageSecurity,
         AppPermission.viewSupportCenter,
       ]) {
         expect(access.allows(permission), isTrue, reason: '$permission');
       }
+      expect(access.allows(AppPermission.bulkDeleteInventory), isFalse);
+      expect(access.allows(AppPermission.deleteInventory), isFalse);
       expect(access.allows(AppPermission.manageUsers), isFalse);
     },
   );
@@ -102,7 +103,6 @@ void main() {
         AppPermission.manageWarehouses,
         AppPermission.bulkChangeCategory,
         AppPermission.bulkChangeWarehouse,
-        AppPermission.bulkArchiveInventory,
         AppPermission.viewAlerts,
         AppPermission.accessPersonalSecurity,
         AppPermission.viewCurrencySettings,
@@ -120,6 +120,8 @@ void main() {
         AppPermission.viewActivityLog,
         AppPermission.manageCategories,
         AppPermission.manageUnits,
+        AppPermission.bulkArchiveInventory,
+        AppPermission.restoreArchivedInventory,
         AppPermission.bulkDeleteInventory,
         AppPermission.manageSecurity,
         AppPermission.viewSupportCenter,
@@ -163,6 +165,7 @@ void main() {
       AppPermission.bulkChangeCategory,
       AppPermission.bulkChangeWarehouse,
       AppPermission.bulkArchiveInventory,
+      AppPermission.restoreArchivedInventory,
       AppPermission.bulkDeleteInventory,
       AppPermission.manageUsers,
     ]) {

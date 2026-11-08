@@ -4,35 +4,91 @@ import '../../../app/constants/app_colors.dart';
 import '../data/dashboard_data.dart';
 
 class KpiGrid extends StatelessWidget {
-  const KpiGrid({super.key, required this.stats});
+  const KpiGrid({super.key, required this.stats, this.compact = false});
 
   final List<KpiStat> stats;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var i = 0; i < stats.length; i += 2) {
-      if (i > 0) rows.add(const SizedBox(height: 12));
-      final hasSecond = i + 1 < stats.length;
-      rows.add(
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(child: _KpiCard(stat: stats[i])),
-              const SizedBox(width: 12),
-              Expanded(
-                child: hasSecond
-                    ? _KpiCard(stat: stats[i + 1])
-                    : const SizedBox.shrink(),
-              ),
-            ],
-          ),
-        ),
+    if (compact) {
+      return Wrap(
+        spacing: 6,
+        runSpacing: 6,
+        children: [
+          for (var index = 0; index < stats.length; index++)
+            _CompactKpi(stat: stats[index], label: _compactLabel(index)),
+        ],
       );
     }
-    return Column(children: rows);
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1200 ? 4 : 2;
+        const gap = 12.0;
+        final cardWidth =
+            (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final stat in stats)
+              SizedBox(
+                width: cardWidth,
+                child: _KpiCard(stat: stat),
+              ),
+          ],
+        );
+      },
+    );
   }
+
+  String _compactLabel(int index) => switch (index) {
+    0 => 'Items',
+    1 => 'Low',
+    2 => 'OOS',
+    3 => 'Sites',
+    _ => stats[index].label,
+  };
+}
+
+class _CompactKpi extends StatelessWidget {
+  const _CompactKpi({required this.stat, required this.label});
+
+  final KpiStat stat;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+    decoration: BoxDecoration(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: '$label: ',
+            style: TextStyle(
+              color: AppColors.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          TextSpan(
+            text: stat.value,
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _KpiCard extends StatelessWidget {
@@ -43,7 +99,7 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -59,7 +115,7 @@ class _KpiCard extends StatelessWidget {
                 child: Text(
                   stat.value,
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: 24,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
                   ),

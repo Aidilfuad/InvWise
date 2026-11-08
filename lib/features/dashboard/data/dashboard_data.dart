@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/constants/app_colors.dart';
 import '../../../services/activity_log_service.dart';
 import '../../../services/stock_movement_service.dart';
+import '../../../services/system_activity_log_service.dart';
 
 class DashboardInventorySummary {
   const DashboardInventorySummary({
@@ -11,6 +12,8 @@ class DashboardInventorySummary {
     required this.lowStockItems,
     required this.outOfStockItems,
     required this.warehouseLocations,
+    this.inactiveItems = 0,
+    this.archivedItems = 0,
   });
 
   final int totalItems;
@@ -18,6 +21,8 @@ class DashboardInventorySummary {
   final int lowStockItems;
   final int outOfStockItems;
   final int warehouseLocations;
+  final int inactiveItems;
+  final int archivedItems;
 }
 
 class KpiStat {
@@ -89,16 +94,19 @@ class DashboardData {
     required this.summary,
     required this.recentMovements,
     required this.recentActivity,
+    this.systemActivities = const [],
   });
 
   final DashboardInventorySummary summary;
   final List<StockMovement> recentMovements;
   final List<ActivityLogEntry> recentActivity;
+  final List<SystemActivityEntry> systemActivities;
 
   factory DashboardData.fromCacheMap(Map<String, dynamic> map) {
     final summary = Map<String, dynamic>.from(map['summary'] as Map);
     final movements = map['recentMovements'] as List;
     final activity = map['recentActivity'] as List;
+    final systemActivities = map['systemActivities'] as List? ?? const [];
     return DashboardData(
       summary: DashboardInventorySummary(
         totalItems: summary['totalItems'] as int,
@@ -106,6 +114,8 @@ class DashboardData {
         lowStockItems: summary['lowStockItems'] as int,
         outOfStockItems: summary['outOfStockItems'] as int,
         warehouseLocations: summary['warehouseLocations'] as int,
+        inactiveItems: summary['inactiveItems'] as int? ?? 0,
+        archivedItems: summary['archivedItems'] as int? ?? 0,
       ),
       recentMovements: movements
           .map(
@@ -121,6 +131,13 @@ class DashboardData {
             ),
           )
           .toList(growable: false),
+      systemActivities: systemActivities
+          .map(
+            (row) => SystemActivityEntry.fromMap(
+              Map<String, dynamic>.from(row as Map),
+            ),
+          )
+          .toList(growable: false),
     );
   }
 
@@ -131,11 +148,16 @@ class DashboardData {
       'lowStockItems': summary.lowStockItems,
       'outOfStockItems': summary.outOfStockItems,
       'warehouseLocations': summary.warehouseLocations,
+      'inactiveItems': summary.inactiveItems,
+      'archivedItems': summary.archivedItems,
     },
     'recentMovements': recentMovements
         .map((movement) => movement.toCacheMap())
         .toList(growable: false),
     'recentActivity': recentActivity
+        .map((entry) => entry.toCacheMap())
+        .toList(growable: false),
+    'systemActivities': systemActivities
         .map((entry) => entry.toCacheMap())
         .toList(growable: false),
   };

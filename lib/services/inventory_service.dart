@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'activity_log_service.dart';
 import 'offline_cache_service.dart';
+import 'role_access_service.dart';
 
 class InventoryServiceException implements Exception {
   const InventoryServiceException(this.message);
@@ -48,6 +49,8 @@ class InventoryItem {
     this.createdAt,
     this.updatedBy,
     this.updatedAt,
+    this.isActive = true,
+    this.isArchived = false,
   });
 
   final String id;
@@ -71,6 +74,8 @@ class InventoryItem {
   final DateTime? createdAt;
   final String? updatedBy;
   final DateTime? updatedAt;
+  final bool isActive;
+  final bool isArchived;
 
   String get unit => '$unitName ($unitAbbreviation)';
   String get unitLabel => unitAbbreviation.toUpperCase();
@@ -125,6 +130,8 @@ class InventoryItem {
       createdAt: _dateTimeValue(map['created_at']),
       updatedBy: map['updated_by'] as String?,
       updatedAt: _dateTimeValue(map['updated_at']),
+      isActive: map['is_active'] as bool? ?? true,
+      isArchived: map['is_archived'] as bool? ?? false,
     );
   }
 
@@ -150,6 +157,8 @@ class InventoryItem {
     createdAt: _dateTimeValue(map['createdAt']),
     updatedBy: map['updatedBy'] as String?,
     updatedAt: _dateTimeValue(map['updatedAt']),
+    isActive: map['isActive'] as bool? ?? true,
+    isArchived: map['isArchived'] as bool? ?? false,
   );
 
   Map<String, dynamic> toCacheMap() => {
@@ -174,6 +183,8 @@ class InventoryItem {
     'createdAt': createdAt?.toIso8601String(),
     'updatedBy': updatedBy,
     'updatedAt': updatedAt?.toIso8601String(),
+    'isActive': isActive,
+    'isArchived': isArchived,
   };
 }
 
@@ -188,10 +199,15 @@ enum InventoryStockStatus {
 }
 
 class InventoryService {
-  InventoryService();
+  InventoryService({SupabaseClient? client, RoleAccessService? roleAccess})
+    : _client = client ?? Supabase.instance.client,
+      _roleAccess = roleAccess ?? RoleAccessService.instance;
 
-  final SupabaseClient _client = Supabase.instance.client;
-  final ActivityLogService _activityLogService = ActivityLogService();
+  final SupabaseClient _client;
+  final RoleAccessService _roleAccess;
+  late final ActivityLogService _activityLogService = ActivityLogService(
+    client: _client,
+  );
 
   String? lastActivityLogWarning;
 
@@ -388,32 +404,19 @@ class InventoryService {
   }
 
   Future<Map<String, String>> archiveItems(List<String> itemIds) async {
+    _requireArchivePermission();
     final ids = _validatedIds(itemIds);
     final failures = <String, String>{};
     for (final id in ids) {
       try {
-        final rows = await _client
-            .from(_table)
-            .update({
-              'is_active': false,
-              'updated_at': DateTime.now().toUtc().toIso8601String(),
-            })
-            .eq('id', id)
-            .eq('is_active', true)
-            .select('id');
-        if (rows.isEmpty) {
-          throw const InventoryServiceException(
-            'Item could not be archived. Refresh inventory and try again.',
-          );
-        }
+        await _client.rpc('archive_inventory_item', params: {'p_item_id': id});
         await _recordActivity(
           type: ActivityEventType.inventoryUpdated,
           description: 'Archived inventory item $id.',
           itemId: id,
           details: {'bulk_action': 'archive'},
         );
-        await invalidateItemsCache();
-        await _invalidateCategoryCaches();
+        await _invalidateScopedInventoryCaches();
       } on PostgrestException catch (error) {
         failures[id] = _friendlyMessage(error, 'archive this item');
       } on InventoryServiceException catch (error) {
@@ -425,25 +428,38 @@ class InventoryService {
     return failures;
   }
 
-  Future<Map<String, String>> deleteItemsPermanently(
-    List<String> itemIds,
-  ) async {
+  Future<Map<String, String>> restoreItems(List<String> itemIds) async {
+    _requireRestorePermission();
     final ids = _validatedIds(itemIds);
     final failures = <String, String>{};
     for (final id in ids) {
       try {
-        final rows = await _client
-            .from(_table)
-            .delete()
-            .eq('id', id)
-            .select('id');
-        if (rows.isEmpty) {
-          throw const InventoryServiceException(
-            'Item could not be deleted. Refresh inventory and try again.',
-          );
-        }
-        await invalidateItemsCache();
-        await _invalidateCategoryCaches();
+        await _client.rpc('restore_inventory_item', params: {'p_item_id': id});
+        await _invalidateScopedInventoryCaches();
+      } on PostgrestException catch (error) {
+        failures[id] = _friendlyMessage(error, 'restore this item');
+      } on InventoryServiceException catch (error) {
+        failures[id] = error.message;
+      } catch (error) {
+        failures[id] = 'Unable to restore this item. $error';
+      }
+    }
+    return failures;
+  }
+
+  Future<Map<String, String>> deleteItemsPermanently(
+    List<String> itemIds,
+  ) async {
+    _requirePermanentDeletePermission();
+    final ids = _validatedIds(itemIds);
+    final failures = <String, String>{};
+    for (final id in ids) {
+      try {
+        await _client.rpc(
+          'permanently_delete_inventory_item',
+          params: {'p_item_id': id},
+        );
+        await _invalidateScopedInventoryCaches();
       } on PostgrestException catch (error) {
         failures[id] = error.code == '23503'
             ? 'Item is referenced by stock or activity history and cannot be '
@@ -451,12 +467,59 @@ class InventoryService {
             : _friendlyMessage(error, 'permanently delete this item');
       } on InventoryServiceException catch (error) {
         failures[id] = error.message;
-      } catch (_) {
-        failures[id] =
-            'Unable to permanently delete this item. Please try again.';
+      } catch (error) {
+        failures[id] = 'Unable to permanently delete this item: $error';
       }
     }
     return failures;
+  }
+
+  Future<List<InventoryItem>> getArchivedItems() async {
+    _requireRestorePermission();
+    try {
+      final rows = await _client
+          .from(_table)
+          .select(_selectColumns)
+          .eq('is_archived', true)
+          .order('name', ascending: true);
+      return await _withQuantities(rows);
+    } on PostgrestException catch (error) {
+      throw InventoryServiceException(
+        _friendlyMessage(error, 'load archived items'),
+      );
+    }
+  }
+
+  void _requireArchivePermission() {
+    if (!_roleAccess.allows(AppPermission.bulkArchiveInventory)) {
+      throw const InventoryServiceException(
+        'Your role cannot archive inventory items.',
+      );
+    }
+  }
+
+  Future<void> _invalidateScopedInventoryCaches() async {
+    final scopeId = _client.auth.currentUser?.id ?? 'signed-out';
+    final cache = OfflineCacheService.instance;
+    await cache.remove('inventory.items', scopeId: scopeId);
+    await cache.remove('categories.active', scopeId: scopeId);
+    await cache.remove('categories.all', scopeId: scopeId);
+  }
+
+  void _requireRestorePermission() {
+    if (!_roleAccess.allows(AppPermission.restoreArchivedInventory)) {
+      throw const InventoryServiceException(
+        'Your role cannot restore archived inventory items.',
+      );
+    }
+  }
+
+  void _requirePermanentDeletePermission() {
+    if (!_roleAccess.allows(AppPermission.bulkDeleteInventory)) {
+      throw const InventoryServiceException(
+        'Only a Super Admin can permanently delete inventory items.',
+      );
+    }
   }
 
   Future<double> adjustStock({
@@ -542,6 +605,7 @@ class InventoryService {
           .from(_table)
           .select(_selectColumns)
           .eq('is_active', true)
+          .eq('is_archived', false)
           .order('name', ascending: true);
       return await _withQuantities(rows);
     } on PostgrestException catch (e) {
@@ -572,6 +636,7 @@ class InventoryService {
           .select(_selectColumns)
           .eq('id', itemId)
           .eq('is_active', true)
+          .eq('is_archived', false)
           .maybeSingle();
       if (row == null) {
         throw const InventoryServiceException('Inventory item not found.');
@@ -745,6 +810,7 @@ class InventoryService {
 
   Future<void> deleteItem(String id) async {
     lastActivityLogWarning = null;
+    _requireArchivePermission();
     final itemId = _validatedId(id);
     try {
       final item = await _client
@@ -755,20 +821,7 @@ class InventoryService {
       if (item == null) {
         throw const InventoryServiceException('Inventory item not found.');
       }
-      final rows = await _client
-          .from(_table)
-          .update({
-            'is_active': false,
-            'updated_at': DateTime.now().toUtc().toIso8601String(),
-          })
-          .eq('id', itemId)
-          .eq('is_active', true)
-          .select('id');
-      if (rows.isEmpty) {
-        throw const InventoryServiceException(
-          'Item not found, or you do not have permission to delete it.',
-        );
-      }
+      await _client.rpc('archive_inventory_item', params: {'p_item_id': itemId});
       await _recordActivity(
         type: ActivityEventType.inventoryDeleted,
         description:

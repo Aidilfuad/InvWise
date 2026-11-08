@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_spacing.dart';
 import '../../services/role_access_service.dart';
+import '../../services/password_confirmation_service.dart';
 import '../../services/user_management_service.dart';
 
 class UserManagementPage extends StatelessWidget {
@@ -114,9 +115,20 @@ class _UserManagementContentState extends State<_UserManagementContent> {
       ),
     );
     if (role == null || role == user.role || !mounted) return;
+    if (!await PasswordConfirmationService.confirm(
+      context,
+      action: 'change this user role',
+    )) {
+      return;
+    }
     await _runUserUpdate(
       user,
-      () => _service.changeRole(userId: user.id, role: role),
+      () => _service.changeRole(
+        userId: user.id,
+        role: role,
+        userName: user.fullName,
+        oldRole: user.role,
+      ),
       'User role updated.',
     );
   }
@@ -147,7 +159,11 @@ class _UserManagementContentState extends State<_UserManagementContent> {
     if (confirmed != true || !mounted) return;
     await _runUserUpdate(
       user,
-      () => _service.setActive(userId: user.id, isActive: activate),
+      () => _service.setActive(
+        userId: user.id,
+        isActive: activate,
+        userName: user.fullName,
+      ),
       activate ? 'Account activated.' : 'Account deactivated.',
     );
   }
@@ -209,7 +225,7 @@ class _UserManagementContentState extends State<_UserManagementContent> {
       ),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1000),
+          constraints: const BoxConstraints(maxWidth: 1600),
           child: _isLoading && _users.isEmpty
               ? const Center(child: CircularProgressIndicator())
               : _errorMessage != null && _users.isEmpty
@@ -341,6 +357,10 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                             textAlign: TextAlign.center,
                           ),
                         )
+                      else if (MediaQuery.sizeOf(context).width > 1200)
+                        _usersTable(filteredUsers, compact: false)
+                      else if (MediaQuery.sizeOf(context).width >= 600)
+                        _usersTable(filteredUsers, compact: true)
                       else
                         for (final user in filteredUsers) _userCard(user),
                     ],
@@ -348,6 +368,116 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                 ),
         ),
       ),
+    );
+  }
+
+  Widget _usersTable(List<ManagedUser> users, {required bool compact}) =>
+      SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: DataTable(
+          columnSpacing: compact ? 20 : 32,
+          columns: compact
+              ? const [
+                  DataColumn(label: Text('User')),
+                  DataColumn(label: Text('Role')),
+                  DataColumn(label: Text('Account')),
+                  DataColumn(label: Text('Actions')),
+                ]
+              : const [
+                  DataColumn(label: Text('Name')),
+                  DataColumn(label: Text('Email')),
+                  DataColumn(label: Text('Employee ID')),
+                  DataColumn(label: Text('Role')),
+                  DataColumn(label: Text('Status')),
+                  DataColumn(label: Text('Last login')),
+                  DataColumn(label: Text('Actions')),
+                ],
+          rows: [
+            for (final user in users)
+              DataRow(
+                cells: compact
+                    ? [
+                        DataCell(
+                          SizedBox(
+                            width: 220,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  user.fullName.isEmpty
+                                      ? 'Unnamed user'
+                                      : user.fullName,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  user.email,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        DataCell(Text(user.role)),
+                        DataCell(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(user.isActive ? 'Active' : 'Inactive'),
+                              Text(
+                                _formatLastLogin(context, user.lastLoginAt),
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        DataCell(_userActions(user)),
+                      ]
+                    : [
+                        DataCell(Text(user.fullName)),
+                        DataCell(SelectableText(user.email)),
+                        DataCell(Text(user.employeeId ?? '—')),
+                        DataCell(Text(user.role)),
+                        DataCell(_StatusBadge(isActive: user.isActive)),
+                        DataCell(
+                          Text(_formatLastLogin(context, user.lastLoginAt)),
+                        ),
+                        DataCell(_userActions(user)),
+                      ],
+              ),
+          ],
+        ),
+      );
+
+  Widget _userActions(ManagedUser user) {
+    final isUpdating = _updatingUserIds.contains(user.id);
+    if (isUpdating) {
+      return const SizedBox(
+        width: 22,
+        height: 22,
+        child: CircularProgressIndicator(strokeWidth: 2),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          tooltip: 'Change role',
+          onPressed: user.isSelf ? null : () => _changeRole(user),
+          icon: const Icon(Icons.manage_accounts_outlined),
+        ),
+        IconButton(
+          tooltip: user.isActive ? 'Deactivate' : 'Activate',
+          onPressed: user.isSelf ? null : () => _toggleActive(user),
+          icon: Icon(
+            user.isActive
+                ? Icons.person_off_outlined
+                : Icons.person_add_alt_1_outlined,
+          ),
+        ),
+      ],
     );
   }
 

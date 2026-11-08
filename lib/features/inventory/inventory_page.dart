@@ -8,6 +8,7 @@ import '../../services/category_service.dart';
 import '../../services/currency_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/offline_cache_service.dart';
+import '../../services/password_confirmation_service.dart';
 import '../../services/role_access_service.dart';
 import '../../widgets/offline_sync_indicator.dart';
 import '../../services/stock_movement_service.dart';
@@ -22,6 +23,7 @@ import '../settings/settings_page.dart';
 
 enum InventoryStockFilter {
   all('All stock', null),
+  archived('Archived items', null),
   inStock('In stock', InventoryStockStatus.inStock),
   lowStock('Low stock', InventoryStockStatus.lowStock),
   outOfStock('Out of stock', InventoryStockStatus.outOfStock);
@@ -51,6 +53,7 @@ class _InventoryPageState extends State<InventoryPage> {
   final _stockMovementService = StockMovementService();
   final _roleAccess = RoleAccessService.instance;
   List<InventoryItem> _items = const [];
+  List<InventoryItem> _archivedItems = const [];
   double _totalAssetValue = 0;
   final Set<String> _selectedItemIds = {};
   String? _selectedCategory;
@@ -206,7 +209,11 @@ class _InventoryPageState extends State<InventoryPage> {
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
-              for (final filter in InventoryStockFilter.values)
+              for (final filter in InventoryStockFilter.values.where(
+                (filter) =>
+                    filter != InventoryStockFilter.archived ||
+                    _roleAccess.allows(AppPermission.restoreArchivedInventory),
+              ))
                 ListTile(
                   title: Text(filter.label),
                   trailing: _stockFilter == filter
@@ -221,6 +228,98 @@ class _InventoryPageState extends State<InventoryPage> {
     );
     if (selectedFilter != null && mounted) {
       setState(() => _stockFilter = selectedFilter);
+      if (selectedFilter == InventoryStockFilter.archived) {
+        await _loadArchivedItems();
+      }
+    }
+  }
+
+  Future<void> _loadArchivedItems() async {
+    try {
+      final items = await _service.getArchivedItems();
+      if (mounted) setState(() => _archivedItems = items);
+    } on InventoryServiceException catch (error) {
+      if (mounted) _showMessage(error.message);
+    }
+  }
+
+  Future<void> _archiveItem(InventoryItem item) async {
+    final failures = await _service.archiveItems([item.id]);
+    if (!mounted) return;
+    if (failures.isNotEmpty) {
+      _showMessage(failures[item.id]!);
+    } else {
+      _showMessage('${item.name} archived.');
+      await _loadInventory(forceRefresh: true);
+    }
+  }
+
+  Future<void> _restoreItem(InventoryItem item) async {
+    final failures = await _service.restoreItems([item.id]);
+    if (!mounted) return;
+    if (failures.isNotEmpty) {
+      _showMessage(failures[item.id]!);
+    } else {
+      _showMessage('${item.name} restored.');
+      await _loadArchivedItems();
+      await _loadInventory(forceRefresh: true);
+    }
+  }
+
+  Future<void> _deleteArchivedItem(InventoryItem item) async {
+    if (!_roleAccess.allows(AppPermission.bulkDeleteInventory)) return;
+    final confirmation = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Permanently delete item?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('This cannot be undone. Delete ${item.name} (${item.sku})?'),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: confirmation,
+              decoration: const InputDecoration(
+                labelText: 'Type DELETE to confirm',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              confirmation.text.trim() == 'DELETE',
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    confirmation.dispose();
+    if (confirmed != true || !mounted) return;
+    if (!await PasswordConfirmationService.confirm(
+      context,
+      action: 'permanently delete this item',
+    )) {
+      return;
+    }
+    final failures = await _service.deleteItemsPermanently([item.id]);
+    if (!mounted) return;
+    if (failures.isNotEmpty) {
+      _showMessage(failures[item.id]!);
+    } else {
+      _showMessage('${item.name} permanently deleted.');
+      await _loadArchivedItems();
+      await _loadInventory(forceRefresh: true);
     }
   }
 
@@ -263,6 +362,7 @@ class _InventoryPageState extends State<InventoryPage> {
   }
 
   List<InventoryItem> get _selectedItems => _items
+      .followedBy(_archivedItems)
       .where((item) => _selectedItemIds.contains(item.id))
       .toList(growable: false);
 
@@ -276,7 +376,10 @@ class _InventoryPageState extends State<InventoryPage> {
 
   List<InventoryItem> get visibleInventoryItems {
     final query = _searchController.text.trim().toLowerCase();
-    return _items
+    final source = _stockFilter == InventoryStockFilter.archived
+        ? _archivedItems
+        : _items;
+    return source
         .where((item) {
           final matchesSearch =
               query.isEmpty ||
@@ -287,7 +390,8 @@ class _InventoryPageState extends State<InventoryPage> {
               item.categoryName == _selectedCategory;
           return matchesSearch &&
               matchesCategory &&
-              _stockFilter.matches(item.status);
+              (_stockFilter == InventoryStockFilter.archived ||
+                  _stockFilter.matches(item.status));
         })
         .toList(growable: false);
   }
@@ -614,16 +718,58 @@ class _InventoryPageState extends State<InventoryPage> {
         _selectedItemIds.isEmpty) {
       return;
     }
-    final count = _selectedItemIds.length;
-    final confirmed = await _confirmBulkAction(
-      title: 'Delete items?',
-      message:
-          'Are you sure you want to permanently delete $count selected '
-          'items?',
-      confirmLabel: 'Delete Items',
-      destructive: true,
+    final selected = _selectedItems;
+    if (selected.any((item) => !item.isArchived)) {
+      _showMessage('Archive items before permanently deleting them.');
+      return;
+    }
+    final confirmation = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Permanently delete items?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'This cannot be undone. Permanently delete '
+              '${selected.length} selected items?',
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: confirmation,
+              decoration: const InputDecoration(
+                labelText: 'Type DELETE to confirm',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(
+              dialogContext,
+              confirmation.text.trim() == 'DELETE',
+            ),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
     );
+    confirmation.dispose();
     if (confirmed != true || !mounted) return;
+    if (!await PasswordConfirmationService.confirm(
+      context,
+      action: 'permanently delete selected items',
+    )) {
+      return;
+    }
     final selectedIds = _selectedItemIds.toList(growable: false);
     final itemNames = {for (final item in _selectedItems) item.id: item.name};
     setState(() => _isBulkActionRunning = true);
@@ -915,6 +1061,30 @@ class _InventoryPageState extends State<InventoryPage> {
                                       isSelected: _selectedItemIds.contains(
                                         item.id,
                                       ),
+                                      onArchive:
+                                          !item.isArchived &&
+                                              _roleAccess.allows(
+                                                AppPermission
+                                                    .bulkArchiveInventory,
+                                              )
+                                          ? () => _archiveItem(item)
+                                          : null,
+                                      onRestore:
+                                          item.isArchived &&
+                                              _roleAccess.allows(
+                                                AppPermission
+                                                    .restoreArchivedInventory,
+                                              )
+                                          ? () => _restoreItem(item)
+                                          : null,
+                                      onPermanentDelete:
+                                          item.isArchived &&
+                                              _roleAccess.allows(
+                                                AppPermission
+                                                    .bulkDeleteInventory,
+                                              )
+                                          ? () => _deleteArchivedItem(item)
+                                          : null,
                                     );
                                   },
                                 ),

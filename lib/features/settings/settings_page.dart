@@ -6,8 +6,11 @@ import '../../app/constants/app_spacing.dart';
 import '../../app/routes/app_routes.dart';
 import '../../app/theme/app_theme_controller.dart';
 import '../../services/currency_service.dart';
+import '../../services/auth_service.dart';
+import '../../services/login_preferences_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
+import '../../services/dashboard_preferences_service.dart';
 import '../../widgets/offline_sync_indicator.dart';
 import 'widgets/edit_profile_sheet.dart';
 import 'widgets/settings_header.dart';
@@ -57,6 +60,9 @@ class _SettingsPageState extends State<SettingsPage> {
       final profile = await _profileService.getCurrentProfile();
       if (!mounted) return;
       _roleAccess.updateRole(profile?.role);
+      if (profile != null) {
+        await DashboardPreferencesService.instance.loadForProfile(profile.id);
+      }
       String? currencyError;
       if (profile != null) {
         try {
@@ -143,6 +149,49 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
+  }
+
+  Future<void> _onDashboardModeTap() async {
+    final preferences = DashboardPreferencesService.instance;
+    final selectedMode = await showDialog<DashboardMode>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Dashboard Mode'),
+        content: RadioGroup<DashboardMode>(
+          groupValue: preferences.mode,
+          onChanged: (mode) {
+            if (mode != null) Navigator.of(dialogContext).pop(mode);
+          },
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<DashboardMode>(
+                value: DashboardMode.full,
+                title: Text('Full Dashboard'),
+                subtitle: Text('Detailed cards and visual summaries'),
+              ),
+              RadioListTile<DashboardMode>(
+                value: DashboardMode.compact,
+                title: Text('Compact Dashboard'),
+                subtitle: Text('Condensed metrics and activity rows'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (selectedMode == null) return;
+
+    try {
+      await preferences.setMode(selectedMode);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Unable to save dashboard mode: $error')),
+        );
+    }
   }
 
   void _onWarehouseLocationsTap() {
@@ -258,11 +307,27 @@ class _SettingsPageState extends State<SettingsPage> {
     ).push(MaterialPageRoute<void>(builder: (_) => const UserManagementPage()));
   }
 
-  void _onSignOutTap() {
-    // Navigation only: no authentication or session handling exists yet.
-    // Clears every route so the back button cannot return to the app.
-    Navigator.of(context)
-        .pushNamedAndRemoveUntil(AppRoutes.login, (route) => false);
+  void _onSystemInformationTap() {
+    Navigator.of(context).pushNamed(AppRoutes.systemInformation);
+  }
+
+  void _onBackupRestoreTap() {
+    Navigator.of(context).pushNamed(AppRoutes.backupRestore);
+  }
+
+  void _onVersionTap() {
+    Navigator.of(context).pushNamed(AppRoutes.appVersion);
+  }
+
+  Future<void> _onSignOutTap() async {
+    try {
+      await AuthService().signOut();
+    } on AuthServiceException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   @override
@@ -335,6 +400,17 @@ class _SettingsPageState extends State<SettingsPage> {
                                 subtitle: 'Password and biometrics',
                                 onTap: _onSecurityTap,
                               ),
+                            if (_roleAccess.allows(
+                              AppPermission.viewActivityLog,
+                            ))
+                              SettingsTile(
+                                icon: Icons.history_rounded,
+                                title: 'Activity Logs',
+                                subtitle: 'Review recent system activity',
+                                onTap: () =>
+                                    Navigator.of(context)
+                                        .pushNamed(AppRoutes.activityLogs),
+                              ),
                           ],
                         ),
                         const SizedBox(height: _sectionGap),
@@ -388,6 +464,63 @@ class _SettingsPageState extends State<SettingsPage> {
                                 );
                               },
                             ),
+                            AnimatedBuilder(
+                              animation: LoginPreferencesService.instance,
+                              builder: (context, child) {
+                                final preferences =
+                                    LoginPreferencesService.instance;
+                                final messenger = ScaffoldMessenger.of(context);
+                                return SettingsTile(
+                                  icon: Icons.login_rounded,
+                                  title: 'Login Preferences',
+                                  subtitle:
+                                      'Remember Me: '
+                                      '${preferences.rememberMe ? 'ON' : 'OFF'}',
+                                  trailing: Switch.adaptive(
+                                    value: preferences.rememberMe,
+                                    onChanged: (enabled) async {
+                                      try {
+                                        await preferences.setRememberMe(
+                                          enabled,
+                                        );
+                                      } catch (error) {
+                                        if (!mounted) return;
+                                        messenger
+                                          ..hideCurrentSnackBar()
+                                          ..showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Unable to save login '
+                                                'preference: $error',
+                                              ),
+                                            ),
+                                          );
+                                      }
+                                    },
+                                  ),
+                                );
+                              },
+                            ),
+                            AnimatedBuilder(
+                              animation: DashboardPreferencesService.instance,
+                              builder: (context, child) {
+                                final preferences =
+                                    DashboardPreferencesService.instance;
+                                return SettingsTile(
+                                  icon: Icons.dashboard_customize_outlined,
+                                  title: 'Dashboard Mode',
+                                  subtitle:
+                                      preferences.mode == DashboardMode.compact
+                                      ? 'Compact Dashboard'
+                                      : 'Full Dashboard',
+                                  onTap: _onDashboardModeTap,
+                                  trailing: Icon(
+                                    Icons.expand_more_rounded,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                );
+                              },
+                            ),
                             if (_profile != null &&
                                 _roleAccess.allows(
                                   AppPermission.viewCurrencySettings,
@@ -402,6 +535,13 @@ class _SettingsPageState extends State<SettingsPage> {
                                   onTap: _onCurrencyTap,
                                 ),
                               ),
+                            SettingsTile(
+                              icon: Icons.settings_backup_restore_outlined,
+                              title: 'Backup Settings',
+                              subtitle:
+                                  'Export, import, or restore preferences',
+                              onTap: _onBackupRestoreTap,
+                            ),
                             SettingsTile(
                               icon: Icons.language_rounded,
                               title: 'Language',
@@ -441,10 +581,17 @@ class _SettingsPageState extends State<SettingsPage> {
                                 onTap: _onSupportCenterTap,
                               ),
                             SettingsTile(
-                              icon: Icons.info_outline_rounded,
-                              title: 'Version',
-                              subtitle: 'v1.0.0',
-                              trailing: const SizedBox.shrink(),
+                              icon: Icons.monitor_heart_outlined,
+                              title: 'System Information',
+                              subtitle: 'Review connection and service status',
+                              onTap: _onSystemInformationTap,
+                            ),
+                            SettingsTile(
+                              icon: Icons.system_update_alt,
+                              title: 'Version Information',
+                              subtitle:
+                                  'Check the installed and latest version',
+                              onTap: _onVersionTap,
                             ),
                           ],
                         ),

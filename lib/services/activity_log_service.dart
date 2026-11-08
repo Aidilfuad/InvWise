@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'system_activity_log_service.dart';
+
 enum ActivityEventType {
   inventoryCreated('inventory_created', 'Create Item'),
   inventoryUpdated('inventory_updated', 'Update Item'),
@@ -147,9 +149,10 @@ class ActivityLogEntry {
 }
 
 class ActivityLogService {
-  ActivityLogService();
+  ActivityLogService({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
 
-  final SupabaseClient _client = Supabase.instance.client;
+  final SupabaseClient _client;
 
   static const String _table = 'activity_log';
 
@@ -265,6 +268,25 @@ class ActivityLogService {
         'stock_movement_id': stockMovementId,
         'details': details,
       });
+      try {
+        await SystemActivityLogService(client: _client).record(
+          category: 'Inventory',
+          action: type.label,
+          description: description.trim(),
+          entityType: stockMovementId == null
+              ? 'inventory_item'
+              : 'inventory_movement',
+          entityId: stockMovementId ?? itemId,
+          metadata: {
+            ...details,
+            'item_id': itemId,
+            'location_id': locationId,
+            'stock_movement_id': stockMovementId,
+          },
+        );
+      } catch (error) {
+        reportActivityLogFailure(error);
+      }
     } on PostgrestException catch (error) {
       throw ActivityLogServiceException(
         _friendlyMessage(error, 'record activity'),

@@ -5,6 +5,7 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/currency_service.dart';
 import '../../services/role_access_service.dart';
+import '../../services/password_confirmation_service.dart';
 
 class CurrencySettingsPage extends StatelessWidget {
   const CurrencySettingsPage({super.key, required this.profileId});
@@ -34,6 +35,7 @@ class _CurrencySettingsContentState extends State<_CurrencySettingsContent> {
   final _currencyService = CurrencyService.instance;
   bool _isLoading = true;
   bool _isSavingCurrency = false;
+  bool _isSavingExchangeRate = false;
   String? _loadError;
 
   @override
@@ -78,77 +80,24 @@ class _CurrencySettingsContentState extends State<_CurrencySettingsContent> {
   }
 
   Future<void> _showExchangeRateDialog() async {
-    final controller = TextEditingController(
-      text: _currencyService.exchangeRateUsdMyr.toString(),
-    );
-    final formKey = GlobalKey<FormState>();
-    final rate = await showDialog<double>(
+    if (!await PasswordConfirmationService.confirm(
+      context,
+      action: 'change the exchange rate',
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    final saved = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Exchange Rate'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Text('1 USD = '),
-                  Expanded(
-                    child: TextFormField(
-                      controller: controller,
-                      autofocus: true,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
-                      ],
-                      decoration: const InputDecoration(
-                        labelText: 'MYR',
-                        border: OutlineInputBorder(),
-                      ),
-                      validator: (value) {
-                        final parsed = double.tryParse(value?.trim() ?? '');
-                        if (parsed == null || !parsed.isFinite || parsed <= 0) {
-                          return 'Enter a value greater than zero';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (!formKey.currentState!.validate()) return;
-              Navigator.pop(dialogContext, double.parse(controller.text));
-            },
-            child: const Text('Save'),
-          ),
-        ],
+      builder: (_) => _ExchangeRateDialog(
+        initialRate: _currencyService.exchangeRateUsdMyr,
+        onSave: _currencyService.setExchangeRateUsdMyr,
+        onSavingChanged: (saving) {
+          if (mounted) setState(() => _isSavingExchangeRate = saving);
+        },
       ),
     );
-    controller.dispose();
-    if (rate == null || !mounted) return;
-
-    try {
-      await _currencyService.setExchangeRateUsdMyr(rate);
-      _showMessage('Exchange rate updated.');
-    } on CurrencyServiceException catch (error) {
-      _showMessage(error.message);
-    } catch (error) {
-      _showMessage('Unable to save exchange rate: $error');
-    }
+    if (saved == true && mounted) _showMessage('Exchange rate updated.');
   }
 
   void _showMessage(String message) {
@@ -239,6 +188,7 @@ class _CurrencySettingsContentState extends State<_CurrencySettingsContent> {
                           AppPermission.manageExchangeRate,
                         ),
                         onUpdate: _showExchangeRateDialog,
+                        isUpdating: _isSavingExchangeRate,
                       ),
                     ],
                   ),
@@ -256,11 +206,13 @@ class _ExchangeRateCard extends StatelessWidget {
     required this.rate,
     required this.canManage,
     required this.onUpdate,
+    required this.isUpdating,
   });
 
   final double rate;
   final bool canManage;
   final VoidCallback onUpdate;
+  final bool isUpdating;
 
   @override
   Widget build(BuildContext context) {
@@ -290,8 +242,8 @@ class _ExchangeRateCard extends StatelessWidget {
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton(
-                  onPressed: onUpdate,
-                  child: const Text('Update Exchange Rate'),
+                  onPressed: isUpdating ? null : onUpdate,
+                  child: Text(isUpdating ? 'Saving…' : 'Update Exchange Rate'),
                 ),
               ),
             ],
@@ -300,6 +252,135 @@ class _ExchangeRateCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _ExchangeRateDialog extends StatefulWidget {
+  const _ExchangeRateDialog({
+    required this.initialRate,
+    required this.onSave,
+    required this.onSavingChanged,
+  });
+
+  final double initialRate;
+  final Future<void> Function(double rate) onSave;
+  final ValueChanged<bool> onSavingChanged;
+
+  @override
+  State<_ExchangeRateDialog> createState() => _ExchangeRateDialogState();
+}
+
+class _ExchangeRateDialogState extends State<_ExchangeRateDialog> {
+  late final TextEditingController _controller;
+  final _formKey = GlobalKey<FormState>();
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialRate.toString());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_isSaving || !(_formKey.currentState?.validate() ?? false)) return;
+    setState(() {
+      _isSaving = true;
+      _errorMessage = null;
+    });
+    widget.onSavingChanged(true);
+    try {
+      await widget.onSave(double.parse(_controller.text.trim()));
+      if (mounted) Navigator.of(context).pop(true);
+    } on CurrencyServiceException catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = error.message;
+          _isSaving = false;
+        });
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'Unable to save the exchange rate: $error';
+          _isSaving = false;
+        });
+      }
+    } finally {
+      widget.onSavingChanged(false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Exchange Rate'),
+    content: Form(
+      key: _formKey,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text('1 USD = '),
+              Expanded(
+                child: TextFormField(
+                  controller: _controller,
+                  autofocus: true,
+                  enabled: !_isSaving,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                  ],
+                  decoration: const InputDecoration(
+                    labelText: 'MYR',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    final parsed = double.tryParse(value?.trim() ?? '');
+                    if (parsed == null || !parsed.isFinite || parsed <= 0) {
+                      return 'Enter a value greater than zero';
+                    }
+                    return null;
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: AppSpacing.md),
+            Text(
+              _errorMessage!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: _isSaving ? null : () => Navigator.of(context).pop(false),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: _isSaving ? null : _save,
+        child: _isSaving
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Save'),
+      ),
+    ],
+  );
 }
 
 class _LoadError extends StatelessWidget {

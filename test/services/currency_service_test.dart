@@ -21,6 +21,8 @@ void main() {
   late double exchangeRate;
   var isOffline = false;
   var missingCurrencyColumn = false;
+  var delayExchangeRateSave = false;
+  var failExchangeRateSave = false;
   const profileId = 'profile-1';
 
   setUpAll(() async {
@@ -87,6 +89,20 @@ void main() {
             );
           }
           if (request.method == 'PATCH') {
+            if (failExchangeRateSave) {
+              return http.Response(
+                jsonEncode({
+                  'code': '42501',
+                  'message': 'row-level security policy denied the update',
+                }),
+                403,
+                headers: {'content-type': 'application/json'},
+                request: request,
+              );
+            }
+            if (delayExchangeRateSave) {
+              await Future<void>.delayed(const Duration(milliseconds: 100));
+            }
             final payload = jsonDecode(request.body) as Map<String, dynamic>;
             exchangeRate = (payload['exchange_rate_usd_myr'] as num).toDouble();
             return http.Response(
@@ -120,6 +136,8 @@ void main() {
     exchangeRate = 4.25;
     missingCurrencyColumn = false;
     isOffline = false;
+    delayExchangeRateSave = false;
+    failExchangeRateSave = false;
     await OfflineCacheService.instance.remove(
       'settings.currency_code',
       scopeId: profileId,
@@ -160,6 +178,10 @@ void main() {
       expect(service.formatMyr(17213), r'$4,050.12');
 
       await service.setExchangeRateUsdMyr(4.5);
+      await OfflineCacheService.instance.remove(
+        'settings.exchange_rate_usd_myr',
+        scopeId: 'global',
+      );
       final reloadedService = _createService();
       await reloadedService.loadForProfile(profileId);
 
@@ -219,6 +241,77 @@ void main() {
       service.setExchangeRateUsdMyr(4.3),
       throwsA(isA<CurrencyServiceException>()),
     );
+    expect(exchangeRate, 4.25);
+  });
+
+  test(
+    'exchange-rate save times out and retains a retryable local value',
+    () async {
+      delayExchangeRateSave = true;
+      final service = CurrencyService(
+        client: Supabase.instance.client,
+        requestTimeout: const Duration(milliseconds: 20),
+      );
+
+      await expectLater(
+        service.setExchangeRateUsdMyr(4.75),
+        throwsA(
+          isA<CurrencyServiceException>().having(
+            (error) => error.message,
+            'message',
+            contains('timed out'),
+          ),
+        ),
+      );
+      expect(
+        await OfflineCacheService.instance.readValue(
+          'settings.exchange_rate_usd_myr.pending',
+          scopeId: 'global',
+        ),
+        4.75,
+      );
+    },
+  );
+
+  testWidgets('exchange-rate change requires password confirmation', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: CurrencySettingsPage(profileId: profileId)),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Update Exchange Rate'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Confirm your password'), findsOneWidget);
+    expect(
+      find.text('Enter your password to change the exchange rate.'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(exchangeRate, 4.25);
+  });
+
+  testWidgets('exchange-rate change is blocked without a signed-in user', (
+    tester,
+  ) async {
+    failExchangeRateSave = true;
+    await tester.pumpWidget(
+      const MaterialApp(home: CurrencySettingsPage(profileId: profileId)),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Update Exchange Rate'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), 'password');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('A signed-in email account is required.'), findsOneWidget);
+    expect(find.text('Exchange rate updated.'), findsNothing);
     expect(exchangeRate, 4.25);
   });
 

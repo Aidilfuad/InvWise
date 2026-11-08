@@ -49,9 +49,8 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
       await CurrencyService.instance.loadForCurrentUser();
     } on CurrencyServiceException catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.message)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error.message)));
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -106,15 +105,17 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
   }
 
   Future<void> _onDeleteTap() async {
-    if (!_roleAccess.allows(AppPermission.deleteInventory)) return;
+    if (!_roleAccess.allows(AppPermission.bulkArchiveInventory)) return;
     final item = _item;
     if (item == null || _isDeleting) return;
 
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete item?'),
-        content: Text('Delete "${item.name}" from inventory?'),
+        title: const Text('Archive item?'),
+        content: Text(
+          'Archive "${item.name}"? Its stock and activity history will be retained.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -123,7 +124,7 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('Delete'),
+            child: const Text('Archive'),
           ),
         ],
       ),
@@ -254,242 +255,243 @@ class _ItemDetailsPageState extends State<ItemDetailsPage> {
     return AnimatedBuilder(
       animation: CurrencyService.instance,
       builder: (context, _) => Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppColors.surface,
-        centerTitle: true,
-        leading: IconButton(
-          tooltip: 'Back',
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).maybePop(),
-        ),
-        title: Text(
-          'Item Details',
-          style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        actions: [
-          if (item != null && !_isDeleting) ...[
-            if (_roleAccess.allows(AppPermission.editInventory))
-              IconButton(
-                tooltip: 'Edit',
-                icon: const Icon(Icons.edit_rounded),
-                onPressed: _onEditTap,
-              ),
-            if (_roleAccess.allows(AppPermission.deleteInventory))
-              IconButton(
-                tooltip: 'Delete',
-                icon: const Icon(Icons.delete_outline_rounded),
-                onPressed: _onDeleteTap,
-              ),
+        appBar: AppBar(
+          backgroundColor: AppColors.surface,
+          centerTitle: true,
+          leading: IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back_rounded),
+            onPressed: () => Navigator.of(context).maybePop(),
+          ),
+          title: Text(
+            'Item Details',
+            style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          actions: [
+            if (item != null && !_isDeleting) ...[
+              if (_roleAccess.allows(AppPermission.editInventory))
+                IconButton(
+                  tooltip: 'Edit',
+                  icon: const Icon(Icons.edit_rounded),
+                  onPressed: _onEditTap,
+                ),
+              if (_roleAccess.allows(AppPermission.bulkArchiveInventory))
+                IconButton(
+                  tooltip: 'Archive',
+                  icon: const Icon(Icons.archive_outlined),
+                  onPressed: _onDeleteTap,
+                ),
+            ],
+            AppSpacing.gapSm,
           ],
-          AppSpacing.gapSm,
-        ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1),
-          child: Divider(),
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(),
+          ),
         ),
-      ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.only(bottom: AppSpacing.xxl + bottomInset),
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: ItemDetailsPage._maxContentWidth,
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                AppSpacing.md,
-                AppSpacing.lg,
-                AppSpacing.md,
-                0,
+        body: SingleChildScrollView(
+          padding: EdgeInsets.only(bottom: AppSpacing.xxl + bottomInset),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                maxWidth: ItemDetailsPage._maxContentWidth,
               ),
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : details == null
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(_errorMessage ?? 'Inventory item not found.'),
-                        AppSpacing.gapMd,
-                        FilledButton(
-                          onPressed: _loadItem,
-                          child: const Text('Try Again'),
-                        ),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ItemOverviewCard(
-                          sku: details.sku,
-                          name: details.name,
-                          currentStock: details.currentStockLabel,
-                          unit: details.unit,
-                          unitPrice: details.unitPriceLabel,
-                          inventoryValue: details.inventoryValueLabel,
-                          statusLabel: _stockStatusLabel(item!),
-                          statusColor: _stockStatusColor(item),
-                          statusBackground: _stockStatusBackground(item),
-                          minThreshold:
-                              '${details.minThresholdLabel} ${details.unit}',
-                        ),
-                        AppSpacing.gapMd,
-                        ItemActionButtons(
-                          onAddStockTap:
-                              _roleAccess.allowsAny(const {
-                                AppPermission.receiveStock,
-                                AppPermission.adjustStock,
-                              })
-                              ? () => _openStockAdjustment(AdjustmentType.add)
-                              : null,
-                          onAdjustStockTap:
-                              _roleAccess.allowsAny(const {
-                                AppPermission.issueStock,
-                                AppPermission.adjustStock,
-                              })
-                              ? () =>
-                                    _openStockAdjustment(AdjustmentType.remove)
-                              : null,
-                        ),
-                        AppSpacing.gapMd,
-                        LayoutBuilder(
-                          builder: (context, constraints) {
-                            final isWide = constraints.maxWidth >= 760;
-                            final cardWidth = isWide
-                                ? (constraints.maxWidth - AppSpacing.md) / 2
-                                : constraints.maxWidth;
-                            return Wrap(
-                              spacing: AppSpacing.md,
-                              runSpacing: AppSpacing.md,
-                              children: [
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _DetailsCard(
-                                    title: 'Item Information',
-                                    fields: [
-                                      _DetailFieldValue('SKU', details.sku),
-                                      _DetailFieldValue(
-                                        'Item Name',
-                                        details.name,
-                                      ),
-                                      _DetailFieldValue(
-                                        'Description',
-                                        details.description,
-                                        fullWidth: true,
-                                      ),
-                                      _DetailFieldValue(
-                                        'Category',
-                                        details.category,
-                                      ),
-                                      _DetailFieldValue('Unit', item.unit),
-                                      _DetailFieldValue(
-                                        'Warehouse',
-                                        details.warehouse,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _DetailsCard(
-                                    title: 'Stock Information',
-                                    fields: [
-                                      _DetailFieldValue(
-                                        'Current Stock',
-                                        '${details.currentStockLabel} '
-                                            '${details.unit}',
-                                      ),
-                                      _DetailFieldValue(
-                                        'Minimum Stock Threshold',
-                                        '${details.minThresholdLabel} '
-                                            '${details.unit}',
-                                      ),
-                                      _DetailFieldValue(
-                                        'Stock Status',
-                                        _stockStatusLabel(item),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _DetailsCard(
-                                    title: 'Financial Information',
-                                    fields: [
-                                      _DetailFieldValue(
-                                        'Unit Price',
-                                        details.unitPriceLabel,
-                                      ),
-                                      _DetailFieldValue(
-                                        'Inventory Value',
-                                        details.inventoryValueLabel,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: cardWidth,
-                                  child: _DetailsCard(
-                                    title: 'Notes',
-                                    fields: [
-                                      _DetailFieldValue(
-                                        'User Notes',
-                                        details.notes,
-                                        fullWidth: true,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                SizedBox(
-                                  width: constraints.maxWidth,
-                                  child: _DetailsCard(
-                                    title: 'Metadata',
-                                    fields: [
-                                      _DetailFieldValue(
-                                        'Created By',
-                                        _metadataValue(item.createdBy),
-                                      ),
-                                      _DetailFieldValue(
-                                        'Created Date',
-                                        _dateValue(context, item.createdAt),
-                                      ),
-                                      _DetailFieldValue(
-                                        'Last Updated By',
-                                        _metadataValue(item.updatedBy),
-                                      ),
-                                      _DetailFieldValue(
-                                        'Last Updated Date',
-                                        _dateValue(context, item.updatedAt),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                        if (details.activities.isNotEmpty) ...[
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.md,
+                  AppSpacing.lg,
+                  AppSpacing.md,
+                  0,
+                ),
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : details == null
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_errorMessage ?? 'Inventory item not found.'),
                           AppSpacing.gapMd,
-                          ActivityHistoryCard(
-                            activities: details.activities,
-                            onViewAllTap: () {
-                              Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => RoleAccessGuard(
-                                    permission: AppPermission.viewActivityLog,
-                                    child: const ActivityLogPage(),
+                          FilledButton(
+                            onPressed: _loadItem,
+                            child: const Text('Try Again'),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ItemOverviewCard(
+                            sku: details.sku,
+                            name: details.name,
+                            currentStock: details.currentStockLabel,
+                            unit: details.unit,
+                            unitPrice: details.unitPriceLabel,
+                            inventoryValue: details.inventoryValueLabel,
+                            statusLabel: _stockStatusLabel(item!),
+                            statusColor: _stockStatusColor(item),
+                            statusBackground: _stockStatusBackground(item),
+                            minThreshold:
+                                '${details.minThresholdLabel} ${details.unit}',
+                          ),
+                          AppSpacing.gapMd,
+                          ItemActionButtons(
+                            onAddStockTap:
+                                _roleAccess.allowsAny(const {
+                                  AppPermission.receiveStock,
+                                  AppPermission.adjustStock,
+                                })
+                                ? () => _openStockAdjustment(AdjustmentType.add)
+                                : null,
+                            onAdjustStockTap:
+                                _roleAccess.allowsAny(const {
+                                  AppPermission.issueStock,
+                                  AppPermission.adjustStock,
+                                })
+                                ? () => _openStockAdjustment(
+                                    AdjustmentType.remove,
+                                  )
+                                : null,
+                          ),
+                          AppSpacing.gapMd,
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final isWide = constraints.maxWidth >= 760;
+                              final cardWidth = isWide
+                                  ? (constraints.maxWidth - AppSpacing.md) / 2
+                                  : constraints.maxWidth;
+                              return Wrap(
+                                spacing: AppSpacing.md,
+                                runSpacing: AppSpacing.md,
+                                children: [
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: _DetailsCard(
+                                      title: 'Item Information',
+                                      fields: [
+                                        _DetailFieldValue('SKU', details.sku),
+                                        _DetailFieldValue(
+                                          'Item Name',
+                                          details.name,
+                                        ),
+                                        _DetailFieldValue(
+                                          'Description',
+                                          details.description,
+                                          fullWidth: true,
+                                        ),
+                                        _DetailFieldValue(
+                                          'Category',
+                                          details.category,
+                                        ),
+                                        _DetailFieldValue('Unit', item.unit),
+                                        _DetailFieldValue(
+                                          'Warehouse',
+                                          details.warehouse,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: _DetailsCard(
+                                      title: 'Stock Information',
+                                      fields: [
+                                        _DetailFieldValue(
+                                          'Current Stock',
+                                          '${details.currentStockLabel} '
+                                              '${details.unit}',
+                                        ),
+                                        _DetailFieldValue(
+                                          'Minimum Stock Threshold',
+                                          '${details.minThresholdLabel} '
+                                              '${details.unit}',
+                                        ),
+                                        _DetailFieldValue(
+                                          'Stock Status',
+                                          _stockStatusLabel(item),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: _DetailsCard(
+                                      title: 'Financial Information',
+                                      fields: [
+                                        _DetailFieldValue(
+                                          'Unit Price',
+                                          details.unitPriceLabel,
+                                        ),
+                                        _DetailFieldValue(
+                                          'Inventory Value',
+                                          details.inventoryValueLabel,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: cardWidth,
+                                    child: _DetailsCard(
+                                      title: 'Notes',
+                                      fields: [
+                                        _DetailFieldValue(
+                                          'User Notes',
+                                          details.notes,
+                                          fullWidth: true,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    width: constraints.maxWidth,
+                                    child: _DetailsCard(
+                                      title: 'Metadata',
+                                      fields: [
+                                        _DetailFieldValue(
+                                          'Created By',
+                                          _metadataValue(item.createdBy),
+                                        ),
+                                        _DetailFieldValue(
+                                          'Created Date',
+                                          _dateValue(context, item.createdAt),
+                                        ),
+                                        _DetailFieldValue(
+                                          'Last Updated By',
+                                          _metadataValue(item.updatedBy),
+                                        ),
+                                        _DetailFieldValue(
+                                          'Last Updated Date',
+                                          _dateValue(context, item.updatedAt),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               );
                             },
                           ),
+                          if (details.activities.isNotEmpty) ...[
+                            AppSpacing.gapMd,
+                            ActivityHistoryCard(
+                              activities: details.activities,
+                              onViewAllTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute<void>(
+                                    builder: (_) => RoleAccessGuard(
+                                      permission: AppPermission.viewActivityLog,
+                                      child: const ActivityLogPage(),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ],
-                      ],
-                    ),
+                      ),
+              ),
             ),
           ),
         ),
-      ),
       ),
     );
   }

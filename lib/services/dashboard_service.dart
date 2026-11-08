@@ -1,9 +1,9 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../features/dashboard/data/dashboard_data.dart';
-import 'activity_log_service.dart';
 import 'offline_cache_service.dart';
 import 'stock_movement_service.dart';
+import 'system_activity_log_service.dart';
 
 class DashboardServiceException implements Exception {
   const DashboardServiceException(this.message);
@@ -19,7 +19,8 @@ class DashboardService {
 
   final SupabaseClient _client = Supabase.instance.client;
   final StockMovementService _movementService = StockMovementService();
-  final ActivityLogService _activityLogService = ActivityLogService();
+  final SystemActivityLogService _systemActivityLogService =
+      SystemActivityLogService();
 
   Future<DashboardData> loadDashboard() =>
       OfflineCacheService.instance.loadValue(
@@ -41,33 +42,51 @@ class DashboardService {
   Future<DashboardData> _fetchDashboard() async {
     try {
       final results = await Future.wait<Object>([
-        (() async =>
-            await _client.from('inventory_items').select('id,minimum_stock'))(),
+        (() async => await _client
+            .from('inventory_items')
+            .select('id,minimum_stock,is_active,is_archived'))(),
         (() async =>
             await _client.from('inventory_items_with_quantity').select())(),
         (() async => await _client.from('inventory_alerts').select())(),
         (() async => await _client.from('warehouse_locations').select('id'))(),
         _movementService.getMovements(limit: 3),
-        _activityLogService.getEntries(limit: 3),
+        _systemActivityLogService.getLatest(limit: 5),
       ]);
 
-      final inventoryItems = _rows(results[0]);
+      final allInventoryItems = _rows(results[0]);
+      final inventoryItems = allInventoryItems
+          .where(
+            (row) =>
+                (row['is_active'] as bool? ?? true) &&
+                !(row['is_archived'] as bool? ?? false),
+          )
+          .toList(growable: false);
+      final inactiveItems = allInventoryItems
+          .where(
+            (row) =>
+                !(row['is_active'] as bool? ?? true) &&
+                !(row['is_archived'] as bool? ?? false),
+          )
+          .length;
+      final archivedItems = allInventoryItems
+          .where((row) => row['is_archived'] as bool? ?? false)
+          .length;
       final quantityRows = _rows(results[1]);
       final alertRows = _rows(results[2]);
       final warehouseRows = _rows(results[3]);
       final movements = results[4] as List<StockMovement>;
-      final activity = results[5] as List<ActivityLogEntry>;
+      final systemActivities = results[5] as List<SystemActivityEntry>;
 
       final quantityByItem = <String, double>{};
+      final activeItemIds = inventoryItems
+          .map((item) => _stringValue(item['id']))
+          .whereType<String>()
+          .toSet();
       var totalStockQuantity = 0.0;
       for (final row in quantityRows) {
         final itemId = _stringValue(row['item_id'] ?? row['id']);
+        if (itemId == null || !activeItemIds.contains(itemId)) continue;
         final quantity = _quantityValue(row);
-        if (itemId == null) {
-          throw const FormatException(
-            'Inventory quantity view row is missing item_id or id.',
-          );
-        }
         totalStockQuantity += quantity;
         quantityByItem.update(
           itemId,
@@ -134,15 +153,16 @@ class DashboardService {
           lowStockItems: lowStockItems,
           outOfStockItems: outOfStockItems,
           warehouseLocations: warehouseRows.length,
+          inactiveItems: inactiveItems,
+          archivedItems: archivedItems,
         ),
         recentMovements: movements,
-        recentActivity: activity,
+        recentActivity: const [],
+        systemActivities: systemActivities,
       );
     } on PostgrestException catch (error) {
       throw DashboardServiceException(_friendlyMessage(error));
     } on StockMovementServiceException catch (error) {
-      throw DashboardServiceException(error.message);
-    } on ActivityLogServiceException catch (error) {
       throw DashboardServiceException(error.message);
     } on DashboardServiceException {
       rethrow;

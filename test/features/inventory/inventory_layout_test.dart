@@ -109,10 +109,10 @@ void main() {
       'Change Warehouse',
       'Stock Adjustment',
       'Archive Items',
-      'Delete Items',
     ]) {
       expect(find.text(action), findsOneWidget);
     }
+    expect(find.text('Delete Items'), findsNothing);
     await tester.tap(find.byTooltip('Close'));
     await tester.pumpAndSettle();
 
@@ -133,7 +133,6 @@ void main() {
       'Change Warehouse',
       'Stock Adjustment',
       'Archive Items',
-      'Delete Items',
     ]) {
       expect(find.text(action).hitTestable(), findsOneWidget);
     }

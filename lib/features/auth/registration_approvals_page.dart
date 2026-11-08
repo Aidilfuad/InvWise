@@ -79,10 +79,9 @@ class _RegistrationApprovalsViewState
         await _service.provisionApprovedRequest(request.id);
       }
       if (!mounted) return;
-      setState(() {
-        _requests = _requests.where((item) => item.id != request.id).toList();
-        _updatingRequestId = null;
-      });
+      setState(() => _updatingRequestId = null);
+      await _loadRequests(showApproved: approved);
+      if (!mounted) return;
       _showMessage(
         approved
             ? 'Request approved. The invitation email has been sent.'
@@ -91,7 +90,7 @@ class _RegistrationApprovalsViewState
     } on RegistrationApprovalServiceException catch (error) {
       if (!mounted) return;
       setState(() => _updatingRequestId = null);
-      await _loadRequests();
+      await _loadRequests(showApproved: approved);
       if (!mounted) return;
       _showMessage(
         approved

@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'role_access_service.dart';
+import 'system_activity_log_service.dart';
 
 class UserManagementServiceException implements Exception {
   const UserManagementServiceException(this.message);
@@ -85,6 +87,9 @@ class UserManagementService {
 
   final SupabaseClient _client;
   final RoleAccessService _roleAccess;
+  late final SystemActivityLogService _activityLog = SystemActivityLogService(
+    client: _client,
+  );
 
   Future<List<ManagedUser>> getUsers() async {
     _requireSuperAdmin();
@@ -111,6 +116,8 @@ class UserManagementService {
   Future<void> changeRole({
     required String userId,
     required String role,
+    String? userName,
+    String? oldRole,
   }) async {
     _requireSuperAdmin();
     if (!ManagedUser.roles.contains(role)) {
@@ -119,11 +126,26 @@ class UserManagementService {
       );
     }
     await _invoke({'action': 'change_role', 'user_id': userId, 'role': role});
+    try {
+      await _activityLog.record(
+        category: 'User Management',
+        action: 'Changed role',
+        description: '${userName ?? userId}: ${oldRole ?? 'Role'} → $role',
+        entityType: 'profile',
+        entityId: userId,
+        metadata: {'old_role': oldRole, 'new_role': role},
+      );
+    } catch (error) {
+      debugPrint(
+        '[UserManagementService] Unable to record role change: $error',
+      );
+    }
   }
 
   Future<void> setActive({
     required String userId,
     required bool isActive,
+    String? userName,
   }) async {
     _requireSuperAdmin();
     await _invoke({
@@ -131,6 +153,19 @@ class UserManagementService {
       'user_id': userId,
       'is_active': isActive,
     });
+    try {
+      await _activityLog.record(
+        category: 'User Management',
+        action: isActive ? 'Activated user' : 'Deactivated user',
+        description:
+            '${userName ?? userId} was ${isActive ? 'activated' : 'deactivated'}.',
+        entityType: 'profile',
+        entityId: userId,
+        metadata: {'is_active': isActive},
+      );
+    } catch (error) {
+      debugPrint('[UserManagementService] Unable to record activation: $error');
+    }
   }
 
   void _requireSuperAdmin() {

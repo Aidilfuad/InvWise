@@ -2,7 +2,9 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'login_tracking_service.dart';
+import 'login_preferences_service.dart';
 import 'security_session_tracker.dart';
+import 'system_activity_log_service.dart';
 
 /// Error thrown by [AuthService] with a message that is safe to show in the UI.
 class AuthServiceException implements Exception {
@@ -17,11 +19,22 @@ class AuthServiceException implements Exception {
 /// Thin wrapper around Supabase Auth. UI code should use this class instead
 /// of calling Supabase directly.
 class AuthService {
-  AuthService({LoginTrackingService? loginTrackingService})
-    : _loginTrackingService = loginTrackingService ?? LoginTrackingService();
+  AuthService({
+    LoginTrackingService? loginTrackingService,
+    SupabaseClient? client,
+    LoginPreferencesService? loginPreferencesService,
+  }) : _client = client ?? Supabase.instance.client,
+       _loginTrackingService = loginTrackingService ?? LoginTrackingService(),
+       _loginPreferences =
+           loginPreferencesService ?? LoginPreferencesService.instance,
+       _activityLog = SystemActivityLogService(
+         client: client ?? Supabase.instance.client,
+       );
 
-  final SupabaseClient _client = Supabase.instance.client;
+  final SupabaseClient _client;
   final LoginTrackingService _loginTrackingService;
+  final LoginPreferencesService _loginPreferences;
+  final SystemActivityLogService _activityLog;
 
   String? lastTrackingWarning;
 
@@ -32,6 +45,7 @@ class AuthService {
   Future<User?> signInWithEmail({
     required String email,
     required String password,
+    bool rememberMe = false,
   }) async {
     final trimmedEmail = email.trim();
 
@@ -49,6 +63,17 @@ class AuthService {
       final user = response.user;
       if (user != null) {
         try {
+          await _loginPreferences.rememberLogin(
+            email: trimmedEmail,
+            enabled: rememberMe,
+          );
+        } catch (error) {
+          lastTrackingWarning =
+              'Your login succeeded, but the Remember Me preference could '
+              'not be saved.';
+          debugPrint('[AuthService] Unable to save login preference: $error');
+        }
+        try {
           await _loginTrackingService.recordSuccessfulLogin();
         } catch (error) {
           lastTrackingWarning =
@@ -59,6 +84,17 @@ class AuthService {
             '$error',
           );
         }
+        try {
+          await _activityLog.record(
+            category: 'Login',
+            action: 'Signed in',
+            description: 'Successful sign-in.',
+            entityType: 'auth_user',
+            entityId: user.id,
+          );
+        } catch (error) {
+          debugPrint('[AuthService] Unable to record login activity: $error');
+        }
       }
       return user;
     } on AuthException catch (e) {
@@ -66,9 +102,7 @@ class AuthService {
       throw AuthServiceException(_friendlyMessage(e));
     } catch (e, st) {
       if (kDebugMode) {
-        debugPrint(
-          '[AUTH-DEBUG] non-auth error type=${e.runtimeType}',
-        );
+        debugPrint('[AUTH-DEBUG] non-auth error type=${e.runtimeType}');
         debugPrint('$st');
       }
       await _recordFailedLogin(
@@ -85,6 +119,7 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _client.auth.signOut();
+      await _loginPreferences.clearStoredIdentity();
       SecuritySessionTracker.instance.stop();
     } on AuthException catch (e) {
       throw AuthServiceException(_friendlyMessage(e));

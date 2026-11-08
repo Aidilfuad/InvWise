@@ -1,0 +1,452 @@
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import 'system_activity_log_service.dart';
+
+const String currentAppVersion = String.fromEnvironment(
+  'APP_VERSION',
+  defaultValue: '2.0.0',
+);
+
+const String githubReleaseApi =
+    'https://api.github.com/repos/Aidilfuad/InvWise/releases';
+
+enum AppUpdateStatus { latest, available, required, unavailable }
+
+class AppVersionRelease {
+  const AppVersionRelease({
+    required this.version,
+    required this.apkUrl,
+    required this.releaseNotes,
+    required this.forceUpdate,
+    required this.createdAt,
+  });
+
+  final String version;
+  final String? apkUrl;
+  final String releaseNotes;
+  final bool forceUpdate;
+  final DateTime createdAt;
+
+  factory AppVersionRelease.fromMap(Map<String, dynamic> map) =>
+      AppVersionRelease(
+        version: _releaseVersion(map),
+        apkUrl: _apkUrl(map),
+        releaseNotes: _releaseNotes(map),
+        forceUpdate: _forceUpdate(map),
+        createdAt: DateTime.parse(
+          (map['published_at'] ?? map['created_at']) as String,
+        ),
+      );
+
+  static String _releaseVersion(Map<String, dynamic> map) =>
+      (map['tag_name'] ?? map['version']) as String;
+
+  static String? _apkUrl(Map<String, dynamic> map) {
+    final oldUrl = map['apk_url'];
+    if (oldUrl is String && oldUrl.trim().isNotEmpty) return oldUrl;
+    final assets = map['assets'];
+    if (assets is! List) return null;
+    for (final asset in assets) {
+      if (asset is Map &&
+          asset['name'] is String &&
+          (asset['name'] as String).toLowerCase().endsWith('.apk') &&
+          asset['browser_download_url'] is String) {
+        return asset['browser_download_url'] as String;
+      }
+    }
+    return null;
+  }
+
+  static String _releaseNotes(Map<String, dynamic> map) {
+    final body = (map['body'] ?? map['release_notes'] ?? '') as String;
+    return body
+        .replaceAll(
+          RegExp(
+            r'^\s*force_update\s*:\s*true\s*$',
+            multiLine: true,
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+  }
+
+  static bool _forceUpdate(Map<String, dynamic> map) {
+    if (map['force_update'] == true) return true;
+    final body = map['body'];
+    return body is String &&
+        RegExp(
+          r'^\s*force_update\s*:\s*true\s*$',
+          multiLine: true,
+          caseSensitive: false,
+        ).hasMatch(body);
+  }
+}
+
+class AppUpdateCheckResult {
+  const AppUpdateCheckResult({
+    required this.installedVersion,
+    required this.release,
+    required this.status,
+  });
+
+  final String installedVersion;
+  final AppVersionRelease? release;
+  final AppUpdateStatus status;
+}
+
+class UpdateUrlException implements Exception {
+  const UpdateUrlException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class UpdateUrlDiagnostic {
+  const UpdateUrlDiagnostic({
+    required this.passed,
+    required this.reason,
+    this.reachable,
+    this.opened,
+  });
+
+  final bool passed;
+  final String reason;
+  final bool? reachable;
+  final bool? opened;
+}
+
+typedef UpdateUrlLauncher = Future<bool> Function(Uri url, LaunchMode mode);
+
+class AppUpdateService {
+  AppUpdateService({
+    SupabaseClient? client,
+    SystemActivityLogService? activityLog,
+    http.Client? httpClient,
+    UpdateUrlLauncher? urlLauncher,
+  }) : _client = client ?? Supabase.instance.client,
+       _httpClient = httpClient ?? http.Client(),
+       _ownsHttpClient = httpClient == null,
+       _urlLauncher =
+           urlLauncher ?? ((url, mode) => launchUrl(url, mode: mode)) {
+    _activityLog = activityLog ?? SystemActivityLogService(client: _client);
+  }
+
+  final SupabaseClient _client;
+  late final SystemActivityLogService _activityLog;
+  final http.Client _httpClient;
+  final bool _ownsHttpClient;
+  final UpdateUrlLauncher _urlLauncher;
+
+  static Future<String> installedVersion() async =>
+      (await PackageInfo.fromPlatform()).version;
+
+  static Future<String> buildVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    return info.buildNumber.isEmpty ? info.version : info.buildNumber;
+  }
+
+  static Future<String> buildDate() async {
+    final date = const String.fromEnvironment('BUILD_DATE');
+    return date.isEmpty ? 'Not supplied by build' : date;
+  }
+
+  Future<AppVersionRelease?> latestRelease() async {
+    final response = await _httpClient
+        .get(Uri.parse('$githubReleaseApi/latest'), headers: _githubHeaders)
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 404) return null;
+    if (response.statusCode != 200) {
+      throw http.ClientException(
+        'GitHub Releases returned HTTP ${response.statusCode}.',
+        Uri.parse('$githubReleaseApi/latest'),
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('GitHub returned an invalid release record.');
+    }
+    return AppVersionRelease.fromMap(decoded);
+  }
+
+  Future<List<AppVersionRelease>> releaseHistory({int limit = 100}) async {
+    if (limit <= 0 || limit > 500) {
+      throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 500.');
+    }
+    final response = await _httpClient
+        .get(
+          Uri.parse('$githubReleaseApi?per_page=$limit'),
+          headers: _githubHeaders,
+        )
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode != 200) {
+      throw http.ClientException(
+        'GitHub Releases returned HTTP ${response.statusCode}.',
+        Uri.parse(githubReleaseApi),
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const FormatException('GitHub returned invalid release history.');
+    }
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .where((release) => release['prerelease'] != true)
+        .map(AppVersionRelease.fromMap)
+        .toList(growable: false);
+  }
+
+  static const Map<String, String> _githubHeaders = {
+    'Accept': 'application/vnd.github+json',
+    'User-Agent': 'InvWise-App-Updater',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+
+  Future<AppUpdateCheckResult> checkForUpdates() async {
+    try {
+      final installed = await installedVersion();
+      final release = await latestRelease();
+      await _record(
+        action: 'Checked For Updates',
+        description: 'Checked for application updates.',
+        metadata: {'installed_version': installed},
+      );
+
+      final status = statusFor(release, installed);
+      final isAvailable =
+          status == AppUpdateStatus.available ||
+          status == AppUpdateStatus.required;
+      final availableRelease = isAvailable ? release : null;
+      if (availableRelease != null) {
+        await _record(
+          action: 'Update Available',
+          description: 'Version ${availableRelease.version} is available.',
+          metadata: {
+            'installed_version': installed,
+            'available_version': availableRelease.version,
+            'force_update': availableRelease.forceUpdate,
+          },
+        );
+      }
+
+      return AppUpdateCheckResult(
+        installedVersion: installed,
+        release: release,
+        status: status,
+      );
+    } catch (error) {
+      await _record(
+        action: 'Update Failed',
+        description: 'Unable to check for application updates: $error',
+      );
+      rethrow;
+    }
+  }
+
+  static AppUpdateStatus statusFor(
+    AppVersionRelease? release,
+    String installedVersion,
+  ) {
+    if (release == null) return AppUpdateStatus.unavailable;
+    if (!isNewer(release.version, installedVersion)) {
+      return AppUpdateStatus.latest;
+    }
+    return release.forceUpdate
+        ? AppUpdateStatus.required
+        : AppUpdateStatus.available;
+  }
+
+  static bool isNewer(String candidate, String installed) {
+    final candidateParts = _parseVersion(candidate);
+    final installedParts = _parseVersion(installed);
+    for (var index = 0; index < 3; index++) {
+      if (candidateParts[index] != installedParts[index]) {
+        return candidateParts[index] > installedParts[index];
+      }
+    }
+    return false;
+  }
+
+  static List<int> _parseVersion(String version) {
+    final match = RegExp(r'^v?(\d+)\.(\d+)\.(\d+)(?:\+[0-9]+)?$')
+        .firstMatch(version.trim());
+    if (match == null) {
+      throw FormatException('Invalid semantic version: $version');
+    }
+    return [
+      int.parse(match.group(1)!),
+      int.parse(match.group(2)!),
+      int.parse(match.group(3)!),
+    ];
+  }
+
+  static Uri validateUpdateUrl(String? value) {
+    final trimmed = value?.trim() ?? '';
+    if (trimmed.isEmpty) {
+      throw const UpdateUrlException('No update download URL is configured.');
+    }
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null || uri.host.isEmpty) {
+      throw const UpdateUrlException('The update download URL is invalid.');
+    }
+    if (uri.scheme.toLowerCase() != 'https') {
+      throw const UpdateUrlException(
+        'The update download URL must use secure HTTPS.',
+      );
+    }
+    if (uri.userInfo.isNotEmpty) {
+      throw const UpdateUrlException(
+        'The update download URL cannot contain login credentials.',
+      );
+    }
+    return uri;
+  }
+
+  Future<void> launchUpdate(AppVersionRelease release) async {
+    await _record(
+      action: 'Update Started',
+      description: 'Started update to version ${release.version}.',
+      metadata: {'version': release.version},
+    );
+    try {
+      final uri = validateUpdateUrl(release.apkUrl);
+      var opened = false;
+      try {
+        opened = await _urlLauncher(uri, LaunchMode.externalApplication);
+      } catch (error) {
+        debugPrint('External update URL launch failed: $error');
+      }
+      if (!opened) {
+        try {
+          opened = await _urlLauncher(uri, LaunchMode.platformDefault);
+        } catch (error) {
+          debugPrint('Fallback update URL launch failed: $error');
+        }
+      }
+      if (!opened) {
+        throw const UpdateUrlException(
+          'No browser or supported app could open the update link.',
+        );
+      }
+      await _record(
+        action: 'Update URL Opened',
+        description: 'Opened the update download URL for ${release.version}.',
+        metadata: {'version': release.version, 'url_host': uri.host},
+      );
+    } catch (error) {
+      await _record(
+        action: 'Update Failed',
+        description: 'Unable to open update ${release.version}: $error',
+        metadata: {'version': release.version},
+      );
+      rethrow;
+    }
+  }
+
+  Future<UpdateUrlDiagnostic> validateAndOpenUpdateUrl(
+    AppVersionRelease release,
+  ) async {
+    late final Uri uri;
+    try {
+      uri = validateUpdateUrl(release.apkUrl);
+    } on UpdateUrlException catch (error) {
+      await _record(
+        action: 'Update Failed',
+        description: 'Update URL validation failed: ${error.message}',
+        metadata: {'version': release.version},
+      );
+      return UpdateUrlDiagnostic(passed: false, reason: error.message);
+    }
+
+    try {
+      var response = await _httpClient
+          .head(uri)
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode >= 400) {
+        final request = http.Request('GET', uri)
+          ..headers['Range'] = 'bytes=0-0';
+        final streamedResponse = await _httpClient
+            .send(request)
+            .timeout(const Duration(seconds: 10));
+        await streamedResponse.stream.listen((_) {}).cancel();
+        response = http.Response(
+          '',
+          streamedResponse.statusCode,
+          request: request,
+        );
+      }
+      if (response.statusCode < 200 || response.statusCode >= 400) {
+        final reason = 'The URL responded with HTTP ${response.statusCode}.';
+        await _record(
+          action: 'Update Failed',
+          description: 'Update URL diagnostic failed: $reason',
+          metadata: {'version': release.version},
+        );
+        return UpdateUrlDiagnostic(
+          passed: false,
+          reason: reason,
+          reachable: false,
+        );
+      }
+    } catch (error) {
+      final reason = 'Could not reach the update URL: $error';
+      await _record(
+        action: 'Update Failed',
+        description: 'Update URL diagnostic failed: $reason',
+        metadata: {'version': release.version},
+      );
+      return UpdateUrlDiagnostic(
+        passed: false,
+        reason: reason,
+        reachable: false,
+      );
+    }
+
+    try {
+      await launchUpdate(release);
+      return const UpdateUrlDiagnostic(
+        passed: true,
+        reason: 'URL is reachable and opened successfully.',
+        reachable: true,
+        opened: true,
+      );
+    } catch (error) {
+      return UpdateUrlDiagnostic(
+        passed: false,
+        reason: 'URL is reachable, but could not be opened: $error',
+        reachable: true,
+        opened: false,
+      );
+    }
+  }
+
+  Future<void> _record({
+    required String action,
+    required String description,
+    Map<String, dynamic> metadata = const {},
+  }) async {
+    try {
+      await _activityLog.record(
+        category: 'App Update',
+        action: action,
+        description: description,
+        entityType: 'app_version',
+        metadata: metadata,
+      );
+    } catch (error) {
+      debugPrint('Unable to record app update activity "$action": $error');
+    }
+  }
+
+  void dispose() {
+    if (_ownsHttpClient) _httpClient.close();
+  }
+}

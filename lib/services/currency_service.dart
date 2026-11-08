@@ -5,6 +5,7 @@ import 'role_access_service.dart';
 import 'profile_service.dart';
 import 'user_settings_service.dart';
 import 'offline_cache_service.dart';
+import 'system_activity_log_service.dart';
 
 enum DisplayCurrency {
   myr('MYR', 'Malaysian Ringgit', 'RM', ' '),
@@ -40,6 +41,7 @@ class CurrencyService extends ChangeNotifier {
     SupabaseClient? client,
     UserSettingsService? userSettingsService,
     RoleAccessService? roleAccessService,
+    this.requestTimeout = const Duration(seconds: 15),
   }) : _client = client ?? Supabase.instance.client,
        _userSettingsService = userSettingsService ?? UserSettingsService(),
        _roleAccessService = roleAccessService ?? RoleAccessService.instance;
@@ -53,6 +55,10 @@ class CurrencyService extends ChangeNotifier {
   final SupabaseClient _client;
   final UserSettingsService _userSettingsService;
   final RoleAccessService _roleAccessService;
+  final Duration requestTimeout;
+  late final SystemActivityLogService _activityLog = SystemActivityLogService(
+    client: _client,
+  );
 
   DisplayCurrency _displayCurrency = DisplayCurrency.myr;
   double _exchangeRateUsdMyr = defaultExchangeRateUsdMyr;
@@ -158,7 +164,14 @@ class CurrencyService extends ChangeNotifier {
             'updated_at': DateTime.now().toUtc().toIso8601String(),
           })
           .eq('id', _exchangeRateSettingId)
-          .select('exchange_rate_usd_myr');
+          .select('exchange_rate_usd_myr')
+          .timeout(
+            requestTimeout,
+            onTimeout: () => throw CurrencyServiceException(
+              'Saving the exchange rate timed out. Check your connection and '
+              'try again. The local value is queued for retry.',
+            ),
+          );
       if (rows.isEmpty) {
         throw const CurrencyServiceException(
           'Exchange rate setting was not found. Apply the currency settings '
@@ -172,13 +185,42 @@ class CurrencyService extends ChangeNotifier {
       );
       _errorMessage = null;
       notifyListeners();
+      try {
+        await _activityLog.record(
+          category: 'Exchange Rate',
+          action: 'Updated exchange rate',
+          description: '1 USD = ${_exchangeRateUsdMyr.toStringAsFixed(4)} MYR.',
+          entityType: 'app_setting',
+          entityId: _exchangeRateSettingId,
+          metadata: {'exchange_rate_usd_myr': _exchangeRateUsdMyr},
+        );
+      } catch (error) {
+        debugPrint('[CurrencyService] Unable to record rate change: $error');
+      }
+    } on CurrencyServiceException catch (error) {
+      _exchangeRateUsdMyr = rate;
+      _errorMessage = error.message;
+      OfflineCacheService.instance.recordOfflineError(error.message);
+      notifyListeners();
+      rethrow;
+    } on PostgrestException catch (error) {
+      final message = error.code == '42501'
+          ? 'You do not have permission to update the exchange rate.'
+          : 'Unable to save the exchange rate. ${error.message}';
+      _exchangeRateUsdMyr = rate;
+      _errorMessage = message;
+      OfflineCacheService.instance.recordOfflineError(message);
+      notifyListeners();
+      throw CurrencyServiceException(message);
     } catch (error) {
       _exchangeRateUsdMyr = rate;
-      _errorMessage =
-          'Exchange rate is saved on this device and will sync '
-          'when a connection is available: $error';
-      OfflineCacheService.instance.recordOfflineError(_errorMessage!);
+      final message =
+          'Unable to save the exchange rate. The local value is queued for '
+          'retry: $error';
+      _errorMessage = message;
+      OfflineCacheService.instance.recordOfflineError(message);
       notifyListeners();
+      throw CurrencyServiceException(message);
     }
   }
 

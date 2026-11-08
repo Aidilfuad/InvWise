@@ -8,16 +8,18 @@ class QuickActionsGrid extends StatelessWidget {
     super.key,
     required this.actions,
     required this.onActionTap,
+    this.compact = false,
   });
 
   final List<QuickActionItem> actions;
   final ValueChanged<QuickActionItem> onActionTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     final rows = <Widget>[];
     for (var i = 0; i < actions.length; i += 2) {
-      if (i > 0) rows.add(const SizedBox(height: 12));
+      if (i > 0) rows.add(SizedBox(height: compact ? 6 : 12));
       final hasSecond = i + 1 < actions.length;
       rows.add(
         IntrinsicHeight(
@@ -27,6 +29,7 @@ class QuickActionsGrid extends StatelessWidget {
               Expanded(
                 child: _QuickActionTile(
                   item: actions[i],
+                  compact: compact,
                   onTap: () => onActionTap(actions[i]),
                 ),
               ),
@@ -35,6 +38,7 @@ class QuickActionsGrid extends StatelessWidget {
                 child: hasSecond
                     ? _QuickActionTile(
                         item: actions[i + 1],
+                        compact: compact,
                         onTap: () => onActionTap(actions[i + 1]),
                       )
                     : const SizedBox.shrink(),
@@ -49,10 +53,15 @@ class QuickActionsGrid extends StatelessWidget {
 }
 
 class _QuickActionTile extends StatelessWidget {
-  const _QuickActionTile({required this.item, required this.onTap});
+  const _QuickActionTile({
+    required this.item,
+    required this.onTap,
+    required this.compact,
+  });
 
   final QuickActionItem item;
   final VoidCallback onTap;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -72,13 +81,13 @@ class _QuickActionTile extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(compact ? 10 : 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(item.icon, size: 22, color: iconColor),
+                  Icon(item.icon, size: compact ? 18 : 22, color: iconColor),
                   const Spacer(),
                   Icon(
                     Icons.north_east_rounded,
@@ -89,20 +98,22 @@ class _QuickActionTile extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: compact ? 6 : 18),
               Text(
                 item.label,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: compact ? 12 : 14,
                   fontWeight: FontWeight.w700,
                   color: titleColor,
                 ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                item.subtitle,
-                style: TextStyle(fontSize: 11, color: subtitleColor),
-              ),
+              if (!compact) ...[
+                const SizedBox(height: 2),
+                Text(
+                  item.subtitle,
+                  style: TextStyle(fontSize: 11, color: subtitleColor),
+                ),
+              ],
             ],
           ),
         ),

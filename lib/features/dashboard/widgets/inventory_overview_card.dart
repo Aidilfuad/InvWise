@@ -4,9 +4,16 @@ import '../../../app/constants/app_colors.dart';
 import '../data/dashboard_data.dart';
 
 class InventoryOverviewCard extends StatelessWidget {
-  const InventoryOverviewCard({super.key, required this.summary});
+  const InventoryOverviewCard({
+    super.key,
+    required this.summary,
+    this.compact = false,
+    this.featured = false,
+  });
 
   final DashboardData summary;
+  final bool compact;
+  final bool featured;
 
   String _fmt(int n) {
     final s = n.toString();
@@ -28,13 +35,59 @@ class InventoryOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.primaryContainer,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.primary.withAlpha(30)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Stock: ${summary.totalStockQuantityLabel}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${summary.healthyPercent.toStringAsFixed(0)}% healthy',
+              style: TextStyle(
+                color: AppColors.success,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: EdgeInsets.all(featured ? 24 : 18),
       decoration: BoxDecoration(
         color: AppColors.primaryContainer,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(featured ? 24 : 20),
         border: Border.all(color: AppColors.primary.withAlpha(30)),
+        boxShadow: featured
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withAlpha(18),
+                  blurRadius: 22,
+                  offset: const Offset(0, 8),
+                ),
+              ]
+            : null,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -66,7 +119,7 @@ class InventoryOverviewCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: featured ? 24 : 16),
           IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -86,7 +139,7 @@ class InventoryOverviewCard extends StatelessWidget {
                       Text(
                         summary.totalItemsLabel,
                         style: TextStyle(
-                          fontSize: 32,
+                          fontSize: featured ? 40 : 32,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
                         ),
@@ -113,7 +166,7 @@ class InventoryOverviewCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 22,
+                          fontSize: featured ? 27 : 22,
                           fontWeight: FontWeight.w800,
                           color: AppColors.primary,
                         ),
@@ -124,7 +177,7 @@ class InventoryOverviewCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 18),
+          SizedBox(height: featured ? 24 : 18),
           Row(
             children: [
               Expanded(
@@ -155,7 +208,7 @@ class InventoryOverviewCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: summary.healthyPercent / 100,
-                    minHeight: 8,
+                    minHeight: featured ? 10 : 8,
                     backgroundColor: AppColors.primary.withAlpha(30),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       AppColors.primary,
