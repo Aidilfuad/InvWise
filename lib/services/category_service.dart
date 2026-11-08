@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'offline_cache_service.dart';
+
 /// Error thrown by [CategoryService] with a message that is safe to show in
 /// the UI.
 class CategoryServiceException implements Exception {
@@ -50,6 +52,28 @@ class Category {
     );
   }
 
+  factory Category.fromCacheMap(Map<String, dynamic> map) => Category(
+    id: map['id'] as String,
+    name: map['name'] as String,
+    description: map['description'] as String?,
+    isActive: map['isActive'] as bool,
+    createdBy: map['createdBy'] as String?,
+    createdAt: DateTime.parse(map['createdAt'] as String),
+    updatedAt: DateTime.parse(map['updatedAt'] as String),
+    itemCount: map['itemCount'] as int? ?? 0,
+  );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'name': name,
+    'description': description,
+    'isActive': isActive,
+    'createdBy': createdBy,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+    'itemCount': itemCount,
+  };
+
   /// PostgREST returns an embedded count as `[{"count": 12}]`.
   static int _readItemCount(Object? embedded) {
     if (embedded is List && embedded.isNotEmpty) {
@@ -84,7 +108,18 @@ class CategoryService {
   /// `categories.id`. If the counted query fails for any database reason, the
   /// plain list is returned instead with [Category.itemCount] set to 0.
   /// Throws [CategoryServiceException] if the request fails.
-  Future<List<Category>> getCategories({bool includeInactive = false}) async {
+  Future<List<Category>> getCategories({bool includeInactive = false}) =>
+      OfflineCacheService.instance.loadList(
+        key: includeInactive ? 'categories.all' : 'categories.active',
+        decode: Category.fromCacheMap,
+        encode: (category) => category.toCacheMap(),
+        fetchRemote: () =>
+            _fetchRemoteCategories(includeInactive: includeInactive),
+      );
+
+  Future<List<Category>> _fetchRemoteCategories({
+    required bool includeInactive,
+  }) async {
     try {
       final rows = await _fetchCategories(
         _columnsWithCount,
@@ -131,6 +166,7 @@ class CategoryService {
         'name': trimmedName,
         'description': cleanedDescription,
       });
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw CategoryServiceException(
         _friendlyMessage(e, 'create the category'),
@@ -190,6 +226,7 @@ class CategoryService {
         'Category not found, or you do not have permission to update it.',
       );
     }
+    await _invalidateCache();
   }
 
   /// Archives the category with [id] so it no longer appears in active lists.
@@ -228,6 +265,13 @@ class CategoryService {
         'to delete it.',
       );
     }
+    await _invalidateCache();
+  }
+
+  Future<void> _invalidateCache() async {
+    await OfflineCacheService.instance.remove('categories.active');
+    await OfflineCacheService.instance.remove('categories.all');
+    await OfflineCacheService.instance.remove('inventory.items');
   }
 
   /// Returns the exact number of inventory rows referencing [categoryId].

@@ -8,6 +8,7 @@ import 'app/constants/supabase_config.dart';
 import 'app/theme/app_theme.dart';
 import 'app/theme/app_theme_controller.dart';
 import 'app/routes/app_routes.dart';
+import 'services/offline_cache_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +17,7 @@ Future<void> main() async {
     url: SupabaseConfig.url,
     publishableKey: SupabaseConfig.publishableKey,
   );
+  await OfflineCacheService.instance.initialize();
 
   unawaited(AppThemeController.instance.initialize());
   runApp(const InvWiseApp());

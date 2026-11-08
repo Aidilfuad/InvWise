@@ -5,8 +5,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/offline_cache_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
+import '../../widgets/offline_sync_indicator.dart';
 import '../activity_log/activity_log_page.dart';
 import '../alerts_page/alerts_page.dart';
 import '../inventory/inventory_page.dart';
@@ -45,7 +47,30 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
+    OfflineCacheService.instance.addListener(_onOfflineCacheChanged);
     _loadDashboard();
+  }
+
+  void _onOfflineCacheChanged() {
+    if (OfflineCacheService.instance.lastChangedKey != 'dashboard.data') {
+      return;
+    }
+    _refreshDashboardFromCache();
+  }
+
+  Future<void> _refreshDashboardFromCache() async {
+    final data = await _service.readCachedDashboard();
+    if (!mounted || data == null) return;
+    setState(() {
+      _data = data;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    OfflineCacheService.instance.removeListener(_onOfflineCacheChanged);
+    super.dispose();
   }
 
   Future<void> _loadDashboard() async {
@@ -257,6 +282,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const OfflineSyncIndicator(),
         DashboardHomeHeader(
           greeting: _greeting,
           name: _userName,

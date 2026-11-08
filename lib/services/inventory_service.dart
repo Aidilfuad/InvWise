@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'activity_log_service.dart';
+import 'offline_cache_service.dart';
 
 class InventoryServiceException implements Exception {
   const InventoryServiceException(this.message);
@@ -9,13 +10,6 @@ class InventoryServiceException implements Exception {
 
   @override
   String toString() => 'InventoryServiceException: $message';
-}
-
-class _InventoryItemsCache {
-  const _InventoryItemsCache({required this.items, required this.loadedAt});
-
-  final List<InventoryItem> items;
-  final DateTime loadedAt;
 }
 
 class InventoryLocation {
@@ -133,6 +127,54 @@ class InventoryItem {
       updatedAt: _dateTimeValue(map['updated_at']),
     );
   }
+
+  factory InventoryItem.fromCacheMap(Map<String, dynamic> map) => InventoryItem(
+    id: _requiredString(map, 'id'),
+    sku: _requiredString(map, 'sku'),
+    name: _requiredString(map, 'name'),
+    categoryId: map['categoryId'] as String?,
+    categoryName: map['categoryName'] as String?,
+    description: map['description'] as String?,
+    unitId: _requiredString(map, 'unitId'),
+    unitName: _requiredString(map, 'unitName'),
+    unitAbbreviation: _requiredString(map, 'unitAbbreviation'),
+    quantity: _doubleValue(map['quantity']),
+    locationQuantity: _doubleValue(map['locationQuantity']),
+    locationId: map['locationId'] as String?,
+    minStock: _doubleValue(map['minStock']),
+    unitPrice: _doubleValue(map['unitPrice']),
+    notes: map['notes'] as String?,
+    location: map['location'] as String?,
+    warehouse: map['warehouse'] as String?,
+    createdBy: map['createdBy'] as String?,
+    createdAt: _dateTimeValue(map['createdAt']),
+    updatedBy: map['updatedBy'] as String?,
+    updatedAt: _dateTimeValue(map['updatedAt']),
+  );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'sku': sku,
+    'name': name,
+    'categoryId': categoryId,
+    'categoryName': categoryName,
+    'description': description,
+    'unitId': unitId,
+    'unitName': unitName,
+    'unitAbbreviation': unitAbbreviation,
+    'quantity': quantity,
+    'locationQuantity': locationQuantity,
+    'locationId': locationId,
+    'minStock': minStock,
+    'unitPrice': unitPrice,
+    'notes': notes,
+    'location': location,
+    'warehouse': warehouse,
+    'createdBy': createdBy,
+    'createdAt': createdAt?.toIso8601String(),
+    'updatedBy': updatedBy,
+    'updatedAt': updatedAt?.toIso8601String(),
+  };
 }
 
 enum InventoryStockStatus {
@@ -158,27 +200,28 @@ class InventoryService {
   static const String _stockLevelsTable = 'stock_levels';
   static const String _selectColumns =
       '*, category:categories(name), unit:units(name,abbreviation)';
-  static const Duration _itemsCacheDuration = Duration(seconds: 30);
-  static final Map<String, _InventoryItemsCache> _itemsCache = {};
-  static final Map<String, Future<List<InventoryItem>>> _itemsRequests = {};
-  static final Map<String, int> _itemsCacheVersions = {};
+  List<InventoryItem>? _cachedItems;
 
-  String get _itemsCacheKey => _client.auth.currentUser?.id ?? 'anonymous';
+  List<InventoryItem>? get cachedItems => _cachedItems;
 
-  List<InventoryItem>? get cachedItems => _itemsCache[_itemsCacheKey]?.items;
-
-  static void invalidateItemsCache() {
-    final key = Supabase.instance.client.auth.currentUser?.id ?? 'anonymous';
-    _itemsCache.remove(key);
-    _itemsRequests.remove(key);
-    _itemsCacheVersions.update(
-      key,
-      (version) => version + 1,
-      ifAbsent: () => 1,
-    );
+  Future<List<InventoryItem>?> readCachedItems() async {
+    final rows = await OfflineCacheService.instance.readList('inventory.items');
+    if (rows == null) return null;
+    return rows.map(InventoryItem.fromCacheMap).toList(growable: false);
   }
 
-  Future<List<InventoryLocation>> getLocations() async {
+  static Future<void> invalidateItemsCache() =>
+      OfflineCacheService.instance.remove('inventory.items');
+
+  Future<List<InventoryLocation>> getLocations() =>
+      OfflineCacheService.instance.loadList(
+        key: 'warehouse.locations.simple',
+        decode: InventoryLocation.fromMap,
+        encode: (location) => {'id': location.id, 'name': location.name},
+        fetchRemote: _fetchLocations,
+      );
+
+  Future<List<InventoryLocation>> _fetchLocations() async {
     try {
       final rows = await _client
           .from(_locationsTable)
@@ -284,7 +327,7 @@ class InventoryService {
         'quantity': 0,
         'updated_at': DateTime.now().toUtc().toIso8601String(),
       }, onConflict: 'item_id,location_id');
-      invalidateItemsCache();
+      await invalidateItemsCache();
     } on PostgrestException catch (e) {
       throw InventoryServiceException(
         _friendlyMessage(e, 'assign the empty item to the warehouse'),
@@ -328,7 +371,8 @@ class InventoryService {
           itemId: id,
           details: {'bulk_action': 'change_category', 'category_id': category},
         );
-        invalidateItemsCache();
+        await invalidateItemsCache();
+        await _invalidateCategoryCaches();
       } on PostgrestException catch (error) {
         failures[id] = _friendlyMessage(
           error,
@@ -368,7 +412,8 @@ class InventoryService {
           itemId: id,
           details: {'bulk_action': 'archive'},
         );
-        invalidateItemsCache();
+        await invalidateItemsCache();
+        await _invalidateCategoryCaches();
       } on PostgrestException catch (error) {
         failures[id] = _friendlyMessage(error, 'archive this item');
       } on InventoryServiceException catch (error) {
@@ -397,7 +442,8 @@ class InventoryService {
             'Item could not be deleted. Refresh inventory and try again.',
           );
         }
-        invalidateItemsCache();
+        await invalidateItemsCache();
+        await _invalidateCategoryCaches();
       } on PostgrestException catch (error) {
         failures[id] = error.code == '23503'
             ? 'Item is referenced by stock or activity history and cannot be '
@@ -462,7 +508,8 @@ class InventoryService {
           'updated_quantity': updatedQuantity,
         },
       );
-      invalidateItemsCache();
+      await invalidateItemsCache();
+      await _invalidateWarehouseCaches();
       return updatedQuantity;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(
@@ -478,34 +525,15 @@ class InventoryService {
   }
 
   Future<List<InventoryItem>> getItems({bool forceRefresh = false}) async {
-    final key = _itemsCacheKey;
-    final cached = _itemsCache[key];
-    if (!forceRefresh &&
-        cached != null &&
-        DateTime.now().difference(cached.loadedAt) < _itemsCacheDuration) {
-      return cached.items;
-    }
-
-    final pending = _itemsRequests[key];
-    if (pending != null) return pending;
-
-    final request = _fetchItems();
-    final version = _itemsCacheVersions[key] ?? 0;
-    _itemsRequests[key] = request;
-    try {
-      final items = await request;
-      if ((_itemsCacheVersions[key] ?? 0) == version) {
-        _itemsCache[key] = _InventoryItemsCache(
-          items: items,
-          loadedAt: DateTime.now(),
-        );
-      }
-      return items;
-    } finally {
-      if (identical(_itemsRequests[key], request)) {
-        _itemsRequests.remove(key);
-      }
-    }
+    final items = await OfflineCacheService.instance.loadList(
+      key: 'inventory.items',
+      decode: InventoryItem.fromCacheMap,
+      encode: (item) => item.toCacheMap(),
+      fetchRemote: _fetchItems,
+      forceRefresh: forceRefresh,
+    );
+    _cachedItems = items;
+    return items;
   }
 
   Future<List<InventoryItem>> _fetchItems() async {
@@ -524,6 +552,16 @@ class InventoryService {
         'Unable to load inventory. Please check your connection and try again.',
       );
     }
+  }
+
+  Future<void> _invalidateCategoryCaches() async {
+    await OfflineCacheService.instance.remove('categories.active');
+    await OfflineCacheService.instance.remove('categories.all');
+  }
+
+  Future<void> _invalidateWarehouseCaches() async {
+    await OfflineCacheService.instance.remove('warehouses.active');
+    await OfflineCacheService.instance.remove('warehouses.all');
   }
 
   Future<InventoryItem> getItemById(String id) async {
@@ -615,7 +653,9 @@ class InventoryService {
           'initial_quantity': quantity,
         },
       );
-      invalidateItemsCache();
+      await invalidateItemsCache();
+      await _invalidateCategoryCaches();
+      await _invalidateWarehouseCaches();
       return item;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'create the item'));
@@ -687,7 +727,9 @@ class InventoryService {
           'quantity': quantity,
         },
       );
-      invalidateItemsCache();
+      await invalidateItemsCache();
+      await _invalidateCategoryCaches();
+      await _invalidateWarehouseCaches();
       return item;
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'update the item'));
@@ -737,6 +779,8 @@ class InventoryService {
           'sku': item['sku'],
         },
       );
+      await invalidateItemsCache();
+      await _invalidateCategoryCaches();
     } on PostgrestException catch (e) {
       throw InventoryServiceException(_friendlyMessage(e, 'delete the item'));
     } on InventoryServiceException {

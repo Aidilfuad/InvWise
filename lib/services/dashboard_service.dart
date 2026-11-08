@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../features/dashboard/data/dashboard_data.dart';
 import 'activity_log_service.dart';
+import 'offline_cache_service.dart';
 import 'stock_movement_service.dart';
 
 class DashboardServiceException implements Exception {
@@ -20,7 +21,24 @@ class DashboardService {
   final StockMovementService _movementService = StockMovementService();
   final ActivityLogService _activityLogService = ActivityLogService();
 
-  Future<DashboardData> loadDashboard() async {
+  Future<DashboardData> loadDashboard() =>
+      OfflineCacheService.instance.loadValue(
+        key: 'dashboard.data',
+        decode: (value) =>
+            DashboardData.fromCacheMap(Map<String, dynamic>.from(value as Map)),
+        encode: (data) => data.toCacheMap(),
+        fetchRemote: _fetchDashboard,
+      );
+
+  Future<DashboardData?> readCachedDashboard() async {
+    final value = await OfflineCacheService.instance.readValue(
+      'dashboard.data',
+    );
+    if (value is! Map) return null;
+    return DashboardData.fromCacheMap(Map<String, dynamic>.from(value));
+  }
+
+  Future<DashboardData> _fetchDashboard() async {
     try {
       final results = await Future.wait<Object>([
         (() async =>

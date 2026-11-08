@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'offline_cache_service.dart';
+
 /// Error thrown by [ProfileService] with a message that is safe to show in
 /// the UI.
 class ProfileServiceException implements Exception {
@@ -23,6 +25,7 @@ class ProfileLookupResult {
     this.department,
     this.position,
     this.role,
+    this.isActive = true,
   });
 
   final String id;
@@ -34,6 +37,7 @@ class ProfileLookupResult {
   final String? department;
   final String? position;
   final String? role;
+  final bool isActive;
 
   factory ProfileLookupResult.fromMap(Map<String, dynamic> map) {
     return ProfileLookupResult(
@@ -46,8 +50,36 @@ class ProfileLookupResult {
       department: map['department'] as String?,
       position: map['position'] as String?,
       role: map['role'] as String?,
+      isActive: map['is_active'] as bool? ?? true,
     );
   }
+
+  factory ProfileLookupResult.fromCacheMap(Map<String, dynamic> map) =>
+      ProfileLookupResult(
+        id: map['id'] as String,
+        authUserId: map['authUserId'] as String?,
+        employeeId: map['employeeId'] as String?,
+        fullName: map['fullName'] as String?,
+        email: map['email'] as String?,
+        phoneNumber: map['phoneNumber'] as String?,
+        department: map['department'] as String?,
+        position: map['position'] as String?,
+        role: map['role'] as String?,
+        isActive: map['isActive'] as bool? ?? true,
+      );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'authUserId': authUserId,
+    'employeeId': employeeId,
+    'fullName': fullName,
+    'email': email,
+    'phoneNumber': phoneNumber,
+    'department': department,
+    'position': position,
+    'role': role,
+    'isActive': isActive,
+  };
 }
 
 /// Reads and updates the current user's row in the `profiles` table.
@@ -61,7 +93,18 @@ class ProfileService {
   Future<ProfileLookupResult?> getCurrentProfile() async {
     final authUserId = _client.auth.currentUser?.id;
     if (authUserId == null) return null;
+    return OfflineCacheService.instance.loadValue<ProfileLookupResult>(
+      key: 'profile.current',
+      scopeId: authUserId,
+      decode: (value) => ProfileLookupResult.fromCacheMap(
+        Map<String, dynamic>.from(value as Map),
+      ),
+      encode: (profile) => profile.toCacheMap(),
+      fetchRemote: () => _fetchCurrentProfile(authUserId),
+    );
+  }
 
+  Future<ProfileLookupResult> _fetchCurrentProfile(String authUserId) async {
     try {
       final row = await _client
           .from(_table)
@@ -75,7 +118,18 @@ class ProfileService {
       }
       final profileData = Map<String, dynamic>.from(row);
       profileData['email'] ??= _client.auth.currentUser?.email;
-      return ProfileLookupResult.fromMap(profileData);
+      final updatedProfile = ProfileLookupResult.fromMap(profileData);
+      await OfflineCacheService.instance.writeValue(
+        'profile.current',
+        updatedProfile.toCacheMap(),
+        scopeId: authUserId,
+      );
+      if (!updatedProfile.isActive) {
+        throw const ProfileServiceException(
+          'This account is inactive. Contact a Super Admin.',
+        );
+      }
+      return updatedProfile;
     } on PostgrestException catch (error) {
       throw ProfileServiceException(
         _friendlyMessage(error, 'load the current profile'),

@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:invwise/features/inventory/inventory_page.dart';
 import 'package:invwise/services/inventory_service.dart';
+import 'package:invwise/services/offline_cache_service.dart';
 import 'package:invwise/services/role_access_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -52,6 +53,7 @@ void main() {
         pkceAsyncStorage: _MemoryAuthStorage(),
       ),
     );
+    OfflineCacheService.instance.initializeInMemoryForTesting();
     RoleAccessService.instance.updateRole('Inventory Administrator');
   });
 
@@ -168,7 +170,7 @@ void main() {
   });
 
   testWidgets('reopening inventory uses the fresh item cache', (tester) async {
-    InventoryService.invalidateItemsCache();
+    await InventoryService.invalidateItemsCache();
     inventoryQueryCount = 0;
     await tester.pumpWidget(
       MaterialApp(theme: AppTheme.light, home: const InventoryPage()),
@@ -177,13 +179,18 @@ void main() {
     final initialQueryCount = inventoryQueryCount;
     expect(initialQueryCount, greaterThan(0));
 
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
     await tester.pumpWidget(
       MaterialApp(theme: AppTheme.light, home: const InventoryPage()),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
 
-    expect(inventoryQueryCount, initialQueryCount);
     expect(find.text('Widget'), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    await tester.pumpAndSettle();
+    expect(inventoryQueryCount, greaterThan(initialQueryCount));
     expect(tester.takeException(), isNull);
   });
 }

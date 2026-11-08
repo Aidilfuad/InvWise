@@ -7,7 +7,9 @@ import '../../app/constants/app_spacing.dart';
 import '../../services/category_service.dart';
 import '../../services/currency_service.dart';
 import '../../services/inventory_service.dart';
+import '../../services/offline_cache_service.dart';
 import '../../services/role_access_service.dart';
+import '../../widgets/offline_sync_indicator.dart';
 import '../../services/stock_movement_service.dart';
 import '../stock_adjustment/data/stock_adjustment_options.dart';
 import 'item_details_page.dart';
@@ -61,6 +63,7 @@ class _InventoryPageState extends State<InventoryPage> {
   @override
   void initState() {
     super.initState();
+    OfflineCacheService.instance.addListener(_onOfflineCacheChanged);
     final cachedItems = _service.cachedItems;
     if (cachedItems != null) {
       _items = cachedItems;
@@ -91,8 +94,31 @@ class _InventoryPageState extends State<InventoryPage> {
 
   @override
   void dispose() {
+    OfflineCacheService.instance.removeListener(_onOfflineCacheChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onOfflineCacheChanged() {
+    if (OfflineCacheService.instance.lastChangedKey != 'inventory.items') {
+      return;
+    }
+    _refreshInventoryFromCache();
+  }
+
+  Future<void> _refreshInventoryFromCache() async {
+    final items = await _service.readCachedItems();
+    if (!mounted || items == null) return;
+    final totalAssetValue = items.fold<double>(
+      0,
+      (total, item) => total + item.inventoryValue,
+    );
+    setState(() {
+      _items = items;
+      _totalAssetValue = totalAssetValue;
+      _isLoading = false;
+      _errorMessage = null;
+    });
   }
 
   Future<void> _loadInventory({bool forceRefresh = false}) async {
@@ -125,6 +151,12 @@ class _InventoryPageState extends State<InventoryPage> {
       if (!mounted) return;
       setState(() {
         _errorMessage = e.message;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _errorMessage = 'Unable to load cached inventory: $error';
         _isLoading = false;
       });
     }
@@ -781,6 +813,7 @@ class _InventoryPageState extends State<InventoryPage> {
                   child: CustomScrollView(
                     physics: const AlwaysScrollableScrollPhysics(),
                     slivers: [
+                      const SliverToBoxAdapter(child: OfflineSyncIndicator()),
                       if (_isSelectionMode)
                         SliverToBoxAdapter(child: _buildBulkActionBar(context)),
                       SliverToBoxAdapter(

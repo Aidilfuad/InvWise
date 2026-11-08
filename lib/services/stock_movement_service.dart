@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'activity_log_service.dart';
+import 'offline_cache_service.dart';
 
 enum StockMovementType {
   receipt('receipt', 'Receipt'),
@@ -83,6 +84,40 @@ class StockMovement {
     ];
     return parts.join(' · ');
   }
+
+  factory StockMovement.fromCacheMap(Map<String, dynamic> map) => StockMovement(
+    id: map['id'] as String,
+    itemId: map['itemId'] as String,
+    itemName: map['itemName'] as String,
+    sku: map['sku'] as String,
+    type: StockMovementType.fromDatabase(map['type']),
+    quantity: (map['quantity'] as num).toDouble(),
+    occurredAt: DateTime.parse(map['occurredAt'] as String),
+    sourceLocationId: map['sourceLocationId'] as String?,
+    sourceLocationName: map['sourceLocationName'] as String?,
+    destinationLocationId: map['destinationLocationId'] as String?,
+    destinationLocationName: map['destinationLocationName'] as String?,
+    reference: map['reference'] as String?,
+    notes: map['notes'] as String?,
+    performedBy: map['performedBy'] as String?,
+  );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'itemId': itemId,
+    'itemName': itemName,
+    'sku': sku,
+    'type': type.databaseValue,
+    'quantity': quantity,
+    'occurredAt': occurredAt.toIso8601String(),
+    'sourceLocationId': sourceLocationId,
+    'sourceLocationName': sourceLocationName,
+    'destinationLocationId': destinationLocationId,
+    'destinationLocationName': destinationLocationName,
+    'reference': reference,
+    'notes': notes,
+    'performedBy': performedBy,
+  };
 }
 
 class StockMovementService {
@@ -291,6 +326,9 @@ class StockMovementService {
           if (notes?.trim().isNotEmpty == true) 'notes': notes!.trim(),
         },
       );
+      await OfflineCacheService.instance.remove('inventory.items');
+      await OfflineCacheService.instance.remove('warehouses.active');
+      await OfflineCacheService.instance.remove('warehouses.all');
     } on PostgrestException catch (error) {
       _logPostgrestFailure('insert stock movement', error);
       final rollbackError = await _restoreStock(item, affected);

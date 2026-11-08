@@ -48,6 +48,7 @@ void main() {
     expect(access.allows(AppPermission.viewCurrencySettings), isTrue);
     expect(access.allows(AppPermission.changeDisplayCurrency), isTrue);
     expect(access.allows(AppPermission.manageExchangeRate), isTrue);
+    expect(access.allows(AppPermission.manageUsers), isTrue);
   });
 
   test(
@@ -82,6 +83,7 @@ void main() {
       ]) {
         expect(access.allows(permission), isTrue, reason: '$permission');
       }
+      expect(access.allows(AppPermission.manageUsers), isFalse);
     },
   );
 
@@ -121,6 +123,7 @@ void main() {
         AppPermission.bulkDeleteInventory,
         AppPermission.manageSecurity,
         AppPermission.viewSupportCenter,
+        AppPermission.manageUsers,
       ]) {
         expect(access.allows(permission), isFalse, reason: '$permission');
       }
@@ -161,6 +164,7 @@ void main() {
       AppPermission.bulkChangeWarehouse,
       AppPermission.bulkArchiveInventory,
       AppPermission.bulkDeleteInventory,
+      AppPermission.manageUsers,
     ]) {
       expect(access.allows(permission), isFalse, reason: '$permission');
     }

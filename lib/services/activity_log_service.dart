@@ -102,6 +102,37 @@ class ActivityLogEntry {
     return '$prefix$formatted units';
   }
 
+  factory ActivityLogEntry.fromCacheMap(Map<String, dynamic> map) =>
+      ActivityLogEntry(
+        id: map['id'] as String,
+        type: ActivityEventType.fromDatabase(map['type']),
+        description: map['description'] as String,
+        details: Map<String, dynamic>.from(map['details'] as Map),
+        occurredAt: DateTime.parse(map['occurredAt'] as String),
+        actorProfileId: map['actorProfileId'] as String?,
+        itemId: map['itemId'] as String?,
+        itemName: map['itemName'] as String?,
+        itemSku: map['itemSku'] as String?,
+        locationId: map['locationId'] as String?,
+        locationName: map['locationName'] as String?,
+        stockMovementId: map['stockMovementId'] as String?,
+      );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'type': type.databaseValue,
+    'description': description,
+    'details': details,
+    'occurredAt': occurredAt.toIso8601String(),
+    'actorProfileId': actorProfileId,
+    'itemId': itemId,
+    'itemName': itemName,
+    'itemSku': itemSku,
+    'locationId': locationId,
+    'locationName': locationName,
+    'stockMovementId': stockMovementId,
+  };
+
   String? _detailString(String key) {
     final value = details[key];
     return value is String && value.trim().isNotEmpty ? value.trim() : null;

@@ -9,6 +9,7 @@ import 'package:invwise/features/inventory/widgets/inventory_summary_card.dart';
 import 'package:invwise/features/settings/currency_settings_page.dart';
 import 'package:invwise/features/settings/settings_page.dart';
 import 'package:invwise/services/currency_service.dart';
+import 'package:invwise/services/offline_cache_service.dart';
 import 'package:invwise/services/role_access_service.dart';
 import 'package:invwise/services/user_settings_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -18,6 +19,7 @@ void main() {
 
   late Map<String, dynamic>? userSettings;
   late double exchangeRate;
+  var isOffline = false;
   var missingCurrencyColumn = false;
   const profileId = 'profile-1';
 
@@ -28,6 +30,14 @@ void main() {
       url: 'http://localhost:54321',
       publishableKey: 'test-key',
       httpClient: MockClient((request) async {
+        if (isOffline) {
+          return http.Response(
+            jsonEncode({'message': 'offline'}),
+            503,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          );
+        }
         final path = request.url.path;
         if (path.endsWith('/user_settings')) {
           if (request.method == 'GET') {
@@ -102,12 +112,30 @@ void main() {
         pkceAsyncStorage: _MemoryAuthStorage(),
       ),
     );
+    OfflineCacheService.instance.initializeInMemoryForTesting();
   });
 
-  setUp(() {
+  setUp(() async {
     userSettings = null;
     exchangeRate = 4.25;
     missingCurrencyColumn = false;
+    isOffline = false;
+    await OfflineCacheService.instance.remove(
+      'settings.currency_code',
+      scopeId: profileId,
+    );
+    await OfflineCacheService.instance.remove(
+      'settings.currency_code.pending',
+      scopeId: profileId,
+    );
+    await OfflineCacheService.instance.remove(
+      'settings.exchange_rate_usd_myr',
+      scopeId: 'global',
+    );
+    await OfflineCacheService.instance.remove(
+      'settings.exchange_rate_usd_myr.pending',
+      scopeId: 'global',
+    );
     RoleAccessService.instance.updateRole('Super Admin');
   });
 
@@ -128,6 +156,7 @@ void main() {
         profileId: profileId,
         currency: DisplayCurrency.usd,
       );
+
       expect(service.formatMyr(17213), r'$4,050.12');
 
       await service.setExchangeRateUsdMyr(4.5);
@@ -140,6 +169,41 @@ void main() {
       expect(userSettings?['currency_code'], 'USD');
     },
   );
+
+  test('currency preference stays local offline and syncs on retry', () async {
+    final settings = UserSettingsService();
+    isOffline = true;
+
+    await settings.saveCurrencyCode(profileId: profileId, currencyCode: 'USD');
+
+    expect(
+      await OfflineCacheService.instance.readValue(
+        'settings.currency_code',
+        scopeId: profileId,
+      ),
+      'USD',
+    );
+    expect(
+      await OfflineCacheService.instance.readValue(
+        'settings.currency_code.pending',
+        scopeId: profileId,
+      ),
+      'USD',
+    );
+    expect(OfflineCacheService.instance.syncState, OfflineSyncState.offline);
+
+    isOffline = false;
+    expect(await settings.loadOrCreateCurrencyCode(profileId), 'USD');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(userSettings?['currency_code'], 'USD');
+    expect(
+      await OfflineCacheService.instance.readValue(
+        'settings.currency_code.pending',
+        scopeId: profileId,
+      ),
+      isNull,
+    );
+  });
 
   test('rejects invalid exchange rates and non-admin rate updates', () async {
     final service = _createService();

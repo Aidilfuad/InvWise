@@ -8,6 +8,7 @@ import '../../app/theme/app_theme_controller.dart';
 import '../../services/currency_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
+import '../../widgets/offline_sync_indicator.dart';
 import 'widgets/edit_profile_sheet.dart';
 import 'widgets/settings_header.dart';
 import 'widgets/settings_profile_card.dart';
@@ -21,6 +22,7 @@ import '../personal_information/personal_information_page.dart';
 import '../warehouse_location/warehouse_locations_page.dart';
 import '../security/security_page.dart';
 import '../language/language_page.dart';
+import '../user_management/user_management_page.dart';
 
 /// Settings screen with live profile data and app configuration links.
 class SettingsPage extends StatefulWidget {
@@ -250,6 +252,12 @@ class _SettingsPageState extends State<SettingsPage> {
     Navigator.of(context).pushNamed(AppRoutes.registrationApprovals);
   }
 
+  void _onUserManagementTap() {
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => const UserManagementPage()));
+  }
+
   void _onSignOutTap() {
     // Navigation only: no authentication or session handling exists yet.
     // Clears every route so the back button cannot return to the app.
@@ -275,6 +283,7 @@ class _SettingsPageState extends State<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const OfflineSyncIndicator(),
                   SettingsHeader(onCloseTap: _onCloseTap),
                   Padding(
                     padding: EdgeInsets.fromLTRB(
@@ -405,6 +414,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         SettingsSection(
                           title: 'System',
                           children: [
+                            if (_roleAccess.allows(AppPermission.manageUsers))
+                              SettingsTile(
+                                icon: Icons.manage_accounts_outlined,
+                                title: 'User Management',
+                                subtitle:
+                                    'Manage user roles and account status',
+                                onTap: _onUserManagementTap,
+                              ),
                             if (_roleAccess.allows(
                               AppPermission.manageRegistrationRequests,
                             ))

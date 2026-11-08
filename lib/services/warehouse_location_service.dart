@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'offline_cache_service.dart';
+
 class WarehouseLocationServiceException implements Exception {
   const WarehouseLocationServiceException(this.message);
 
@@ -40,6 +42,33 @@ class WarehouseLocation {
       address?.trim().isNotEmpty == true ? address! : description ?? '';
   double get usageRatio =>
       capacity <= 0 ? 0 : (usage / capacity).clamp(0, 1).toDouble();
+
+  factory WarehouseLocation.fromCacheMap(Map<String, dynamic> map) =>
+      WarehouseLocation(
+        id: _requiredString(map, 'id'),
+        name: _requiredString(map, 'name'),
+        code: _requiredString(map, 'code'),
+        capacity: _numberValue(map['capacity']),
+        usage: _numberValue(map['usage']),
+        isActive: map['isActive'] as bool,
+        createdAt: _dateValue(map['createdAt']),
+        updatedAt: _dateValue(map['updatedAt']),
+        description: map['description'] as String?,
+        address: map['address'] as String?,
+      );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'name': name,
+    'code': code,
+    'capacity': capacity,
+    'usage': usage,
+    'isActive': isActive,
+    'createdAt': createdAt?.toIso8601String(),
+    'updatedAt': updatedAt?.toIso8601String(),
+    'description': description,
+    'address': address,
+  };
 }
 
 class WarehouseLocationsSummary {
@@ -64,6 +93,15 @@ class WarehouseLocationService {
 
   Future<List<WarehouseLocation>> getLocations({
     bool includeInactive = false,
+  }) => OfflineCacheService.instance.loadList(
+    key: includeInactive ? 'warehouses.all' : 'warehouses.active',
+    decode: WarehouseLocation.fromCacheMap,
+    encode: (location) => location.toCacheMap(),
+    fetchRemote: () => _fetchLocations(includeInactive: includeInactive),
+  );
+
+  Future<List<WarehouseLocation>> _fetchLocations({
+    required bool includeInactive,
   }) async {
     try {
       var query = _client.from(_table).select();
@@ -164,6 +202,7 @@ class WarehouseLocationService {
 
     try {
       await _client.from(_table).insert({...payload, 'is_active': true});
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw WarehouseLocationServiceException(
         _friendlyMessage(e, 'create the warehouse location'),
@@ -208,6 +247,7 @@ class WarehouseLocationService {
           'update it.',
         );
       }
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw WarehouseLocationServiceException(
         _friendlyMessage(e, 'update the warehouse location'),
@@ -235,6 +275,7 @@ class WarehouseLocationService {
           'delete it.',
         );
       }
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw WarehouseLocationServiceException(
         _friendlyMessage(e, 'delete the warehouse location'),
@@ -246,6 +287,13 @@ class WarehouseLocationService {
         'Unable to delete the warehouse location. Please try again.',
       );
     }
+  }
+
+  Future<void> _invalidateCache() async {
+    await OfflineCacheService.instance.remove('warehouses.active');
+    await OfflineCacheService.instance.remove('warehouses.all');
+    await OfflineCacheService.instance.remove('warehouse.locations.simple');
+    await OfflineCacheService.instance.remove('inventory.items');
   }
 
   Future<Map<String, double>> _getUsageByLocation(

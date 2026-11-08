@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'role_access_service.dart';
 import 'profile_service.dart';
 import 'user_settings_service.dart';
+import 'offline_cache_service.dart';
 
 enum DisplayCurrency {
   myr('MYR', 'Malaysian Ringgit', 'RM', ' '),
@@ -77,8 +78,9 @@ class CurrencyService extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
     try {
-      final currencyCode = await _userSettingsService
-          .loadOrCreateCurrencyCode(profileId);
+      final currencyCode = await _userSettingsService.loadOrCreateCurrencyCode(
+        profileId,
+      );
       final exchangeRate = await _loadExchangeRate();
       _displayCurrency = DisplayCurrency.parse(currencyCode);
       _exchangeRateUsdMyr = exchangeRate;
@@ -138,6 +140,16 @@ class CurrencyService extends ChangeNotifier {
       );
     }
 
+    await OfflineCacheService.instance.writeValue(
+      'settings.exchange_rate_usd_myr',
+      rate,
+      scopeId: 'global',
+    );
+    await OfflineCacheService.instance.writeValue(
+      'settings.exchange_rate_usd_myr.pending',
+      rate,
+      scopeId: 'global',
+    );
     try {
       final rows = await _client
           .from(_settingsTable)
@@ -154,17 +166,29 @@ class CurrencyService extends ChangeNotifier {
         );
       }
       _exchangeRateUsdMyr = _parseRate(rows.first['exchange_rate_usd_myr']);
+      await OfflineCacheService.instance.remove(
+        'settings.exchange_rate_usd_myr.pending',
+        scopeId: 'global',
+      );
       _errorMessage = null;
       notifyListeners();
-    } on PostgrestException catch (error) {
-      final wrapped = CurrencyServiceException(
-        'Unable to save exchange rate. ${error.message}',
-      );
-      _errorMessage = wrapped.message;
+    } catch (error) {
+      _exchangeRateUsdMyr = rate;
+      _errorMessage =
+          'Exchange rate is saved on this device and will sync '
+          'when a connection is available: $error';
+      OfflineCacheService.instance.recordOfflineError(_errorMessage!);
       notifyListeners();
-      throw wrapped;
     }
   }
+
+  Future<double> _loadExchangeRate() => OfflineCacheService.instance.loadValue(
+    key: 'settings.exchange_rate_usd_myr',
+    scopeId: 'global',
+    decode: _parseRate,
+    encode: (rate) => rate,
+    fetchRemote: _fetchExchangeRate,
+  );
 
   String formatMyr(double amountMyr) {
     if (!amountMyr.isFinite) {
@@ -175,10 +199,10 @@ class CurrencyService extends ChangeNotifier {
     final amount = _displayCurrency == DisplayCurrency.myr
         ? amountMyr
         : amountMyr / _exchangeRateUsdMyr;
-    final formatted = amount.abs().toStringAsFixed(2).replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-      (_) => ',',
-    );
+    final formatted = amount
+        .abs()
+        .toStringAsFixed(2)
+        .replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (_) => ',');
     final sign = amount < 0 ? '-' : '';
     return '$sign${_displayCurrency.symbol}${_displayCurrency.separator}'
         '$formatted';
@@ -192,8 +216,33 @@ class CurrencyService extends ChangeNotifier {
     }
   }
 
-  Future<double> _loadExchangeRate() async {
+  Future<double> _fetchExchangeRate() async {
     try {
+      final pending = await OfflineCacheService.instance.readValue(
+        'settings.exchange_rate_usd_myr.pending',
+        scopeId: 'global',
+      );
+      if (pending != null) {
+        final rate = _parseRate(pending);
+        final updated = await _client
+            .from(_settingsTable)
+            .update({
+              'exchange_rate_usd_myr': rate,
+              'updated_at': DateTime.now().toUtc().toIso8601String(),
+            })
+            .eq('id', _exchangeRateSettingId)
+            .select('id');
+        if (updated.isEmpty) {
+          throw const CurrencyServiceException(
+            'Exchange rate setting was not found. The local value remains '
+            'queued for a later sync.',
+          );
+        }
+        await OfflineCacheService.instance.remove(
+          'settings.exchange_rate_usd_myr.pending',
+          scopeId: 'global',
+        );
+      }
       final row = await _client
           .from(_settingsTable)
           .select('exchange_rate_usd_myr')

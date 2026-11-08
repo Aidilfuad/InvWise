@@ -38,6 +38,7 @@ enum AppPermission {
   viewCurrencySettings,
   changeDisplayCurrency,
   manageExchangeRate,
+  manageUsers,
 }
 
 class RoleAccessService extends ChangeNotifier {
@@ -87,8 +88,14 @@ class RoleAccessService extends ChangeNotifier {
           'No profile is linked to the signed-in user.',
         );
       }
+      if (!profile.isActive) {
+        throw const ProfileServiceException(
+          'This account is inactive. Contact a Super Admin.',
+        );
+      }
       updateRole(profile.role);
     } on ProfileServiceException catch (error) {
+      _role = AppRole.unknown;
       _isLoaded = true;
       _isLoading = false;
       _errorMessage = error.message;

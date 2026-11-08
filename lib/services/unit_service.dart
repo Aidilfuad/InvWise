@@ -1,5 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'offline_cache_service.dart';
+
 class UnitServiceException implements Exception {
   const UnitServiceException(this.message);
 
@@ -41,6 +43,27 @@ class MeasurementUnit {
       updatedAt: DateTime.parse(map['updated_at'] as String),
     );
   }
+
+  factory MeasurementUnit.fromCacheMap(Map<String, dynamic> map) =>
+      MeasurementUnit(
+        id: _requiredString(map, 'id'),
+        name: _requiredString(map, 'name'),
+        abbreviation: _requiredString(map, 'abbreviation'),
+        description: map['description'] as String?,
+        isActive: map['isActive'] as bool,
+        createdAt: DateTime.parse(map['createdAt'] as String),
+        updatedAt: DateTime.parse(map['updatedAt'] as String),
+      );
+
+  Map<String, dynamic> toCacheMap() => {
+    'id': id,
+    'name': name,
+    'abbreviation': abbreviation,
+    'description': description,
+    'isActive': isActive,
+    'createdAt': createdAt.toIso8601String(),
+    'updatedAt': updatedAt.toIso8601String(),
+  };
 }
 
 class UnitService {
@@ -50,7 +73,17 @@ class UnitService {
 
   static const String _table = 'units';
 
-  Future<List<MeasurementUnit>> getUnits({bool includeInactive = false}) async {
+  Future<List<MeasurementUnit>> getUnits({bool includeInactive = false}) =>
+      OfflineCacheService.instance.loadList(
+        key: includeInactive ? 'units.all' : 'units.active',
+        decode: MeasurementUnit.fromCacheMap,
+        encode: (unit) => unit.toCacheMap(),
+        fetchRemote: () => _fetchUnits(includeInactive: includeInactive),
+      );
+
+  Future<List<MeasurementUnit>> _fetchUnits({
+    required bool includeInactive,
+  }) async {
     try {
       var query = _client.from(_table).select();
       if (!includeInactive) {
@@ -83,6 +116,7 @@ class UnitService {
 
     try {
       await _client.from(_table).insert({...payload, 'is_active': true});
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw UnitServiceException(_friendlyMessage(e, 'create the unit'));
     } catch (e) {
@@ -120,6 +154,7 @@ class UnitService {
           'Unit not found, or you do not have permission to update it.',
         );
       }
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw UnitServiceException(_friendlyMessage(e, 'update the unit'));
     } on UnitServiceException {
@@ -145,6 +180,7 @@ class UnitService {
           'Unit not found, or you do not have permission to delete it.',
         );
       }
+      await _invalidateCache();
     } on PostgrestException catch (e) {
       throw UnitServiceException(_friendlyMessage(e, 'delete the unit'));
     } on UnitServiceException {
@@ -155,6 +191,12 @@ class UnitService {
         'Unable to delete the unit. Please check your connection and try again.',
       );
     }
+  }
+
+  Future<void> _invalidateCache() async {
+    await OfflineCacheService.instance.remove('units.active');
+    await OfflineCacheService.instance.remove('units.all');
+    await OfflineCacheService.instance.remove('inventory.items');
   }
 
   Map<String, dynamic> _validatedPayload({

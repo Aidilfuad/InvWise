@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'offline_cache_service.dart';
+
 class UserSettingsServiceException implements Exception {
   const UserSettingsServiceException(this.message);
 
@@ -20,8 +22,18 @@ class UserSettingsService {
 
   final SupabaseClient _client;
 
-  Future<String> loadOrCreateCurrencyCode(String profileId) async {
+  Future<String> loadOrCreateCurrencyCode(String profileId) =>
+      OfflineCacheService.instance.loadValue(
+        key: 'settings.currency_code',
+        scopeId: profileId,
+        decode: (value) => _parseCurrencyCode(value),
+        encode: (currencyCode) => currencyCode,
+        fetchRemote: () => _fetchOrCreateCurrencyCode(profileId),
+      );
+
+  Future<String> _fetchOrCreateCurrencyCode(String profileId) async {
     try {
+      await _syncPendingSettings(profileId);
       final row = await _client
           .from(_table)
           .select('currency_code')
@@ -56,31 +68,38 @@ class UserSettingsService {
     required String currencyCode,
   }) async {
     final selectedCurrency = _parseCurrencyCode(currencyCode);
+    await OfflineCacheService.instance.writeValue(
+      'settings.currency_code',
+      selectedCurrency,
+      scopeId: profileId,
+    );
+    await OfflineCacheService.instance.writeValue(
+      'settings.currency_code.pending',
+      selectedCurrency,
+      scopeId: profileId,
+    );
     try {
-      final existingRow = await _client
-          .from(_table)
-          .select('language_code,theme_mode,created_at')
-          .eq('profile_id', profileId)
-          .maybeSingle();
-      final now = DateTime.now().toUtc().toIso8601String();
-      await _client.from(_table).upsert({
-        'profile_id': profileId,
-        'language_code':
-            existingRow?['language_code'] ?? _defaultLanguageCode,
-        'theme_mode': existingRow?['theme_mode'] ?? 'system',
-        'currency_code': selectedCurrency,
-        'created_at': existingRow?['created_at'] ?? now,
-        'updated_at': now,
-      }, onConflict: 'profile_id');
-    } on PostgrestException catch (error) {
-      throw UserSettingsServiceException(
-        'Unable to save currency preference. ${error.message}',
+      await _syncPendingSettings(profileId);
+    } catch (error) {
+      OfflineCacheService.instance.recordOfflineError(
+        'Currency preference is saved on this device and will sync when '
+        'a connection is available: $error',
       );
     }
   }
 
-  Future<ThemeMode> loadOrCreateThemeMode(String profileId) async {
+  Future<ThemeMode> loadOrCreateThemeMode(String profileId) =>
+      OfflineCacheService.instance.loadValue(
+        key: 'settings.theme_mode',
+        scopeId: profileId,
+        decode: _parseThemeMode,
+        encode: _themeModeValue,
+        fetchRemote: () => _fetchOrCreateThemeMode(profileId),
+      );
+
+  Future<ThemeMode> _fetchOrCreateThemeMode(String profileId) async {
     try {
+      await _syncPendingSettings(profileId);
       final row = await _client
           .from(_table)
           .select('theme_mode,currency_code')
@@ -114,8 +133,18 @@ class UserSettingsService {
     }
   }
 
-  Future<String> loadOrCreateLanguageCode(String profileId) async {
+  Future<String> loadOrCreateLanguageCode(String profileId) =>
+      OfflineCacheService.instance.loadValue(
+        key: 'settings.language_code',
+        scopeId: profileId,
+        decode: _parseLanguageCode,
+        encode: (code) => code,
+        fetchRemote: () => _fetchOrCreateLanguageCode(profileId),
+      );
+
+  Future<String> _fetchOrCreateLanguageCode(String profileId) async {
     try {
+      await _syncPendingSettings(profileId);
       final row = await _client
           .from(_table)
           .select('language_code,currency_code')
@@ -153,28 +182,23 @@ class UserSettingsService {
     required String profileId,
     required ThemeMode themeMode,
   }) async {
+    final mode = _themeModeValue(themeMode);
+    await OfflineCacheService.instance.writeValue(
+      'settings.theme_mode',
+      mode,
+      scopeId: profileId,
+    );
+    await OfflineCacheService.instance.writeValue(
+      'settings.theme_mode.pending',
+      mode,
+      scopeId: profileId,
+    );
     try {
-      final existingRow = await _client
-          .from(_table)
-          .select('language_code,currency_code,created_at')
-          .eq('profile_id', profileId)
-          .maybeSingle();
-
-      final now = DateTime.now().toUtc().toIso8601String();
-      final payload = <String, dynamic>{
-        'profile_id': profileId,
-        'language_code': existingRow?['language_code'] ?? _defaultLanguageCode,
-        'currency_code':
-            existingRow?['currency_code'] ?? _defaultCurrencyCode,
-        'theme_mode': _themeModeValue(themeMode),
-        'created_at': existingRow?['created_at'] ?? now,
-        'updated_at': now,
-      };
-
-      await _client.from(_table).upsert(payload, onConflict: 'profile_id');
-    } on PostgrestException catch (error) {
-      throw UserSettingsServiceException(
-        'Unable to save theme preference. ${error.message}',
+      await _syncPendingSettings(profileId);
+    } catch (error) {
+      OfflineCacheService.instance.recordOfflineError(
+        'Theme preference is saved on this device and will sync when a '
+        'connection is available: $error',
       );
     }
   }
@@ -184,29 +208,64 @@ class UserSettingsService {
     required String languageCode,
   }) async {
     final selectedLanguage = _parseLanguageCode(languageCode);
+    await OfflineCacheService.instance.writeValue(
+      'settings.language_code',
+      selectedLanguage,
+      scopeId: profileId,
+    );
+    await OfflineCacheService.instance.writeValue(
+      'settings.language_code.pending',
+      selectedLanguage,
+      scopeId: profileId,
+    );
     try {
-      final existingRow = await _client
-          .from(_table)
-          .select('theme_mode,currency_code,created_at')
-          .eq('profile_id', profileId)
-          .maybeSingle();
-
-      final now = DateTime.now().toUtc().toIso8601String();
-      final payload = <String, dynamic>{
-        'profile_id': profileId,
-        'language_code': selectedLanguage,
-        'theme_mode': existingRow?['theme_mode'] ?? 'system',
-        'currency_code':
-            existingRow?['currency_code'] ?? _defaultCurrencyCode,
-        'created_at': existingRow?['created_at'] ?? now,
-        'updated_at': now,
-      };
-
-      await _client.from(_table).upsert(payload, onConflict: 'profile_id');
-    } on PostgrestException catch (error) {
-      throw UserSettingsServiceException(
-        'Unable to save language preference. ${error.message}',
+      await _syncPendingSettings(profileId);
+    } catch (error) {
+      OfflineCacheService.instance.recordOfflineError(
+        'Language preference is saved on this device and will sync when a '
+        'connection is available: $error',
       );
+    }
+  }
+
+  Future<void> _syncPendingSettings(String profileId) async {
+    final cache = OfflineCacheService.instance;
+    final currency = await cache.readValue(
+      'settings.currency_code.pending',
+      scopeId: profileId,
+    );
+    final theme = await cache.readValue(
+      'settings.theme_mode.pending',
+      scopeId: profileId,
+    );
+    final language = await cache.readValue(
+      'settings.language_code.pending',
+      scopeId: profileId,
+    );
+    if (currency == null && theme == null && language == null) return;
+
+    final existingRow = await _client
+        .from(_table)
+        .select('language_code,theme_mode,currency_code,created_at')
+        .eq('profile_id', profileId)
+        .maybeSingle();
+    final now = DateTime.now().toUtc().toIso8601String();
+    await _client.from(_table).upsert({
+      'profile_id': profileId,
+      'language_code':
+          language ?? existingRow?['language_code'] ?? _defaultLanguageCode,
+      'theme_mode': theme ?? existingRow?['theme_mode'] ?? 'system',
+      'currency_code':
+          currency ?? existingRow?['currency_code'] ?? _defaultCurrencyCode,
+      'created_at': existingRow?['created_at'] ?? now,
+      'updated_at': now,
+    }, onConflict: 'profile_id');
+    for (final key in [
+      'settings.currency_code.pending',
+      'settings.theme_mode.pending',
+      'settings.language_code.pending',
+    ]) {
+      await cache.remove(key, scopeId: profileId);
     }
   }
 

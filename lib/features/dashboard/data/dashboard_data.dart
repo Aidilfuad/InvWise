@@ -95,6 +95,51 @@ class DashboardData {
   final List<StockMovement> recentMovements;
   final List<ActivityLogEntry> recentActivity;
 
+  factory DashboardData.fromCacheMap(Map<String, dynamic> map) {
+    final summary = Map<String, dynamic>.from(map['summary'] as Map);
+    final movements = map['recentMovements'] as List;
+    final activity = map['recentActivity'] as List;
+    return DashboardData(
+      summary: DashboardInventorySummary(
+        totalItems: summary['totalItems'] as int,
+        totalStockQuantity: (summary['totalStockQuantity'] as num).toDouble(),
+        lowStockItems: summary['lowStockItems'] as int,
+        outOfStockItems: summary['outOfStockItems'] as int,
+        warehouseLocations: summary['warehouseLocations'] as int,
+      ),
+      recentMovements: movements
+          .map(
+            (row) => StockMovement.fromCacheMap(
+              Map<String, dynamic>.from(row as Map),
+            ),
+          )
+          .toList(growable: false),
+      recentActivity: activity
+          .map(
+            (row) => ActivityLogEntry.fromCacheMap(
+              Map<String, dynamic>.from(row as Map),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  Map<String, dynamic> toCacheMap() => {
+    'summary': {
+      'totalItems': summary.totalItems,
+      'totalStockQuantity': summary.totalStockQuantity,
+      'lowStockItems': summary.lowStockItems,
+      'outOfStockItems': summary.outOfStockItems,
+      'warehouseLocations': summary.warehouseLocations,
+    },
+    'recentMovements': recentMovements
+        .map((movement) => movement.toCacheMap())
+        .toList(growable: false),
+    'recentActivity': recentActivity
+        .map((entry) => entry.toCacheMap())
+        .toList(growable: false),
+  };
+
   List<KpiStat> get kpis => [
     KpiStat(
       value: _formatInteger(summary.totalItems),
