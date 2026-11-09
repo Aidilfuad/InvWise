@@ -140,6 +140,8 @@ void main() {
       expect(request.url.host, 'api.github.com');
       expect(request.url.path, '/repos/Aidilfuad/InvWise/releases');
       expect(request.url.queryParameters['per_page'], '100');
+      expect(request.headers['User-Agent'], 'InvWise-App-Updater');
+      expect(request.headers['Accept'], 'application/vnd.github+json');
       return http.Response(
         jsonEncode([
           _githubRelease(
@@ -178,6 +180,8 @@ void main() {
     () async {
       final httpClient = MockClient((request) async {
         expect(request.url.path, endsWith('/releases/latest'));
+        expect(request.headers['User-Agent'], 'InvWise-App-Updater');
+        expect(request.headers['Accept'], 'application/vnd.github+json');
         return http.Response(
           jsonEncode(
             _githubRelease(
@@ -206,6 +210,138 @@ void main() {
       httpClient.close();
     },
   );
+
+  test('caches latest release and history for one hour', () async {
+    final cache = <String, Object>{};
+    var now = DateTime.utc(2026, 11, 9);
+    var requests = 0;
+
+    AppUpdateService createService() => AppUpdateService(
+      client: _clientWithActivityLog(),
+      httpClient: MockClient((request) async {
+        requests++;
+        if (request.url.path.endsWith('/latest')) {
+          return http.Response(
+            jsonEncode(_githubRelease(tag: 'v2.2.0')),
+            200,
+            request: request,
+          );
+        }
+        return http.Response(
+          jsonEncode([_githubRelease(tag: 'v2.2.0')]),
+          200,
+          request: request,
+        );
+      }),
+      cacheReader: (key) async => cache[key],
+      cacheWriter: (key, value) async => cache[key] = value,
+      clock: () => now,
+    );
+
+    final firstService = createService();
+    expect((await firstService.latestRelease())?.version, 'v2.2.0');
+    expect((await firstService.releaseHistory()).single.version, 'v2.2.0');
+    firstService.dispose();
+    expect(requests, 2);
+
+    now = now.add(const Duration(minutes: 59));
+    final cachedService = createService();
+    expect((await cachedService.latestRelease())?.version, 'v2.2.0');
+    expect((await cachedService.releaseHistory()).single.version, 'v2.2.0');
+    cachedService.dispose();
+    expect(requests, 2);
+  });
+
+  test(
+    'falls back to stale release cache after GitHub rate limiting',
+    () async {
+      final cache = <String, Object>{};
+      var now = DateTime.utc(2026, 11, 9);
+      AppUpdateService createService(http.Client httpClient) =>
+          AppUpdateService(
+            client: _clientWithActivityLog(),
+            httpClient: httpClient,
+            cacheReader: (key) async => cache[key],
+            cacheWriter: (key, value) async => cache[key] = value,
+            clock: () => now,
+          );
+
+      final initialService = createService(
+        MockClient((request) async {
+          if (request.url.path.endsWith('/latest')) {
+            return http.Response(
+              jsonEncode(_githubRelease(tag: 'v2.3.0')),
+              200,
+              request: request,
+            );
+          }
+          return http.Response(
+            jsonEncode([_githubRelease(tag: 'v2.3.0')]),
+            200,
+            request: request,
+          );
+        }),
+      );
+      await initialService.latestRelease();
+      await initialService.releaseHistory();
+      initialService.dispose();
+
+      now = now.add(const Duration(hours: 2));
+      final rateLimitedService = createService(
+        MockClient((request) async {
+          return http.Response(
+            jsonEncode({'message': 'API rate limit exceeded'}),
+            403,
+            headers: {'x-ratelimit-remaining': '0'},
+            request: request,
+          );
+        }),
+      );
+
+      expect((await rateLimitedService.latestRelease())?.version, 'v2.3.0');
+      expect(rateLimitedService.latestReleaseNotice, contains('rate-limiting'));
+      expect(
+        (await rateLimitedService.releaseHistory()).single.version,
+        'v2.3.0',
+      );
+      expect(
+        rateLimitedService.releaseHistoryNotice,
+        contains('rate-limiting'),
+      );
+      rateLimitedService.dispose();
+    },
+  );
+
+  test('describes a rate limit without cache in user-friendly terms', () async {
+    final service = AppUpdateService(
+      client: _clientWithActivityLog(),
+      httpClient: MockClient((request) async {
+        return http.Response(
+          jsonEncode({'message': 'API rate limit exceeded'}),
+          403,
+          headers: {'x-ratelimit-remaining': '0'},
+          request: request,
+        );
+      }),
+      cacheReader: (_) async => null,
+      cacheWriter: (_, _) async {},
+    );
+
+    await expectLater(
+      service.latestRelease(),
+      throwsA(
+        isA<GitHubReleaseException>()
+            .having((error) => error.statusCode, 'statusCode', 403)
+            .having((error) => error.isRateLimited, 'isRateLimited', isTrue)
+            .having(
+              (error) => error.message,
+              'message',
+              contains('Please try again later'),
+            ),
+      ),
+    );
+    service.dispose();
+  });
 }
 
 Map<String, dynamic> _githubRelease({

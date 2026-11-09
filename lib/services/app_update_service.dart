@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'offline_cache_service.dart';
 import 'system_activity_log_service.dart';
 
 const String currentAppVersion = String.fromEnvironment(
@@ -94,11 +95,47 @@ class AppUpdateCheckResult {
     required this.installedVersion,
     required this.release,
     required this.status,
+    this.message,
   });
 
   final String installedVersion;
   final AppVersionRelease? release;
   final AppUpdateStatus status;
+  final String? message;
+}
+
+class _GitHubJsonResponse {
+  const _GitHubJsonResponse({required this.payload, this.notice});
+
+  final Object? payload;
+  final String? notice;
+}
+
+class _CachedGitHubResponse {
+  const _CachedGitHubResponse({required this.savedAt, required this.payload});
+
+  final DateTime savedAt;
+  final Object? payload;
+
+  bool isFreshAt(DateTime now) {
+    final age = now.difference(savedAt);
+    return !age.isNegative && age < AppUpdateService._cacheLifetime;
+  }
+}
+
+class GitHubReleaseException implements Exception {
+  const GitHubReleaseException({
+    required this.message,
+    required this.statusCode,
+    required this.isRateLimited,
+  });
+
+  final String message;
+  final int statusCode;
+  final bool isRateLimited;
+
+  @override
+  String toString() => message;
 }
 
 class UpdateUrlException implements Exception {
@@ -125,6 +162,8 @@ class UpdateUrlDiagnostic {
 }
 
 typedef UpdateUrlLauncher = Future<bool> Function(Uri url, LaunchMode mode);
+typedef UpdateCacheReader = Future<Object?> Function(String key);
+typedef UpdateCacheWriter = Future<void> Function(String key, Object value);
 
 class AppUpdateService {
   AppUpdateService({
@@ -132,19 +171,45 @@ class AppUpdateService {
     SystemActivityLogService? activityLog,
     http.Client? httpClient,
     UpdateUrlLauncher? urlLauncher,
+    UpdateCacheReader? cacheReader,
+    UpdateCacheWriter? cacheWriter,
+    DateTime Function()? clock,
   }) : _client = client ?? Supabase.instance.client,
        _httpClient = httpClient ?? http.Client(),
        _ownsHttpClient = httpClient == null,
        _urlLauncher =
-           urlLauncher ?? ((url, mode) => launchUrl(url, mode: mode)) {
+           urlLauncher ?? ((url, mode) => launchUrl(url, mode: mode)),
+       _cacheReader = cacheReader ?? _readPersistentCache,
+       _cacheWriter = cacheWriter ?? _writePersistentCache,
+       _clock = clock ?? DateTime.now {
     _activityLog = activityLog ?? SystemActivityLogService(client: _client);
   }
+
+  static const Duration _cacheLifetime = Duration(hours: 1);
+  static const String _cacheScope = 'github-release-cache-v1';
+  static const String _latestReleaseCacheKey = 'github.latest_release';
+  static const String _releaseHistoryCachePrefix = 'github.release_history.';
 
   final SupabaseClient _client;
   late final SystemActivityLogService _activityLog;
   final http.Client _httpClient;
   final bool _ownsHttpClient;
   final UpdateUrlLauncher _urlLauncher;
+  final UpdateCacheReader _cacheReader;
+  final UpdateCacheWriter _cacheWriter;
+  final DateTime Function() _clock;
+
+  String? _latestReleaseNotice;
+  String? _releaseHistoryNotice;
+
+  String? get latestReleaseNotice => _latestReleaseNotice;
+  String? get releaseHistoryNotice => _releaseHistoryNotice;
+
+  static Future<Object?> _readPersistentCache(String key) =>
+      OfflineCacheService.instance.readValue(key, scopeId: _cacheScope);
+
+  static Future<void> _writePersistentCache(String key, Object value) =>
+      OfflineCacheService.instance.writeValue(key, value, scopeId: _cacheScope);
 
   static Future<String> installedVersion() async =>
       (await PackageInfo.fromPlatform()).version;
@@ -160,40 +225,30 @@ class AppUpdateService {
   }
 
   Future<AppVersionRelease?> latestRelease() async {
-    final response = await _httpClient
-        .get(Uri.parse('$githubReleaseApi/latest'), headers: _githubHeaders)
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode == 404) return null;
-    if (response.statusCode != 200) {
-      throw http.ClientException(
-        'GitHub Releases returned HTTP ${response.statusCode}.',
-        Uri.parse('$githubReleaseApi/latest'),
-      );
-    }
-    final decoded = jsonDecode(response.body);
-    if (decoded is! Map<String, dynamic>) {
+    final response = await _githubJson(
+      Uri.parse('$githubReleaseApi/latest'),
+      cacheKey: _latestReleaseCacheKey,
+      notFoundIsNull: true,
+    );
+    _latestReleaseNotice = response.notice;
+    final decoded = response.payload;
+    if (decoded == null) return null;
+    if (decoded is! Map) {
       throw const FormatException('GitHub returned an invalid release record.');
     }
-    return AppVersionRelease.fromMap(decoded);
+    return AppVersionRelease.fromMap(Map<String, dynamic>.from(decoded));
   }
 
   Future<List<AppVersionRelease>> releaseHistory({int limit = 100}) async {
     if (limit <= 0 || limit > 500) {
       throw ArgumentError.value(limit, 'limit', 'Must be between 1 and 500.');
     }
-    final response = await _httpClient
-        .get(
-          Uri.parse('$githubReleaseApi?per_page=$limit'),
-          headers: _githubHeaders,
-        )
-        .timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
-      throw http.ClientException(
-        'GitHub Releases returned HTTP ${response.statusCode}.',
-        Uri.parse(githubReleaseApi),
-      );
-    }
-    final decoded = jsonDecode(response.body);
+    final response = await _githubJson(
+      Uri.parse('$githubReleaseApi?per_page=$limit'),
+      cacheKey: '$_releaseHistoryCachePrefix$limit',
+    );
+    _releaseHistoryNotice = response.notice;
+    final decoded = response.payload;
     if (decoded is! List) {
       throw const FormatException('GitHub returned invalid release history.');
     }
@@ -204,6 +259,94 @@ class AppUpdateService {
         .toList(growable: false);
   }
 
+  Future<_GitHubJsonResponse> _githubJson(
+    Uri uri, {
+    required String cacheKey,
+    bool notFoundIsNull = false,
+  }) async {
+    final cached = await _readCache(cacheKey);
+    if (cached != null && cached.isFreshAt(_clock())) {
+      return _GitHubJsonResponse(payload: cached.payload);
+    }
+
+    final response = await _httpClient
+        .get(uri, headers: _githubHeaders)
+        .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 403 || response.statusCode == 429) {
+      final rateLimited = _isRateLimitResponse(response);
+      if (cached != null) {
+        return _GitHubJsonResponse(
+          payload: cached.payload,
+          notice: rateLimited
+              ? 'GitHub is temporarily rate-limiting update checks. Showing '
+                    'saved release information.'
+              : 'GitHub temporarily denied the update request. Showing saved '
+                    'release information.',
+        );
+      }
+      throw GitHubReleaseException(
+        statusCode: response.statusCode,
+        isRateLimited: rateLimited,
+        message: rateLimited
+            ? 'GitHub is temporarily rate-limiting update checks. Please try '
+                  'again later.'
+            : 'GitHub temporarily denied the update request. Please try again '
+                  'later.',
+      );
+    }
+    if (notFoundIsNull && response.statusCode == 404) {
+      return const _GitHubJsonResponse(payload: null);
+    }
+    if (response.statusCode != 200) {
+      throw http.ClientException(
+        'GitHub Releases returned HTTP ${response.statusCode}.',
+        uri,
+      );
+    }
+
+    final decoded = jsonDecode(response.body);
+    await _writeCache(cacheKey, decoded);
+    return _GitHubJsonResponse(payload: decoded);
+  }
+
+  Future<_CachedGitHubResponse?> _readCache(String key) async {
+    try {
+      final value = await _cacheReader(key);
+      if (value is! Map) return null;
+      final savedAtValue = value['saved_at'];
+      if (savedAtValue is! String || !value.containsKey('payload')) {
+        return null;
+      }
+      final savedAt = DateTime.tryParse(savedAtValue);
+      if (savedAt == null) return null;
+      return _CachedGitHubResponse(savedAt: savedAt, payload: value['payload']);
+    } catch (error) {
+      debugPrint('Unable to read cached GitHub release data: $error');
+      return null;
+    }
+  }
+
+  Future<void> _writeCache(String key, Object? payload) async {
+    if (payload == null) return;
+    try {
+      await _cacheWriter(key, {
+        'saved_at': _clock().toUtc().toIso8601String(),
+        'payload': payload,
+      });
+    } catch (error) {
+      debugPrint('Unable to cache GitHub release data: $error');
+    }
+  }
+
+  static bool _isRateLimitResponse(http.Response response) {
+    final remaining = response.headers['x-ratelimit-remaining'];
+    final body = response.body.toLowerCase();
+    return response.statusCode == 429 ||
+        remaining == '0' ||
+        body.contains('api rate limit exceeded') ||
+        body.contains('rate limit');
+  }
+
   static const Map<String, String> _githubHeaders = {
     'Accept': 'application/vnd.github+json',
     'User-Agent': 'InvWise-App-Updater',
@@ -211,8 +354,9 @@ class AppUpdateService {
   };
 
   Future<AppUpdateCheckResult> checkForUpdates() async {
+    String? installed;
     try {
-      final installed = await installedVersion();
+      installed = await installedVersion();
       final release = await latestRelease();
       await _record(
         action: 'Checked For Updates',
@@ -241,12 +385,21 @@ class AppUpdateService {
         installedVersion: installed,
         release: release,
         status: status,
+        message: _latestReleaseNotice,
       );
     } catch (error) {
       await _record(
         action: 'Update Failed',
         description: 'Unable to check for application updates: $error',
       );
+      if (error is GitHubReleaseException && installed != null) {
+        return AppUpdateCheckResult(
+          installedVersion: installed,
+          release: null,
+          status: AppUpdateStatus.unavailable,
+          message: error.message,
+        );
+      }
       rethrow;
     }
   }

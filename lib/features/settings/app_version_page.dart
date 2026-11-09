@@ -20,6 +20,8 @@ class _AppVersionPageState extends State<AppVersionPage> {
   bool _isLoading = true;
   bool _isDiagnosing = false;
   String? _error;
+  String? _notice;
+  String? _historyError;
 
   @override
   void initState() {
@@ -37,25 +39,41 @@ class _AppVersionPageState extends State<AppVersionPage> {
     setState(() {
       _isLoading = true;
       _error = null;
+      _notice = null;
+      _historyError = null;
     });
+    AppUpdateCheckResult? result;
+    List<AppVersionRelease> history = const [];
+    String? updateError;
+    String? historyError;
+
     try {
-      final values = await Future.wait([
-        _service.checkForUpdates(),
-        _service.releaseHistory(),
-      ]);
-      if (mounted) {
-        setState(() {
-          _result = values[0] as AppUpdateCheckResult;
-          _history = values[1] as List<AppVersionRelease>;
-        });
-      }
+      result = await _service.checkForUpdates();
+    } on GitHubReleaseException catch (error) {
+      updateError = error.message;
     } catch (error) {
-      if (mounted) {
-        setState(() => _error = 'Unable to check for updates: $error');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      updateError = 'Unable to check for updates. Please try again later.';
+      debugPrint('Update screen check failed: $error');
     }
+
+    try {
+      history = await _service.releaseHistory();
+    } on GitHubReleaseException catch (error) {
+      historyError = error.message;
+    } catch (error) {
+      historyError = 'Release history is temporarily unavailable.';
+      debugPrint('Update release history failed: $error');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _result = result ?? _result;
+      _history = history;
+      _error = updateError;
+      _historyError = historyError;
+      _notice = result?.message ?? _service.releaseHistoryNotice;
+      _isLoading = false;
+    });
   }
 
   Future<void> _update() async {
@@ -155,6 +173,11 @@ class _AppVersionPageState extends State<AppVersionPage> {
                       ),
                     if (_error != null)
                       Text(_error!, style: TextStyle(color: AppColors.danger)),
+                    if (_notice != null)
+                      Text(
+                        _notice!,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
                     if (hasUpdate && release != null) ...[
                       const SizedBox(height: 12),
                       Text(
@@ -201,7 +224,12 @@ class _AppVersionPageState extends State<AppVersionPage> {
                     ),
                     const SizedBox(height: 8),
                     if (_history.isEmpty && !_isLoading)
-                      const Text('No release history is available.')
+                      Text(
+                        _historyError ?? 'No release history is available.',
+                        style: _historyError == null
+                            ? null
+                            : TextStyle(color: AppColors.textSecondary),
+                      )
                     else
                       for (final item in _history)
                         Card(
