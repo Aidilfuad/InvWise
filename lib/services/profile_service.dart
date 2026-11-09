@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter/foundation.dart';
 
 import 'offline_cache_service.dart';
 
@@ -25,6 +26,7 @@ class ProfileLookupResult {
     this.department,
     this.position,
     this.role,
+    this.avatarUrl,
     this.isActive = true,
   });
 
@@ -37,6 +39,7 @@ class ProfileLookupResult {
   final String? department;
   final String? position;
   final String? role;
+  final String? avatarUrl;
   final bool isActive;
 
   factory ProfileLookupResult.fromMap(Map<String, dynamic> map) {
@@ -50,6 +53,7 @@ class ProfileLookupResult {
       department: map['department'] as String?,
       position: map['position'] as String?,
       role: map['role'] as String?,
+      avatarUrl: map['avatar_url'] as String?,
       isActive: map['is_active'] as bool? ?? true,
     );
   }
@@ -65,6 +69,7 @@ class ProfileLookupResult {
         department: map['department'] as String?,
         position: map['position'] as String?,
         role: map['role'] as String?,
+        avatarUrl: map['avatarUrl'] as String?,
         isActive: map['isActive'] as bool? ?? true,
       );
 
@@ -78,15 +83,43 @@ class ProfileLookupResult {
     'department': department,
     'position': position,
     'role': role,
+    'avatarUrl': avatarUrl,
     'isActive': isActive,
   };
+
+  ProfileLookupResult copyWithAvatarUrl(String? value) => ProfileLookupResult(
+    id: id,
+    authUserId: authUserId,
+    employeeId: employeeId,
+    fullName: fullName,
+    email: email,
+    phoneNumber: phoneNumber,
+    department: department,
+    position: position,
+    role: role,
+    avatarUrl: value,
+    isActive: isActive,
+  );
+}
+
+class ProfileAvatarUpdate {
+  const ProfileAvatarUpdate({
+    required this.profile,
+    required this.previousAvatarUrl,
+    this.cacheUpdateFailed = false,
+  });
+
+  final ProfileLookupResult profile;
+  final String? previousAvatarUrl;
+  final bool cacheUpdateFailed;
 }
 
 /// Reads and updates the current user's row in the `profiles` table.
 class ProfileService {
-  ProfileService();
+  ProfileService({SupabaseClient? client})
+    : _client = client ?? Supabase.instance.client;
 
-  final SupabaseClient _client = Supabase.instance.client;
+  final SupabaseClient _client;
 
   static const String _table = 'profiles';
 
@@ -184,7 +217,13 @@ class ProfileService {
       }
       final profileData = Map<String, dynamic>.from(row);
       profileData['email'] ??= _client.auth.currentUser?.email;
-      return ProfileLookupResult.fromMap(profileData);
+      final updatedProfile = ProfileLookupResult.fromMap(profileData);
+      await OfflineCacheService.instance.writeValue(
+        'profile.current',
+        updatedProfile.toCacheMap(),
+        scopeId: authUserId,
+      );
+      return updatedProfile;
     } on PostgrestException catch (error) {
       throw ProfileServiceException(
         _friendlyMessage(error, 'update the profile'),
@@ -195,6 +234,72 @@ class ProfileService {
       throw const ProfileServiceException(
         'Unable to update your profile. Please check your connection and try '
         'again.',
+      );
+    }
+  }
+
+  Future<ProfileAvatarUpdate> updateCurrentAvatar(String? objectPath) async {
+    final authUserId = _client.auth.currentUser?.id;
+    if (authUserId == null) {
+      throw const ProfileServiceException(
+        'Sign in again before changing your profile photo.',
+      );
+    }
+
+    try {
+      final currentProfile = await getCurrentProfile();
+      if (currentProfile == null) {
+        throw const ProfileServiceException(
+          'Sign in again before changing your profile photo.',
+        );
+      }
+      final response = await _client.rpc(
+        'update_current_profile_avatar',
+        params: {'p_object_path': objectPath},
+      );
+      if (response is! Map) {
+        throw const ProfileServiceException(
+          'The profile photo update returned an invalid response.',
+        );
+      }
+
+      final result = Map<String, dynamic>.from(response);
+      final updatedProfile = currentProfile.copyWithAvatarUrl(
+        result['avatar_url'] as String?,
+      );
+      var cacheUpdateFailed = false;
+      try {
+        await OfflineCacheService.instance.writeValue(
+          'profile.current',
+          updatedProfile.toCacheMap(),
+          scopeId: authUserId,
+        );
+      } catch (_) {
+        cacheUpdateFailed = true;
+      }
+      return ProfileAvatarUpdate(
+        profile: updatedProfile,
+        previousAvatarUrl: result['previous_avatar_url'] as String?,
+        cacheUpdateFailed: cacheUpdateFailed,
+      );
+    } on PostgrestException catch (error, stackTrace) {
+      debugPrint(
+        '[ProfileService] update_current_profile_avatar RPC failed: '
+        '$error\n$stackTrace',
+      );
+      throw ProfileServiceException(
+        '${_friendlyMessage(error, 'update the profile photo')} '
+        'RPC error: $error',
+      );
+    } on ProfileServiceException {
+      rethrow;
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ProfileService] Profile photo update failed: '
+        '$error\n$stackTrace',
+      );
+      throw ProfileServiceException(
+        'Unable to update your profile photo: $error',
       );
     }
   }

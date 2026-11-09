@@ -4,6 +4,7 @@ import '../../app/constants/app_spacing.dart';
 import '../../services/role_access_service.dart';
 import '../../services/password_confirmation_service.dart';
 import '../../services/user_management_service.dart';
+import '../../widgets/profile_avatar.dart';
 
 class UserManagementPage extends StatelessWidget {
   const UserManagementPage({super.key});
@@ -371,85 +372,73 @@ class _UserManagementContentState extends State<_UserManagementContent> {
     );
   }
 
-  Widget _usersTable(List<ManagedUser> users, {required bool compact}) =>
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columnSpacing: compact ? 20 : 32,
-          columns: compact
-              ? const [
-                  DataColumn(label: Text('User')),
-                  DataColumn(label: Text('Role')),
-                  DataColumn(label: Text('Account')),
-                  DataColumn(label: Text('Actions')),
-                ]
-              : const [
-                  DataColumn(label: Text('Name')),
-                  DataColumn(label: Text('Email')),
-                  DataColumn(label: Text('Employee ID')),
-                  DataColumn(label: Text('Role')),
-                  DataColumn(label: Text('Status')),
-                  DataColumn(label: Text('Last login')),
-                  DataColumn(label: Text('Actions')),
-                ],
-          rows: [
-            for (final user in users)
-              DataRow(
-                cells: compact
-                    ? [
-                        DataCell(
-                          SizedBox(
-                            width: 220,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  user.fullName.isEmpty
-                                      ? 'Unnamed user'
-                                      : user.fullName,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                Text(
-                                  user.email,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
+  Widget _usersTable(
+    List<ManagedUser> users, {
+    required bool compact,
+  }) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: DataTable(
+      columnSpacing: compact ? 20 : 32,
+      columns: compact
+          ? const [
+              DataColumn(label: Text('User')),
+              DataColumn(label: Text('Role')),
+              DataColumn(label: Text('Account')),
+              DataColumn(label: Text('Actions')),
+            ]
+          : const [
+              DataColumn(label: Text('Name')),
+              DataColumn(label: Text('Email')),
+              DataColumn(label: Text('Employee ID')),
+              DataColumn(label: Text('Role')),
+              DataColumn(label: Text('Status')),
+              DataColumn(label: Text('Last login')),
+              DataColumn(label: Text('Actions')),
+            ],
+      rows: [
+        for (final user in users)
+          DataRow(
+            cells: compact
+                ? [
+                    DataCell(
+                      SizedBox(
+                        width: 220,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [_userIdentity(user, includeEmail: true)],
+                        ),
+                      ),
+                    ),
+                    DataCell(Text(user.role)),
+                    DataCell(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(user.isActive ? 'Active' : 'Inactive'),
+                          Text(
+                            _formatLastLogin(context, user.lastLoginAt),
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
-                        ),
-                        DataCell(Text(user.role)),
-                        DataCell(
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(user.isActive ? 'Active' : 'Inactive'),
-                              Text(
-                                _formatLastLogin(context, user.lastLoginAt),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        DataCell(_userActions(user)),
-                      ]
-                    : [
-                        DataCell(Text(user.fullName)),
-                        DataCell(SelectableText(user.email)),
-                        DataCell(Text(user.employeeId ?? '—')),
-                        DataCell(Text(user.role)),
-                        DataCell(_StatusBadge(isActive: user.isActive)),
-                        DataCell(
-                          Text(_formatLastLogin(context, user.lastLoginAt)),
-                        ),
-                        DataCell(_userActions(user)),
-                      ],
-              ),
-          ],
-        ),
-      );
+                        ],
+                      ),
+                    ),
+                    DataCell(_userActions(user)),
+                  ]
+                : [
+                    DataCell(_userIdentity(user, includeEmail: false)),
+                    DataCell(SelectableText(user.email)),
+                    DataCell(Text(user.employeeId ?? '—')),
+                    DataCell(Text(user.role)),
+                    DataCell(_StatusBadge(isActive: user.isActive)),
+                    DataCell(Text(_formatLastLogin(context, user.lastLoginAt))),
+                    DataCell(_userActions(user)),
+                  ],
+          ),
+      ],
+    ),
+  );
 
   Widget _userActions(ManagedUser user) {
     final isUpdating = _updatingUserIds.contains(user.id);
@@ -481,6 +470,38 @@ class _UserManagementContentState extends State<_UserManagementContent> {
     );
   }
 
+  Widget _userIdentity(ManagedUser user, {required bool includeEmail}) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      ProfileAvatar(
+        name: user.fullName.isEmpty ? user.email : user.fullName,
+        avatarUrl: user.avatarUrl,
+        size: 32,
+      ),
+      const SizedBox(width: AppSpacing.sm),
+      Flexible(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              user.fullName.isEmpty ? 'Unnamed user' : user.fullName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (includeEmail)
+              Text(
+                user.email,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+
   Widget _userCard(ManagedUser user) {
     final theme = Theme.of(context);
     final isUpdating = _updatingUserIds.contains(user.id);
@@ -494,12 +515,10 @@ class _UserManagementContentState extends State<_UserManagementContent> {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  child: Text(
-                    user.fullName.trim().isEmpty
-                        ? '?'
-                        : user.fullName.trim()[0].toUpperCase(),
-                  ),
+                ProfileAvatar(
+                  name: user.fullName.isEmpty ? user.email : user.fullName,
+                  avatarUrl: user.avatarUrl,
+                  size: 44,
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(

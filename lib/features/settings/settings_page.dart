@@ -106,6 +106,9 @@ class _SettingsPageState extends State<SettingsPage> {
       context,
       profile: profile,
       onSave: _profileService.updateCurrentProfile,
+      onProfileUpdated: (updated) {
+        if (mounted) setState(() => _profile = updated);
+      },
     );
     if (updatedProfile != null && mounted) {
       setState(() => _profile = updatedProfile);

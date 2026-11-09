@@ -1489,3 +1489,35 @@ atomic; any failure rolls it all back.
 The updater checks its one-hour latest/history caches before making requests.
 For HTTP 403/429 it displays cached release details with a stale-data notice;
 without cached data it returns an unavailable status and a retry-later message.
+
+## Profile Photo Upload and Replacement Flow
+
+1. The signed-in user opens Personal Information or Edit Profile and chooses
+   an image from the gallery, or uses the camera on iOS/Android.
+2. The picker returns the source image. `ProfilePhotoCropScreen` enforces a
+   square 1:1 selection, supports zoom and repositioning, and displays a
+   circular avatar mask. Cancelling leaves the current avatar unchanged.
+3. The selected crop is resized to 512 × 512 and compressed to JPEG (quality
+   85). Before Storage upload, the service decodes and validates the JPEG and
+   exact dimensions; source/original picker bytes are never sent to Storage.
+4. The client uploads a new UUID-named `.jpg` object to
+   `profile-photos/<auth.uid()>/...` without overwriting an existing object.
+5. `update_current_profile_avatar(p_object_path text)` verifies the active
+   caller, the object’s bucket and caller-owned path, updates only the caller’s
+   `profiles.avatar_url`, and logs `Upload Profile Photo` or
+   `Update Profile Photo`.
+6. On successful profile update, the client removes the previous owned object.
+   If cleanup fails, the new photo remains active and the UI reports that the
+   old object could not be removed.
+
+## Profile Photo Removal Flow
+
+The user confirms removal in the UI. The RPC clears the caller’s `avatar_url`
+and writes `Remove Profile Photo`; after that transaction succeeds, the client
+deletes the previous object using the owner-only Storage policy. The UI falls
+back to initials. A failed storage cleanup is reported without restoring the
+old profile reference.
+
+These workflows depend on the forward migration
+`20261109214000_profile_photo_management.sql`. It has not been applied to the
+live database.

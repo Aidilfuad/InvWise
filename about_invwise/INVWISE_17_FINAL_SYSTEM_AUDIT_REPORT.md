@@ -1027,14 +1027,42 @@ changed.** The active production schema was queried read-only: the expected
 `activity_log` keeps its audit rows by setting old item/movement references to
 null. The forward migration has not been applied.
 
-The full `flutter analyze` run completed with no issues and all 81 tests in
+The full `flutter analyze` run completed with no issues and all 82 tests in
 `flutter test` passed; the running Flutter app hot-restarted without runtime
-errors. Before a production-ready release: test both RPC modes and
-authorization against staging data; reconcile migration history; apply the
-forward migration; confirm PostgREST has loaded both RPC signatures; and
-perform responsive visual checks on real mobile/tablet devices. Force Delete
-remains a high-impact, irreversible operation and requires retention approval.
+errors. The stock-movement immutability bypass has a new SQL regression suite,
+but that suite has not been run because the local Supabase runtime is unavailable.
+Before a production-ready release: run that suite in staging; test both RPC
+modes and authorization against disposable data; reconcile migration history;
+apply the forward migration; confirm PostgREST has loaded the trigger/RPC
+changes; and perform responsive visual checks on real mobile/tablet devices.
+Force Delete remains a high-impact, irreversible operation and requires
+retention approval.
 
 Technical debt reduced: obsolete dashboard preference code and tests were
 removed. Remaining release risks: migration rollout, database behavior under
 real related data, and physical-device layout verification.
+
+## Profile Photo Implementation Addendum
+
+| Area | Score | Current finding |
+|---|---:|---|
+| Profile Photo Management | 7/10 | Upload/replace/remove UI and services, own-user RPC/storage policies, activity logging, initials fallback, and dashboard/profile/user-list rendering are implemented in source. Live readiness is pending migration deployment and staging security validation. |
+
+`flutter analyze` completed with no issues, all 87 Flutter tests passed, and the
+running app hot-restarted with no runtime errors. New widget/model tests cover
+initials fallback, gallery action availability, cached `avatar_url`
+serialization, user-list avatar decoding, crop aspect-ratio/interaction
+settings, crop-screen completion, and square 512 × 512 JPEG encoding. No live
+Storage/RPC integration test or physical camera test was run.
+
+The migration `20261109214000_profile_photo_management.sql` has not been
+applied to production. Before release, apply and verify it in staging, including
+wrong-user write/delete denial, the RPC’s own-profile constraint, activity
+events, upload/replace/remove cleanup behavior, and camera/gallery on supported
+devices. The SQL security/configuration regression script is
+`supabase/tests/profile_photo_management.sql`; it has not been run because no
+disposable database with the migration applied was prepared. The bucket is
+public-read to support avatars in administrative user
+lists; this exposes images to anyone holding an object URL, so photos must not
+contain sensitive information. Production readiness for this feature remains
+conditional on migration and privacy review.

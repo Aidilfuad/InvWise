@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../services/profile_service.dart';
+import '../../../widgets/profile_photo_editor.dart';
 
 typedef ProfileSaveCallback = Future<ProfileLookupResult> Function({
   required String fullName,
@@ -13,15 +14,18 @@ class EditProfileDialog extends StatefulWidget {
     super.key,
     required this.profile,
     required this.onSave,
+    this.onProfileUpdated,
   });
 
   final ProfileLookupResult profile;
   final ProfileSaveCallback onSave;
+  final ValueChanged<ProfileLookupResult>? onProfileUpdated;
 
   static Future<ProfileLookupResult?> show(
     BuildContext context, {
     required ProfileLookupResult profile,
     required ProfileSaveCallback onSave,
+    ValueChanged<ProfileLookupResult>? onProfileUpdated,
   }) {
     return showDialog<ProfileLookupResult>(
       context: context,
@@ -29,7 +33,11 @@ class EditProfileDialog extends StatefulWidget {
         backgroundColor: AppColors.surface,
         insetPadding: const EdgeInsets.all(20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        child: EditProfileDialog(profile: profile, onSave: onSave),
+        child: EditProfileDialog(
+          profile: profile,
+          onSave: onSave,
+          onProfileUpdated: onProfileUpdated,
+        ),
       ),
     );
   }
@@ -44,6 +52,7 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   late final TextEditingController _emailController;
   late final TextEditingController _phoneController;
   late final TextEditingController _roleController;
+  late ProfileLookupResult _profile;
   bool _isSaving = false;
   String? _errorMessage;
 
@@ -51,11 +60,17 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
   void initState() {
     super.initState();
     final p = widget.profile;
+    _profile = p;
     _nameController = TextEditingController(text: p.fullName ?? '');
     _employeeIdController = TextEditingController(text: p.employeeId ?? '');
     _emailController = TextEditingController(text: p.email ?? '');
     _phoneController = TextEditingController(text: p.phoneNumber ?? '');
     _roleController = TextEditingController(text: p.role ?? '');
+  }
+
+  void _onProfileUpdated(ProfileLookupResult profile) {
+    setState(() => _profile = profile);
+    widget.onProfileUpdated?.call(profile);
   }
 
   @override
@@ -184,6 +199,12 @@ class _EditProfileDialogState extends State<EditProfileDialog> {
             Text(
               'Update your profile details.',
               style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            ProfilePhotoEditor(
+              profile: _profile,
+              onProfileUpdated: _onProfileUpdated,
+              avatarSize: 56,
             ),
             const SizedBox(height: 20),
             _field(label: 'Full Name', controller: _nameController),

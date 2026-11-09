@@ -996,6 +996,25 @@ Supabase Backend
 
 ---
 
+## Profile Photo Deployment
+
+The client requires `image_picker` and iOS photo-library/camera usage
+descriptions. Android picker integration uses the platform plugin defaults.
+Before deploying the client, apply
+`supabase/migrations/20261109214000_profile_photo_management.sql` to staging
+and verify the `profiles.avatar_url` column, `profile-photos` bucket
+configuration, Storage owner-folder policies, and
+`update_current_profile_avatar(p_object_path text)` grant and behavior.
+
+The migration has not been applied to the live database. Do not release the
+photo UI against a database that has not received the migration. The bucket is
+public-read for image display, while object creation and deletion are limited
+to the authenticated owner’s folder. Confirm this privacy tradeoff with the
+deployment owner and test upload, replace, remove, gallery, camera, initials
+fallback, and cleanup-error handling before production rollout.
+
+---
+
 END OF DOCUMENT
 
 INVWISE_09_UPDATE_AND_DEPLOYMENT_ARCHITECTURE.md

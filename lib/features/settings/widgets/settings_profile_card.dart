@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
 import '../../../services/profile_service.dart';
+import '../../../widgets/profile_avatar.dart';
 
 /// Profile card: avatar, name, role and access badge.
 class SettingsProfileCard extends StatelessWidget {
@@ -18,17 +19,6 @@ class SettingsProfileCard extends StatelessWidget {
   String get _displayName => profile.fullName?.trim().isNotEmpty == true
       ? profile.fullName!.trim()
       : profile.email ?? 'Inventory User';
-
-  String get _initials {
-    final parts = _displayName
-        .split(RegExp(r'\s+'))
-        .where((part) => part.isNotEmpty)
-        .toList();
-    if (parts.length > 1) {
-      return '${parts.first[0]}${parts.last[0]}'.toUpperCase();
-    }
-    return parts.firstOrNull?.substring(0, 1).toUpperCase() ?? 'IU';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,21 +39,13 @@ class SettingsProfileCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
-            width: 64,
-            height: 64,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              shape: BoxShape.circle,
-            ),
-            child: Text(
-              _initials,
-              style: textTheme.titleLarge?.copyWith(
-                color: AppColors.textOnPrimary,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+          ProfileAvatar(
+            name: _displayName,
+            avatarUrl: profile.avatarUrl,
+            size: 64,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textOnPrimary,
+            fontSize: textTheme.titleLarge?.fontSize,
           ),
           AppSpacing.gapMd,
           Expanded(

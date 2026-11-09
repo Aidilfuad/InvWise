@@ -1147,6 +1147,20 @@ Reporting Views                ✅
 
 ---
 
+## Profile Photo Storage Relationship
+
+`profiles.avatar_url` stores the object path in the `profile-photos` Supabase
+Storage bucket. It is an application-level reference, not a PostgreSQL foreign
+key to `storage.objects`. Object paths are scoped under the authenticated
+user’s UUID, and owner-only Storage policies govern upload/deletion. The
+bucket is public-read so avatar images render in user lists.
+
+This relationship is provided by migration
+`20261109214000_profile_photo_management.sql`, which has not been applied to
+the live database.
+
+---
+
 END OF DOCUMENT
 
 INVWISE_14_DATABASE_ERD_AND_RELATIONSHIP_GUIDE.md

@@ -124,6 +124,42 @@ void main() {
     },
   );
 
+  test(
+    'Force Delete surfaces the stock-movement immutability guard error',
+    () async {
+      access.updateRole('Super Admin');
+      const message =
+          'Stock movements are immutable; insert a correcting movement instead';
+      final service = InventoryService(
+        client: _client(
+          MockClient((request) async {
+            expect(jsonDecode(request.body), {
+              'p_item_id': itemId,
+              'p_force_delete': true,
+            });
+            return http.Response(
+              jsonEncode({
+                'code': 'P0001',
+                'message': message,
+                'details': null,
+                'hint': null,
+              }),
+              400,
+              headers: {'content-type': 'application/json'},
+              request: request,
+            );
+          }),
+        ),
+        roleAccess: access,
+      );
+
+      expect(
+        await service.deleteItemsPermanently([itemId], forceDelete: true),
+        {itemId: 'Unable to permanently delete this item. $message'},
+      );
+    },
+  );
+
   test('archive and restore use database permission-checked RPCs', () async {
     access.updateRole('Inventory Administrator');
     final calls = <String>[];

@@ -1072,6 +1072,20 @@ Deployment Stability
 
 ---
 
+## Profile Photo Feature State
+
+The Flutter implementation now includes gallery upload, mobile camera capture,
+replacement, removal, initials fallback, dashboard/settings/personal-profile
+avatars, and avatar data in the Super Admin user list. Activity records are
+created by the profile photo RPC. The code is implemented and validated by
+Flutter analysis/tests, but the database migration
+`20261109214000_profile_photo_management.sql` has not been applied to the live
+project. Therefore, profile-photo production readiness is conditional on
+staging migration/security validation, public-bucket privacy review, and
+mobile hardware testing.
+
+---
+
 END OF DOCUMENT
 
 INVWISE_03_PROJECT_STATE_V2_0_0.md

@@ -10,8 +10,10 @@ migration, removes the alternate dashboard mode, standardizes authenticated
 page layout, and updates the documentation suite.
 
 The production database was inspected read-only. Neither the archive repair
-migration nor the permanent-delete migration was applied to production as part
-of this work.
+migration nor either permanent-delete migration was applied to production as
+part of this work. Read-only inspection did confirm that the safe/force RPC
+definitions are already present in the linked database; the newly identified
+movement-trigger bypass migration remains unapplied.
 
 ## Update system
 
@@ -123,13 +125,17 @@ tests, or the `about_invwise/` documentation suite.
 ## Validation
 
 - `flutter analyze`: passed; no issues found.
-- `flutter test`: passed; all 81 tests passed across 22 test files.
+- `flutter test`: passed; all 82 tests passed across 22 test files.
 - Flutter hot restart: succeeded; no runtime errors were reported.
 - `git diff --check`: passed.
 - Removed-dashboard reference search: no matches.
 - Production schema inspection: read-only inspection confirmed expected inventory
   item UUID references and restrictive stock movement/count/level foreign keys.
-  Migration execution and RPC behavior have not been verified against production.
+  RPC definitions were present, but live Force Delete remained blocked by the
+  immutable-movement trigger. The new bypass migration is not applied.
+- Added SQL integration test: verifies regular delete/update denial and Force
+  Delete success in a disposable Supabase database. It has not been executed
+  because no local Docker/Podman database runtime is available.
 
 ## Risks
 
@@ -147,16 +153,20 @@ tests, or the `about_invwise/` documentation suite.
 2. Compare the target migration ledger and schema to the repository. Do not
    blindly replay historical migrations or run an uncontrolled production
    `db push`.
-3. In staging, apply any missing archive repair migration and then
-   `20261109210000_permanent_inventory_delete_safety.sql`.
-4. Verify both delete RPC signatures, active Super Admin authorization, safe
-   deletion with no movement/count rows, safe-mode blocking with references,
-   Force Delete cleanup, and the retained deletion audit record.
-5. Verify the app's typed and password-confirmation flows, then confirm
-   PostgREST has refreshed its schema cache.
-6. After staging sign-off, deploy the migration to production before the
+3. Reconcile the fact that the linked database contains the archive/delete RPC
+   definitions while its migration ledger does not record their newer
+   migrations. Do not replay older migrations blindly.
+4. In staging, apply any missing archive repair and permanent-delete setup, then
+   apply `20261109213000_force_delete_stock_movement_bypass.sql`.
+5. Run `supabase/tests/permanent_inventory_force_delete.sql` on disposable
+   staging data. Verify ordinary delete and update stay blocked, the safe
+   overload remains blocked by history, and Force Delete succeeds.
+6. Verify active Super Admin authorization, cleanup counts, and the retained
+   deletion audit record. Test the app's typed/password confirmation flows and
+   confirm PostgREST has refreshed its schema cache.
+7. After staging sign-off, deploy the forward migration to production before the
    client version that sends `p_force_delete`. Run a controlled smoke test.
-7. Perform physical-device layout checks and monitor update checks and delete
+8. Perform physical-device layout checks and monitor update checks and delete
    RPC errors after release.
 
 ## Commit recommendation
@@ -171,8 +181,9 @@ Include the required Copilot co-author trailer when creating the commit.
 
 ## Readiness
 
-**Code validation is green; production deployment readiness is conditional.**
-The migration has not been applied, staging RPC/data-loss tests remain
-outstanding, and physical-device responsive QA remains outstanding. Do not
-enable production Force Delete until those checks and retention approval are
-complete.
+**Flutter validation is green; production deployment readiness is conditional.**
+The trigger-bypass migration has not been applied, database regression tests
+have not run because no disposable local Supabase/Docker runtime is available,
+and staging authorization/data-loss checks plus physical-device responsive QA
+remain outstanding. Do not rely on Force Delete in production until the forward
+migration passes staging and receives retention approval.

@@ -25,6 +25,7 @@ class FullDashboardContent extends StatelessWidget {
     required this.name,
     required this.role,
     required this.initials,
+    this.avatarUrl,
     required this.visibleActions,
     required this.activityPermission,
     required this.onNotificationsTap,
@@ -40,6 +41,7 @@ class FullDashboardContent extends StatelessWidget {
   final String name;
   final String role;
   final String initials;
+  final String? avatarUrl;
   final List<QuickActionItem> visibleActions;
   final bool activityPermission;
   final VoidCallback onNotificationsTap;
@@ -62,6 +64,7 @@ class FullDashboardContent extends StatelessWidget {
           name: name,
           role: role,
           initials: initials,
+          avatarUrl: avatarUrl,
           onNotificationsTap: onNotificationsTap,
           onProfileTap: onProfileTap,
         ),

@@ -1548,6 +1548,31 @@ Inventory, Telemetry, Settings, Reports, User Management, registration
 approvals, Version, Security, Support, and other authenticated routes receive
 the shared layout.
 
+## Profile Photo UI
+
+The shared `ProfileAvatar` widget displays a profile image when `avatar_url`
+is set and initials when no image is available or image loading fails. It is
+used by the Dashboard’s top-right avatar, Settings profile card, Personal
+Information page, edit-profile dialog, and User Management entries.
+
+The Personal Information card and edit-profile dialog expose Add/Change and
+Remove actions through `ProfilePhotoEditor`. Users can choose from the gallery;
+iOS and Android additionally offer camera capture. Removing a photo requires
+confirmation. Upload/removal status and storage-cleanup failures are reported
+in the UI. The settings edit dialog also refreshes the parent profile state
+after a photo change.
+
+After selection, `ProfilePhotoCropScreen` opens before any network request. It
+locks the crop to 1:1, permits drag/pinch interaction for repositioning and
+zoom, and shows a circular avatar mask/preview. “Use this photo” generates a
+compressed 512 × 512 JPEG; cancelling returns to the editor without uploading.
+This crop screen uses Flutter rendering and is shared by Windows, Android, and
+iOS.
+
+The UI depends on the forward migration
+`20261109214000_profile_photo_management.sql`; it is not operational against
+the live database until that migration is applied and verified.
+
 ## Dashboard
 
 The full Dashboard is the only dashboard implementation. The settings toggle,

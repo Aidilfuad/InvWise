@@ -1197,3 +1197,20 @@ callers.
 persistent cache; history keys include the requested limit. On 403/429 the
 service uses stale cached data when present; otherwise the update result is
 unavailable with user-friendly retry guidance.
+
+## Profile Photo RPC
+
+| RPC signature | Authorization | Contract |
+|---|---|---|
+| `update_current_profile_avatar(p_object_path text)` | Authenticated user with an active matching profile | Sets the caller’s `profiles.avatar_url` to an existing object under the caller’s `profile-photos/<auth.uid()>/` folder, or clears it when passed `NULL`. Returns JSON with `avatar_url`, `previous_avatar_url`, and `action`; writes one profile-photo activity event. |
+
+The RPC is `SECURITY DEFINER` with a pinned search path and is executable only
+by `authenticated`. It rejects foreign-folder paths and objects not present in
+the bucket. The bucket policy limits object creation and deletion to the
+authenticated owner’s folder. The `manage-users` Edge Function adds nullable
+`avatar_url` to its Super Admin user-list response.
+
+Migration `20261109214000_profile_photo_management.sql` provisions this API
+and Storage configuration. It is not applied to production. Upload is done
+through Supabase Storage; the RPC changes the profile reference only after the
+new object exists.

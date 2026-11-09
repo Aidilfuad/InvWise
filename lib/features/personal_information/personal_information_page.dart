@@ -70,6 +70,9 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
       context,
       profile: profile,
       onSave: _profileService.updateCurrentProfile,
+      onProfileUpdated: (updated) {
+        if (mounted) setState(() => _profile = updated);
+      },
     );
     if (updatedProfile != null && mounted) {
       setState(() => _profile = updatedProfile);
@@ -114,7 +117,12 @@ class _PersonalInformationPageState extends State<PersonalInformationPage> {
                       padding: EdgeInsets.all(AppSpacing.lg),
                       child: Column(
                         children: [
-                          ProfileSummaryCard(profile: profile),
+                          ProfileSummaryCard(
+                            profile: profile,
+                            onProfileUpdated: (updated) {
+                              if (mounted) setState(() => _profile = updated);
+                            },
+                          ),
                           SizedBox(height: AppSpacing.md),
                           PersonalDetailsCard(profile: profile),
                           SizedBox(height: AppSpacing.md),

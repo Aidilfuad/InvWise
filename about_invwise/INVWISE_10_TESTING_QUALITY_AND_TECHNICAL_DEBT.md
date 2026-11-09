@@ -1063,9 +1063,30 @@ post-deployment verification. The live database reference names were inspected,
 but SQL behavior has not been applied to production. Responsive visual QA on
 physical mobile/tablet devices remains a deployment checklist item.
 
+## Profile Photo Quality Update
+
+The new Flutter tests cover initials fallback, the gallery-selection control,
+profile/cache serialization, square-only crop encoding, 512 × 512 JPEG output,
+the crop screen’s 1:1 circular interactive configuration, and the complete
+crop-screen return path. The full
+`flutter analyze` run completed without issues and `flutter test` passed all
+87 tests. The active Flutter application hot-restarted successfully with no
+runtime errors.
+
+The current tests do not exercise a live Storage upload or camera hardware. A
+database authorization/configuration regression script is available at
+`supabase/tests/profile_photo_management.sql`, but it has not been run. The
+forward migration
+`20261109214000_profile_photo_management.sql` has not been applied to the live
+database. Staging verification and iOS/Android camera testing remain required.
+Public-read bucket URLs are a privacy tradeoff and should only be used for
+non-sensitive profile images.
+
 ## Final Implementation Validation
 
 After these changes, `flutter analyze` completed with no issues and the full
-`flutter test` suite passed all 81 tests. The active Flutter application
-hot-restarted successfully with no reported runtime errors. These checks do
-not replace staging RPC/authorization tests or physical-device responsive QA.
+`flutter test` suite passed all 82 tests. The active Flutter application
+hot-restarted successfully with no reported runtime errors. A SQL regression
+suite now covers the stock-movement trigger bypass, but was not run because no
+local Supabase Docker/Podman runtime is available. Run it in staging before
+deployment; these checks do not replace physical-device responsive QA.

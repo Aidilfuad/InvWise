@@ -168,6 +168,8 @@ phone TEXT
 
 department TEXT
 
+avatar_url TEXT NULL -- pending forward migration; not live yet
+
 role USER_ROLE
 
 access_level ACCESS_LEVEL
@@ -1385,6 +1387,22 @@ app_versions Legacy
 
 Stock Movement Immutable
 ```
+
+---
+
+## Profile Photo Forward Migration
+
+`supabase/migrations/20261109214000_profile_photo_management.sql` adds the
+nullable `profiles.avatar_url` column, provisions the public-read
+`profile-photos` bucket (5 MiB limit; JPEG, PNG, and WebP), owner-folder
+Storage INSERT/DELETE policies, and
+`public.update_current_profile_avatar(p_object_path text)`.
+
+The migration has not been applied to the live database. Until it is deployed,
+the live `profiles` table and Storage bucket do not have these additions.
+The RPC requires an authenticated active profile, accepts only a photo object
+under that user’s UUID folder, updates only that profile row, and writes the
+upload/update/removal activity event.
 
 ---
 

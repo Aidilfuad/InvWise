@@ -1136,12 +1136,56 @@ approval before force deletion.
 ## Required Migration and Deployment Order
 
 1. Review and reconcile remote/local Supabase migration history.
-2. Apply `20261109210000_permanent_inventory_delete_safety.sql` to staging.
-3. Verify both RPC overloads, grants, safe-block errors, Force Delete row
-   counts, audit entry, and unauthorized-role rejection on disposable data.
-4. Refresh PostgREST schema cache and deploy the Flutter client only after the
-   two-argument RPC is present.
-5. Repeat verification in production under the approved change window.
+2. Verify the archive and permanent-delete RPC setup is present in staging.
+   Apply `20261109213000_force_delete_stock_movement_bypass.sql` as the
+   forward-only trigger/RPC repair.
+3. Run
+   `supabase db query --db-url $env:INVWISE_STAGING_DB_URL --file supabase/tests/permanent_inventory_force_delete.sql`
+   using a disposable staging connection. Do not use the linked production
+   project for this test. It verifies normal delete/update denial, item-scoped
+   and Super Admin bypass checks, the safe RPC block, and successful Force
+   Delete cleanup, then rolls the fixture back.
+4. Verify both RPC overloads, grants, audit entry, and unauthorized-role
+   rejection on disposable data.
+5. Refresh PostgREST schema cache and deploy the Flutter client only after the
+   two-argument RPC and trigger update are present.
+6. Repeat verification in production under the approved change window.
 
 Do not use a bulk migration push until older migration-ledger discrepancies
 have been resolved.
+
+## Profile Photo Development and Deployment
+
+The profile photo flow is implemented by `ProfilePhotoService`,
+`ProfileService.updateCurrentAvatar`, `ProfileAvatar`,
+`ProfilePhotoCropScreen`, and `ProfilePhotoEditor`. After picker selection,
+the crop screen enforces a fixed square 1:1 crop with zoom/pan and circular
+preview. The crop is resized to 512 × 512 and encoded as JPEG at quality 85.
+`ProfilePhotoService.upload` accepts only bytes with a valid JPEG signature
+that decode to exactly 512 × 512; original picker files and other dimensions
+are rejected. Objects use a fresh UUID filename under the current auth-user
+UUID and upload with `upsert: false`. The profile RPC runs before old-object
+cleanup so a failed update does not remove the active avatar. The Flutter crop
+widget has no platform-native crop dependency and works on Windows, Android,
+and iOS; `image_picker` provides platform-native file/gallery and camera
+selection.
+
+Before deploying the client, review and apply
+`supabase/migrations/20261109214000_profile_photo_management.sql` to staging.
+Verify the `avatar_url` column, public bucket size/MIME settings, owner-only
+insert/delete policies, `authenticated`-only RPC grant, wrong-user path
+rejection, and activity-log actions for upload/replacement/removal. Test
+gallery selection on Windows/Android/iOS, camera capture on iOS/Android,
+square crop gestures, 512 × 512 JPEG output, image load failure fallback, and
+cleanup-failure messaging. Only after staging
+verification should the migration and client be promoted to production.
+
+Run the database authorization/configuration assertions in
+`supabase/tests/profile_photo_management.sql` against the disposable staging
+database after migration. It verifies the RPC grant, bucket settings, owner
+policies, and foreign-folder rejection, then rolls back its transaction.
+
+The bucket is public-read. This enables avatars in dashboard and user lists but
+means anyone with an object URL can view the image. Never upload confidential
+images. No migration has been applied to the linked production database for
+this feature.

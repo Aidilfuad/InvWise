@@ -21,6 +21,7 @@ type UserProfile = {
   employee_id: string | null;
   full_name: string | null;
   email: string | null;
+  avatar_url: string | null;
   role: UserRole;
   is_active: boolean;
   last_login_at: string | null;
@@ -113,7 +114,7 @@ Deno.serve(async (request) => {
           .from("profiles")
           .select(
             "id, auth_user_id, employee_id, full_name, email, role, " +
-              "is_active, last_login_at",
+              "avatar_url, is_active, last_login_at",
           )
           .order("full_name", { ascending: true })
           .range(offset, offset + pageSize - 1);
@@ -128,6 +129,7 @@ Deno.serve(async (request) => {
           employee_id: user.employee_id,
           full_name: user.full_name,
           email: user.email,
+          avatar_url: user.avatar_url,
           role: user.role,
           is_active: user.is_active,
           last_login_at: user.last_login_at,

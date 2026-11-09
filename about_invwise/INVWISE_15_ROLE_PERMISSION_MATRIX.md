@@ -235,6 +235,23 @@ Legend:
 
 ---
 
+# PROFILE PHOTO ACCESS
+
+| Action | Super Admin | Inventory Admin | Supervisor | Storekeeper |
+|---|---|---|---|---|
+| View profile photos | ✅ | ✅ | ✅ | ✅ |
+| Upload, replace, or remove own photo | ✅ | ✅ | ✅ | ✅ |
+| Modify another user’s photo | ❌ | ❌ | ❌ | ❌ |
+
+Profile photo management is self-service and does not require an elevated
+InvWise role. Storage RLS limits writes/deletes to the authenticated user’s
+UUID folder, and `update_current_profile_avatar(p_object_path text)` updates
+only the matching active profile. The profile-photo bucket is public-read so
+avatars can display in administrative user lists; URLs should not be treated as
+private.
+
+---
+
 # DASHBOARD ACCESS
 
 | Feature | Super Admin | Inventory Admin | Supervisor | Storekeeper |

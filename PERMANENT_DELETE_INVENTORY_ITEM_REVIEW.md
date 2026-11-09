@@ -42,9 +42,30 @@ history.
 ## Migration
 
 Apply
-[`supabase/migrations/20261109210000_permanent_inventory_delete_safety.sql`](./supabase/migrations/20261109210000_permanent_inventory_delete_safety.sql)
-as a new migration. Do not edit or replay earlier migrations that may already
-be recorded in an environment's migration history.
+[`supabase/migrations/20261109213000_force_delete_stock_movement_bypass.sql`](./supabase/migrations/20261109213000_force_delete_stock_movement_bypass.sql)
+as a new forward migration after reviewing the environment's migration
+history. Do not edit or replay earlier migrations that may already be recorded.
+
+The existing `stock_movements_immutable` trigger remains in place. Its trigger
+function still rejects every update and every delete by default. It permits
+only a `DELETE` whose item ID matches the transaction-local
+`invwise.inventory_force_delete` setting, when the current request belongs to
+an active Super Admin and is executing with the owner identity of the
+two-argument permanent-delete RPC. That RPC sets the marker only around its
+movement-delete statement and clears it immediately afterward.
+
+The regression suite is
+[`supabase/tests/permanent_inventory_force_delete.sql`](./supabase/tests/permanent_inventory_force_delete.sql).
+Run it only against a disposable local or staging database with the project
+schema and seed data, for example:
+
+```powershell
+supabase db query --db-url $env:INVWISE_STAGING_DB_URL --file supabase/tests/permanent_inventory_force_delete.sql
+```
+
+Never point this test at production. It requires an active Super Admin profile,
+a unit, and a warehouse location. The test runs in a transaction and rolls its
+fixture back.
 
 The SQL follows the current repository contracts for
 `stock_movements.item_id`, `stock_movements.id`, `stock_levels.item_id`,
@@ -76,6 +97,31 @@ movement/count/audit history is no longer required under business retention
 rules. Prefer archiving whenever historical reporting or audit requirements
 are uncertain.
 
+## Rollback plan
+
+If staging validation or production monitoring fails, restore the trigger
+function to its unconditional immutable behavior with a new approved rollback
+change. Keep `stock_movements_immutable` installed and do not drop it. With the
+trigger restored, `p_force_delete = true` will fail and roll back atomically;
+the safe (`false`) RPC path remains available and continues to block when
+movement or count history exists.
+
+```sql
+create or replace function public.prevent_stock_movement_mutation()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  raise exception 'Stock movements are immutable; insert a correcting movement instead';
+end;
+$$;
+```
+
+This rollback disables Force Delete but does not restore any records already
+deleted by a successful Force Delete. Restoring deleted history requires a
+separate database backup/point-in-time recovery process.
+
 ## Deployment and verification
 
 1. Verify the migration history before applying the new forward migration.
@@ -92,7 +138,9 @@ are uncertain.
    row counts.
 6. Verify a one-argument call still uses safe mode and PostgREST has refreshed
    its function schema cache.
-7. Repeat the checks in production only after staging passes and the data-loss
+7. Run the new SQL regression suite in staging and confirm ordinary movement
+   delete/update remains blocked while authorized Force Delete succeeds.
+8. Repeat the checks in production only after staging passes and the data-loss
    implications have been approved.
 
 Production data has not been changed by this migration.

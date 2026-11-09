@@ -25,6 +25,7 @@ class ManagedUser {
     required this.isSelf,
     this.authUserId,
     this.employeeId,
+    this.avatarUrl,
     this.lastLoginAt,
   });
 
@@ -43,6 +44,7 @@ class ManagedUser {
   final bool isActive;
   final bool isSelf;
   final String? employeeId;
+  final String? avatarUrl;
   final DateTime? lastLoginAt;
 
   factory ManagedUser.fromMap(Map<String, dynamic> map) {
@@ -56,6 +58,7 @@ class ManagedUser {
       isActive: map['is_active'] as bool,
       isSelf: map['is_self'] as bool? ?? false,
       employeeId: map['employee_id'] as String?,
+      avatarUrl: map['avatar_url'] as String?,
       lastLoginAt: lastLoginValue is String
           ? DateTime.parse(lastLoginValue)
           : null,

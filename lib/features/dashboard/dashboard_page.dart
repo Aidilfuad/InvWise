@@ -126,6 +126,7 @@ class _DashboardPageState extends State<DashboardPage> {
         ),
       ),
     );
+    if (mounted) await _loadDashboard();
   }
 
   Future<void> _onQuickActionTap(
@@ -287,6 +288,7 @@ class _DashboardPageState extends State<DashboardPage> {
       name: _userName,
       role: userRole,
       initials: _userInitials,
+      avatarUrl: _profile?.avatarUrl,
       visibleActions: visibleActions,
       activityPermission: _roleAccess.allows(AppPermission.viewActivityLog),
       onNotificationsTap: () => _onNotificationsTap(context),

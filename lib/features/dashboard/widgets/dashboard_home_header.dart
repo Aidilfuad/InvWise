@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
+import '../../../widgets/profile_avatar.dart';
 
 class DashboardHomeHeader extends StatelessWidget {
   const DashboardHomeHeader({
@@ -9,6 +10,7 @@ class DashboardHomeHeader extends StatelessWidget {
     required this.name,
     required this.role,
     required this.initials,
+    this.avatarUrl,
     this.onNotificationsTap,
     this.onProfileTap,
   });
@@ -17,6 +19,7 @@ class DashboardHomeHeader extends StatelessWidget {
   final String name;
   final String role;
   final String initials;
+  final String? avatarUrl;
   final VoidCallback? onNotificationsTap;
   final VoidCallback? onProfileTap;
 
@@ -132,21 +135,15 @@ class DashboardHomeHeader extends StatelessWidget {
             InkWell(
               onTap: onProfileTap,
               borderRadius: BorderRadius.circular(14),
-              child: Container(
-                width: 48,
-                height: 48,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryContainer,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: ProfileAvatar(
+                  name: name,
+                  avatarUrl: avatarUrl,
+                  size: 48,
+                  backgroundColor: AppColors.primaryContainer,
+                  foregroundColor: AppColors.primary,
+                  fontSize: 14,
                 ),
               ),
             ),

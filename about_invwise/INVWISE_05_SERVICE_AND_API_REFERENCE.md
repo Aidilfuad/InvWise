@@ -1435,3 +1435,36 @@ count records. Force deletion is irreversible. It writes a new deletion audit
 record with the item ID in metadata and deleted-row counts after removing the
 item-linked history. See the forward migration
 `supabase/migrations/20261109210000_permanent_inventory_delete_safety.sql`.
+
+## Profile Photo Management
+
+`ProfilePhotoEditor` now performs the sequence picker → crop → compress →
+upload → profile RPC. Gallery or camera output is passed to the cross-platform
+`ProfilePhotoCropScreen`, which enforces a 1:1 crop, exposes zoom/pan, and shows
+a circular avatar mask. `ProfilePhotoService.encodeCroppedJpeg` scales only a
+square crop to 512 × 512 and encodes JPEG at quality 85. The service validates
+the JPEG signature and decoded dimensions before allowing Storage upload, so
+the original picker file cannot be uploaded through this service. It generates
+a unique `.jpg` object under `<authenticated-user-uuid>/` and uploads without
+upsert. Replacement updates the profile first and then removes the prior owned
+object; cleanup failures are surfaced rather than hiding a successful profile
+update.
+
+`ProfileService.updateCurrentAvatar(p_object_path)` calls
+`update_current_profile_avatar(p_object_path text)`. The RPC validates the
+authenticated active profile, verifies the object exists in `profile-photos`
+and belongs to the caller’s UUID folder, updates only that profile, and writes
+the corresponding `Upload Profile Photo`, `Update Profile Photo`, or
+`Remove Profile Photo` activity event. The profile cache is updated after RPC
+success.
+
+`ProfileAvatar` resolves stored object paths to public bucket URLs and falls
+back to the user’s initials if the URL is missing or the image cannot load.
+`ProfilePhotoEditor` provides gallery selection on supported platforms and
+camera capture on iOS/Android. The `manage-users` Edge Function includes
+`avatar_url` in the Super Admin user list so user cards show the same avatar.
+
+The migration `20261109214000_profile_photo_management.sql` is required before
+the feature can work against a database. It has not been applied to the live
+project; do not describe the live database as already containing the column,
+bucket, policies, or RPC.

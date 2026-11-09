@@ -1235,6 +1235,29 @@ Immutable Inventory Ledger
 
 ---
 
+## Profile Photo Security
+
+The forward migration creates a public-read `profile-photos` bucket so an
+avatar can render in the Dashboard and administrative user list. Public bucket
+URLs are viewable by anyone who obtains the URL; users should not upload
+sensitive images.
+
+Authenticated Storage INSERT and DELETE policies restrict object paths to one
+folder named for `auth.uid()` and UUID image filenames. No client UPDATE
+policy is granted; each replacement uploads a new object with `upsert: false`.
+The database RPC `update_current_profile_avatar(p_object_path text)` is
+granted only to `authenticated`, checks `auth.uid()`, requires an active
+matching profile, verifies the object in the caller’s folder, and updates only
+that profile row. It records upload, replacement, and removal in
+`activity_logs`.
+
+The service also verifies the signed-in user matches the loaded profile before
+upload/removal. This UI check is supplementary; Storage RLS and the RPC are the
+authorization boundary. The migration is not applied to production yet, so
+these controls require staging verification before release.
+
+---
+
 END OF DOCUMENT
 
 INVWISE_07_SECURITY_ARCHITECTURE.md
@@ -1264,3 +1287,12 @@ business retention requirements and approval. Prefer archiving whenever
 historical reporting requirements are unclear. The legacy singular
 `activity_log` table is not purged by this RPC; its current foreign keys set
 item/movement references to null, retaining that legacy audit record.
+
+The `stock_movements_immutable` trigger remains enabled for both UPDATE and
+DELETE. Force Delete sets the transaction-local
+`invwise.inventory_force_delete` marker only around its movement DELETE. The
+trigger bypass requires the matching item ID, an active Super Admin request,
+and execution under the owner identity of the two-argument permanent-delete
+RPC. It rejects ordinary deletes, item-mismatched markers, non-Super Admin
+contexts, and every UPDATE. The marker is cleared immediately after movement
+deletion.
