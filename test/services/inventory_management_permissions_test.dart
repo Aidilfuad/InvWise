@@ -42,7 +42,10 @@ void main() {
               endsWith('/rpc/permanently_delete_inventory_item'),
             );
             expect(request.method, 'POST');
-            expect(jsonDecode(request.body), {'p_item_id': itemId});
+            expect(jsonDecode(request.body), {
+              'p_item_id': itemId,
+              'p_force_delete': false,
+            });
             rpcCalled = true;
             return http.Response(
               jsonEncode({'id': itemId, 'name': 'Valve', 'sku': 'VALVE-1'}),
@@ -59,6 +62,65 @@ void main() {
 
       expect(rpcCalled, isTrue);
       expect(failures, isEmpty);
+    },
+  );
+
+  test(
+    'Super Admin can explicitly request Force Delete through the RPC',
+    () async {
+      access.updateRole('Super Admin');
+      final service = InventoryService(
+        client: _client(
+          MockClient((request) async {
+            expect(jsonDecode(request.body), {
+              'p_item_id': itemId,
+              'p_force_delete': true,
+            });
+            return http.Response(
+              jsonEncode({'id': itemId, 'name': 'Valve', 'sku': 'VALVE-1'}),
+              200,
+              headers: {'content-type': 'application/json'},
+              request: request,
+            );
+          }),
+        ),
+        roleAccess: access,
+      );
+
+      expect(
+        await service.deleteItemsPermanently([itemId], forceDelete: true),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'permanent delete preserves the database history-blocking message',
+    () async {
+      access.updateRole('Super Admin');
+      const message =
+          'Cannot permanently delete Valve: it has 2 stock movement record(s) '
+          'and 1 stock count record(s).';
+      final service = InventoryService(
+        client: _client(
+          MockClient(
+            (request) async => http.Response(
+              jsonEncode({
+                'code': '23503',
+                'message': message,
+                'details': null,
+                'hint': null,
+              }),
+              400,
+              headers: {'content-type': 'application/json'},
+              request: request,
+            ),
+          ),
+        ),
+        roleAccess: access,
+      );
+
+      expect(await service.deleteItemsPermanently([itemId]), {itemId: message});
     },
   );
 

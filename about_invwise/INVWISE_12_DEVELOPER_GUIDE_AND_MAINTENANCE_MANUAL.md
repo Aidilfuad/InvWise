@@ -1106,3 +1106,42 @@ INVWISE_12_DEVELOPER_GUIDE_AND_MAINTENANCE_MANUAL.md
 Version 2.0.0
 
 Project Documentation Suite Complete
+
+---
+
+# CURRENT MAINTENANCE NOTES — 2026-11-09
+
+## GitHub Update Cache
+
+`AppUpdateService` stores latest-release and history responses separately in
+`OfflineCacheService`, scoped to the updater and retained as fresh for one
+hour. History is keyed by page size. Cache hits suppress network calls; an
+HTTP 403/429 uses stale cached data with a clear notice. If no cache is
+available, return an unavailable status with retry guidance. Keep the GitHub
+JSON `Accept` and `User-Agent` headers on every API request. Do not replace the
+friendly UI handling with raw `ClientException` text.
+
+## Permanent Inventory Deletion
+
+Archive/restore use their UUID RPCs. The safe permanent-delete overload is
+`permanently_delete_inventory_item(p_item_id uuid)`; the explicit mode is
+`permanently_delete_inventory_item(p_item_id uuid, p_force_delete boolean)`.
+Both require an archived item and an active Super Admin for deletion. The UI
+requires typing `DELETE` and password re-confirmation. Safe mode blocks on
+stock movements/counts and preserves history. Force mode purges linked
+movement/count/level and plural activity-log records while writing a distinct
+deletion audit event. It is irreversible; prefer archiving and obtain retention
+approval before force deletion.
+
+## Required Migration and Deployment Order
+
+1. Review and reconcile remote/local Supabase migration history.
+2. Apply `20261109210000_permanent_inventory_delete_safety.sql` to staging.
+3. Verify both RPC overloads, grants, safe-block errors, Force Delete row
+   counts, audit entry, and unauthorized-role rejection on disposable data.
+4. Refresh PostgREST schema cache and deploy the Flutter client only after the
+   two-argument RPC is present.
+5. Repeat verification in production under the approved change window.
+
+Do not use a bulk migration push until older migration-ledger discrepancies
+have been resolved.

@@ -1001,3 +1001,37 @@ END OF DOCUMENT
 INVWISE_09_UPDATE_AND_DEPLOYMENT_ARCHITECTURE.md
 
 Version 2.0.0
+
+---
+
+# UPDATE RESILIENCE AND DEPLOYMENT ADDENDUM — 2026-11-09
+
+## Release API Cache and Rate Limits
+
+The latest-release payload and release-history payload use separate persistent
+cache keys in `OfflineCacheService`; release-history keys include the requested
+limit. Entries are fresh for one hour. Fresh values avoid GitHub API calls.
+HTTP 403/429 uses an available cached response and displays a stale-data
+notice. With no cached payload, the update result is unavailable and presents a
+retry-later message instead of a raw HTTP exception. Requests include GitHub's
+JSON `Accept` header and an identifying `User-Agent`.
+
+The parser still performs semantic version comparison, detects `.apk` assets,
+extracts notes, and recognizes `force_update: true`. These paths remain covered
+by the AppUpdateService test suite. Update history loads separately so it does
+not break the latest-version view.
+
+## Inventory RPC Deployment Sequence
+
+The permanent-delete overload is introduced by
+`supabase/migrations/20261109210000_permanent_inventory_delete_safety.sql`.
+Apply and verify this migration in staging before publishing a Flutter client
+that sends `p_force_delete`. The existing one-argument RPC delegates to safe
+mode, but the updated Flutter client calls the two-argument overload.
+
+Do not blindly run `supabase db push` against production where earlier
+migrations are missing from the remote ledger. Reconcile migration history,
+apply the reviewed forward migration through the controlled process, refresh
+PostgREST's schema cache, and test safe/force behaviors on disposable records
+before the production rollout. No production data was changed by preparing the
+migration.

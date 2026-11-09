@@ -657,13 +657,9 @@ If these appear in future code, they were not part of the official V2.0 release.
 
 ---
 
-# DASHBOARD MODES
+# DASHBOARD
 
-InvWise currently contains two dashboard modes.
-
----
-
-## Full Dashboard
+InvWise provides the full dashboard as its only dashboard experience.
 
 Purpose:
 
@@ -694,22 +690,6 @@ Sensor Monitoring
 
 System Health
 ```
-
----
-
-## Compact Dashboard
-
-Purpose:
-
-```text
-Daily Operations
-
-Mobile Usage
-
-Fast Overview
-```
-
-Designed to display more information within limited screen space.
 
 ---
 
@@ -843,8 +823,6 @@ Permanent Delete
 GitHub Release Updater
 
 Dashboard Full Mode
-
-Dashboard Compact Mode
 
 DDS669 Monitoring
 

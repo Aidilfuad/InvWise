@@ -448,8 +448,9 @@ class InventoryService {
   }
 
   Future<Map<String, String>> deleteItemsPermanently(
-    List<String> itemIds,
-  ) async {
+    List<String> itemIds, {
+    bool forceDelete = false,
+  }) async {
     _requirePermanentDeletePermission();
     final ids = _validatedIds(itemIds);
     final failures = <String, String>{};
@@ -457,13 +458,12 @@ class InventoryService {
       try {
         await _client.rpc(
           'permanently_delete_inventory_item',
-          params: {'p_item_id': id},
+          params: {'p_item_id': id, 'p_force_delete': forceDelete},
         );
         await _invalidateScopedInventoryCaches();
       } on PostgrestException catch (error) {
         failures[id] = error.code == '23503'
-            ? 'Item is referenced by stock or activity history and cannot be '
-                  'permanently deleted. Archive it instead.'
+            ? error.message
             : _friendlyMessage(error, 'permanently delete this item');
       } on InventoryServiceException catch (error) {
         failures[id] = error.message;
@@ -821,7 +821,10 @@ class InventoryService {
       if (item == null) {
         throw const InventoryServiceException('Inventory item not found.');
       }
-      await _client.rpc('archive_inventory_item', params: {'p_item_id': itemId});
+      await _client.rpc(
+        'archive_inventory_item',
+        params: {'p_item_id': itemId},
+      );
       await _recordActivity(
         type: ActivityEventType.inventoryDeleted,
         description:

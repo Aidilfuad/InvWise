@@ -724,18 +724,6 @@ Only Add
 
 ---
 
-# DASHBOARD MODES
-
-InvWise currently supports:
-
-```text
-Full Dashboard
-
-Compact Dashboard
-```
-
----
-
 # FULL DASHBOARD
 
 Purpose:
@@ -768,28 +756,6 @@ Inventory Summary
 Sensor Monitoring
 
 System Health
-```
-
----
-
-# COMPACT DASHBOARD
-
-Purpose:
-
-```text
-Daily Operations
-
-Mobile Usage
-```
-
-Shows:
-
-```text
-Compressed Layout
-
-Less Whitespace
-
-Fast Access
 ```
 
 ---

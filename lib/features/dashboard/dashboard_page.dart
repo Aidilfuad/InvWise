@@ -5,12 +5,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/dashboard_service.dart';
-import '../../services/dashboard_preferences_service.dart';
 import '../../services/offline_cache_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
-import '../../widgets/offline_sync_indicator.dart';
-import '../activity_log/activity_log_page.dart';
 import '../activity_log/activity_logs_page.dart';
 import '../alerts_page/alerts_page.dart';
 import '../inventory/inventory_page.dart';
@@ -18,27 +15,12 @@ import '../inventory_item/inventory_item_page.dart';
 import '../reports/reports_page.dart';
 import '../settings/settings_page.dart';
 import 'data/dashboard_data.dart';
-import 'widgets/attention_required_card.dart';
-import 'widgets/dashboard_home_header.dart';
-import 'widgets/dashboard_section_header.dart';
 import 'widgets/full_dashboard_content.dart';
-import 'widgets/inventory_overview_card.dart';
-import 'widgets/inventory_health_card.dart';
-import 'widgets/kpi_grid.dart';
-import 'widgets/monthly_insights_card.dart';
-import 'widgets/quick_actions_grid.dart';
-import 'widgets/recent_activity_card.dart';
-import 'widgets/recent_system_activity_card.dart';
-import 'widgets/sensor_monitoring_card.dart';
-import 'widgets/system_alerts_card.dart';
-import 'widgets/system_health_summary_card.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   static const double _maxContentWidth = 1600;
-  static const double mobileBreakpoint = 600;
-  static const double desktopBreakpoint = 1200;
 
   @override
   State<DashboardPage> createState() => _DashboardPageState();
@@ -57,9 +39,6 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     OfflineCacheService.instance.addListener(_onOfflineCacheChanged);
-    DashboardPreferencesService.instance.addListener(
-      _onDashboardPreferenceChanged,
-    );
     _loadDashboard();
   }
 
@@ -68,10 +47,6 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
     _refreshDashboardFromCache();
-  }
-
-  void _onDashboardPreferenceChanged() {
-    if (mounted) setState(() {});
   }
 
   Future<void> _refreshDashboardFromCache() async {
@@ -86,9 +61,6 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void dispose() {
     OfflineCacheService.instance.removeListener(_onOfflineCacheChanged);
-    DashboardPreferencesService.instance.removeListener(
-      _onDashboardPreferenceChanged,
-    );
     super.dispose();
   }
 
@@ -104,9 +76,6 @@ class _DashboardPageState extends State<DashboardPage> {
       String? profileError;
       try {
         profile = await _profileService.getCurrentProfile();
-        if (profile != null) {
-          await DashboardPreferencesService.instance.loadForProfile(profile.id);
-        }
       } on ProfileServiceException catch (error) {
         profileError = error.message;
       }
@@ -269,10 +238,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       child: SingleChildScrollView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: EdgeInsets.fromLTRB(
-                          MediaQuery.sizeOf(context).width >
-                                  DashboardPage.desktopBreakpoint
-                              ? 32
-                              : 20,
+                          MediaQuery.sizeOf(context).width > 1200 ? 32 : 20,
                           16,
                           20,
                           24 + bottomInset,
@@ -304,197 +270,31 @@ class _DashboardPageState extends State<DashboardPage> {
         })
         .toList(growable: false);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth < DashboardPage.mobileBreakpoint
-            ? 1
-            : constraints.maxWidth <= DashboardPage.desktopBreakpoint
-            ? 2
-            : 3;
-        final compact = DashboardPreferencesService.instance.compactCards;
-        final verticalGap = compact ? AppSpacing.sm : AppSpacing.md;
-        final spacing = compact
-            ? AppSpacing.sm
-            : columns == 1
-            ? AppSpacing.lg
-            : AppSpacing.md;
-        final tileWidth =
-            (constraints.maxWidth - spacing * (columns - 1)) / columns;
-        final activityPermission = _roleAccess.allows(
-          AppPermission.viewActivityLog,
-        );
-        void openActivityLogs() {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => RoleAccessGuard(
-                permission: AppPermission.viewActivityLog,
-                child: const ActivityLogsPage(),
-              ),
-            ),
-          );
-        }
+    void openActivityLogs() {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => RoleAccessGuard(
+            permission: AppPermission.viewActivityLog,
+            child: const ActivityLogsPage(),
+          ),
+        ),
+      );
+    }
 
-        if (!compact) {
-          return FullDashboardContent(
-            data: data,
-            greeting: _greeting,
-            name: _userName,
-            role: userRole,
-            initials: _userInitials,
-            visibleActions: visibleActions,
-            activityPermission: activityPermission,
-            onNotificationsTap: () => _onNotificationsTap(context),
-            onProfileTap: () => _onProfileTap(context),
-            onActivityTap: openActivityLogs,
-            onQuickActionTap: (action) => _onQuickActionTap(context, action),
-          );
-        }
-
-        final sections = <Widget>[
-          _dashboardTile(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                InventoryOverviewCard(summary: data, compact: compact),
-                SizedBox(height: compact ? 6 : AppSpacing.md),
-                KpiGrid(stats: data.kpis, compact: compact),
-              ],
-            ),
-            tileWidth,
-          ),
-          _dashboardTile(
-            InventoryHealthCard(summary: data.summary, compact: compact),
-            tileWidth,
-          ),
-          _dashboardTile(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DashboardSectionHeader(
-                  title: 'Attention Required',
-                  actionLabel: 'View Alerts',
-                  onActionTap: () => _onNotificationsTap(context),
-                  compact: compact,
-                ),
-                SizedBox(height: verticalGap),
-                AttentionRequiredCard(
-                  items: data.attentionItems,
-                  compact: compact,
-                ),
-              ],
-            ),
-            tileWidth,
-          ),
-          SizedBox(
-            width: tileWidth,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DashboardSectionHeader(
-                  title: 'System Alerts',
-                  compact: compact,
-                ),
-                SizedBox(height: verticalGap),
-                SystemAlertsCard(compact: compact),
-              ],
-            ),
-          ),
-          _dashboardTile(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DashboardSectionHeader(
-                  title: 'Recent Activity',
-                  actionLabel: activityPermission ? 'View All' : null,
-                  onActionTap: activityPermission ? openActivityLogs : null,
-                  compact: compact,
-                ),
-                SizedBox(height: verticalGap),
-                RecentSystemActivityCard(
-                  entries: data.systemActivities,
-                  compact: compact,
-                ),
-              ],
-            ),
-            tileWidth,
-          ),
-          SizedBox(
-            width: constraints.maxWidth,
-            child: SensorMonitoringCard(compact: compact),
-          ),
-          _dashboardTile(
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                DashboardSectionHeader(
-                  title: 'Live Inventory Summary',
-                  compact: compact,
-                ),
-                SizedBox(height: verticalGap),
-                MonthlyInsightsCard(
-                  month: data.insightsMonth,
-                  range: 'Current totals',
-                  insights: data.insights,
-                  compact: compact,
-                ),
-              ],
-            ),
-            tileWidth,
-          ),
-          _dashboardTile(SystemHealthSummaryCard(compact: compact), tileWidth),
-        ];
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const OfflineSyncIndicator(),
-            DashboardHomeHeader(
-              greeting: _greeting,
-              name: _userName,
-              role: userRole,
-              initials: _userInitials,
-              onNotificationsTap: () => _onNotificationsTap(context),
-              onProfileTap: () => _onProfileTap(context),
-            ),
-            SizedBox(height: compact ? AppSpacing.md : AppSpacing.xl),
-            Wrap(spacing: spacing, runSpacing: spacing, children: sections),
-            SizedBox(height: compact ? AppSpacing.md : AppSpacing.xl),
-            DashboardSectionHeader(
-              title: 'Recent Stock Movements',
-              compact: compact,
-              actionLabel: activityPermission ? 'View All' : null,
-              onActionTap: activityPermission
-                  ? () => Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => RoleAccessGuard(
-                          permission: AppPermission.viewActivityLog,
-                          child: const ActivityLogPage(),
-                        ),
-                      ),
-                    )
-                  : null,
-            ),
-            SizedBox(height: verticalGap),
-            RecentActivityCard(
-              dateLabel: 'LATEST MOVEMENTS',
-              entries: data.recentMovements,
-              compact: compact,
-            ),
-            SizedBox(height: compact ? AppSpacing.md : AppSpacing.xl),
-            DashboardSectionHeader(title: 'Quick Actions', compact: compact),
-            SizedBox(height: verticalGap),
-            QuickActionsGrid(
-              actions: visibleActions,
-              onActionTap: (action) => _onQuickActionTap(context, action),
-              compact: compact,
-            ),
-          ],
-        );
-      },
+    return FullDashboardContent(
+      data: data,
+      greeting: _greeting,
+      name: _userName,
+      role: userRole,
+      initials: _userInitials,
+      visibleActions: visibleActions,
+      activityPermission: _roleAccess.allows(AppPermission.viewActivityLog),
+      onNotificationsTap: () => _onNotificationsTap(context),
+      onProfileTap: () => _onProfileTap(context),
+      onActivityTap: openActivityLogs,
+      onQuickActionTap: (action) => _onQuickActionTap(context, action),
     );
   }
-
-  Widget _dashboardTile(Widget child, double width) =>
-      SizedBox(width: width, child: child);
 
   Widget _buildErrorState() => Center(
     child: Padding(

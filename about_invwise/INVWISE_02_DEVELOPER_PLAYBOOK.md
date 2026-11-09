@@ -569,8 +569,6 @@ InvWise contains:
 
 ```text
 Full Dashboard
-
-Compact Dashboard
 ```
 
 ---
@@ -604,18 +602,6 @@ System Health
 
 Sensor Monitoring
 ```
-
----
-
-# COMPACT DASHBOARD
-
-Purpose:
-
-```text
-Daily Operations
-```
-
-Shows the same information in a compressed form.
 
 ---
 

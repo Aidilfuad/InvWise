@@ -26,7 +26,7 @@ class StockAdjustmentPage extends StatefulWidget {
 }
 
 class _StockAdjustmentPageState extends State<StockAdjustmentPage> {
-  static const double _maxContentWidth = 600;
+  static const double _maxContentWidth = 1600;
 
   final _quantityController = TextEditingController();
   final _notesController = TextEditingController();

@@ -7,11 +7,9 @@ class InventoryHealthCard extends StatelessWidget {
   const InventoryHealthCard({
     super.key,
     required this.summary,
-    this.compact = false,
   });
 
   final DashboardInventorySummary summary;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +25,6 @@ class InventoryHealthCard extends StatelessWidget {
       score: 'Health Score: $health%',
       scorePercent: health,
       scoreColor: health >= 80 ? AppColors.success : AppColors.warning,
-      compact: compact,
       metrics: [
         _Metric('Low Stock', summary.lowStockItems, AppColors.warning),
         _Metric('Out Of Stock', summary.outOfStockItems, AppColors.danger),
@@ -55,7 +52,6 @@ class _SummaryCard extends StatelessWidget {
     required this.scorePercent,
     required this.scoreColor,
     required this.metrics,
-    required this.compact,
   });
 
   final IconData icon;
@@ -65,13 +61,12 @@ class _SummaryCard extends StatelessWidget {
   final int scorePercent;
   final Color scoreColor;
   final List<_Metric> metrics;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) => Card(
     margin: EdgeInsets.zero,
     child: Padding(
-      padding: EdgeInsets.all(compact ? 11 : 16),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -88,31 +83,30 @@ class _SummaryCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: compact ? 6 : 10),
-          if (!compact)
-            Text(headline, style: Theme.of(context).textTheme.bodyMedium),
-          if (!compact) SizedBox(height: 10),
+          const SizedBox(height: 10),
+          Text(headline, style: Theme.of(context).textTheme.bodyMedium),
+          const SizedBox(height: 10),
           Wrap(
-            spacing: compact ? 9 : 14,
-            runSpacing: compact ? 4 : 8,
+            spacing: 14,
+            runSpacing: 8,
             children: [
               for (final metric in metrics)
                 Text(
-                  '${compact ? _shortLabel(metric.label) : metric.label}: ${metric.value}',
+                  '${metric.label}: ${metric.value}',
                   style: TextStyle(
                     color: metric.color,
-                    fontSize: compact ? 10 : 12,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
             ],
           ),
-          SizedBox(height: compact ? 6 : 12),
+          const SizedBox(height: 12),
           Text(
-            compact ? 'Health $scorePercent%' : score,
+            score,
             style: TextStyle(
               color: scoreColor,
-              fontSize: compact ? 12 : 15,
+              fontSize: 15,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -121,11 +115,4 @@ class _SummaryCard extends StatelessWidget {
     ),
   );
 
-  String _shortLabel(String value) => switch (value) {
-    'Low Stock' => 'Low',
-    'Out Of Stock' => 'OOS',
-    'Inactive' => 'Inactive',
-    'Archived' => 'Archived',
-    _ => value,
-  };
 }

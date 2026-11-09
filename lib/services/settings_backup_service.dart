@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import 'currency_service.dart';
 import 'login_preferences_service.dart';
-import 'dashboard_preferences_service.dart';
 import 'profile_service.dart';
 import 'role_access_service.dart';
 import 'sensor_monitoring_service.dart';
@@ -28,7 +27,6 @@ class SettingsBackupService {
     final profile = await ProfileService().getCurrentProfile();
     if (profile == null) throw StateError('A user profile is required.');
     await _currency.loadForProfile(profile.id, refresh: true);
-    await DashboardPreferencesService.instance.loadForProfile(profile.id);
     final telemetry = await _telemetry.fetchSettings();
     final snapshot = {
       'format': 'invwise-settings',
@@ -42,9 +40,6 @@ class SettingsBackupService {
           'theme_mode': AppThemeController.instance.themeMode.name,
           'language_code': AppThemeController.instance.languageCode,
           'remember_me': LoginPreferencesService.instance.rememberMe,
-        },
-        'dashboard_preferences': {
-          'compact_mode': DashboardPreferencesService.instance.compactCards,
         },
       },
     };
@@ -105,13 +100,6 @@ class SettingsBackupService {
         );
       }
     }
-    final dashboard = settings['dashboard_preferences'];
-    if (dashboard is Map && dashboard['compact_mode'] is bool) {
-      await DashboardPreferencesService.instance.loadForProfile(profile.id);
-      await DashboardPreferencesService.instance.setCompactCards(
-        dashboard['compact_mode'] as bool,
-      );
-    }
     await _record('Import Settings', 'Imported application settings.');
   }
 
@@ -131,8 +119,6 @@ class SettingsBackupService {
     await AppThemeController.instance.setThemeMode(ThemeMode.system);
     await AppThemeController.instance.setLanguageCode('en');
     await LoginPreferencesService.instance.setRememberMe(false);
-    await DashboardPreferencesService.instance.loadForProfile(profile.id);
-    await DashboardPreferencesService.instance.setCompactCards(false);
     await _record('Restore Settings', 'Restored default application settings.');
   }
 

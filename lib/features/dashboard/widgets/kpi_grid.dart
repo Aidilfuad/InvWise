@@ -4,24 +4,12 @@ import '../../../app/constants/app_colors.dart';
 import '../data/dashboard_data.dart';
 
 class KpiGrid extends StatelessWidget {
-  const KpiGrid({super.key, required this.stats, this.compact = false});
+  const KpiGrid({super.key, required this.stats});
 
   final List<KpiStat> stats;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
-    if (compact) {
-      return Wrap(
-        spacing: 6,
-        runSpacing: 6,
-        children: [
-          for (var index = 0; index < stats.length; index++)
-            _CompactKpi(stat: stats[index], label: _compactLabel(index)),
-        ],
-      );
-    }
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1200 ? 4 : 2;
@@ -43,52 +31,6 @@ class KpiGrid extends StatelessWidget {
     );
   }
 
-  String _compactLabel(int index) => switch (index) {
-    0 => 'Items',
-    1 => 'Low',
-    2 => 'OOS',
-    3 => 'Sites',
-    _ => stats[index].label,
-  };
-}
-
-class _CompactKpi extends StatelessWidget {
-  const _CompactKpi({required this.stat, required this.label});
-
-  final KpiStat stat;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Text.rich(
-      TextSpan(
-        children: [
-          TextSpan(
-            text: '$label: ',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          TextSpan(
-            text: stat.value,
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _KpiCard extends StatelessWidget {

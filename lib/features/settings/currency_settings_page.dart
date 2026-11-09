@@ -113,7 +113,7 @@ class _CurrencySettingsContentState extends State<_CurrencySettingsContent> {
       appBar: AppBar(title: const Text('Currency')),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 600),
+          constraints: const BoxConstraints(maxWidth: 1600),
           child: AnimatedBuilder(
             animation: _currencyService,
             builder: (context, _) => ListView(

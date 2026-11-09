@@ -328,8 +328,6 @@ Services:
 ```text
 DashboardService
 
-DashboardPreferencesService
-
 ProfileService
 
 RoleAccessService
@@ -361,22 +359,6 @@ Quick Actions
 Sensor Monitoring
 
 Monthly Insights
-```
-
----
-
-### Dashboard Modes
-
-```text
-Full Dashboard
-
-Compact Dashboard
-```
-
-Stored through:
-
-```text
-DashboardPreferencesService
 ```
 
 ---
@@ -1047,8 +1029,6 @@ CurrencyService
 RoleAccessService
 
 LoginPreferencesService
-
-DashboardPreferencesService
 ```
 
 ---
@@ -1538,3 +1518,37 @@ END OF DOCUMENT
 INVWISE_06_UI_AND_SCREEN_DOCUMENTATION.md
 
 Version 2.0.0
+
+---
+
+# CURRENT UI IMPLEMENTATION UPDATE — 2026-11-09
+
+## Archived Inventory Deletion
+
+An archived item exposes separate **Delete Safely** and **Force Delete**
+actions to Super Admins. Both actions are disabled until `DELETE` is typed and
+both require the account password confirmation dialog. Safe Delete is the
+default behavior and the database blocks it if stock movements or stock counts
+exist, showing the record counts and preserving history. Force Delete warns
+that it removes stock movements, stock counts, stock levels, and related
+`activity_logs`; it is enforced again by the server-side Super Admin check.
+Inventory Administrators can archive and restore but cannot permanently delete.
+
+The client sends `p_item_id` and an explicit `p_force_delete` boolean to the
+two-argument RPC. The database retains a separate deletion audit event after
+the Force Delete cleanup.
+
+## Authenticated Page Layout
+
+Authenticated routes share `AuthenticatedPageLayout`: maximum content width
+1600 px, 12 px mobile gutters below 600 px, 20 px tablet gutters below 1200 px,
+and 32 px desktop gutters. The login, registration-request, and
+registration-setup routes retain their existing layouts. The Dashboard,
+Inventory, Telemetry, Settings, Reports, User Management, registration
+approvals, Version, Security, Support, and other authenticated routes receive
+the shared layout.
+
+## Dashboard
+
+The full Dashboard is the only dashboard implementation. The settings toggle,
+saved preference, and condensed dashboard rendering have been removed.

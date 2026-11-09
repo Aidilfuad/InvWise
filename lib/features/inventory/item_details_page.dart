@@ -21,7 +21,7 @@ class ItemDetailsPage extends StatefulWidget {
 
   final String itemId;
 
-  static const double _maxContentWidth = 1120;
+  static const double _maxContentWidth = 1600;
 
   @override
   State<ItemDetailsPage> createState() => _ItemDetailsPageState();

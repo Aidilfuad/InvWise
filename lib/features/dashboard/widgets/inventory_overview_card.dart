@@ -7,12 +7,10 @@ class InventoryOverviewCard extends StatelessWidget {
   const InventoryOverviewCard({
     super.key,
     required this.summary,
-    this.compact = false,
     this.featured = false,
   });
 
   final DashboardData summary;
-  final bool compact;
   final bool featured;
 
   String _fmt(int n) {
@@ -35,43 +33,6 @@ class InventoryOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (compact) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: AppColors.primaryContainer,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.primary.withAlpha(30)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Stock: ${summary.totalStockQuantityLabel}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${summary.healthyPercent.toStringAsFixed(0)}% healthy',
-              style: TextStyle(
-                color: AppColors.success,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
     return Container(
       width: double.infinity,
       padding: EdgeInsets.all(featured ? 24 : 18),

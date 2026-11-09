@@ -170,7 +170,7 @@ class _TelemetryHistoryPageState extends State<TelemetryHistoryPage> {
         ? _ErrorState(message: _errorMessage!, onRetry: _loadHistory)
         : Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1400),
+              constraints: const BoxConstraints(maxWidth: 1600),
               child: ListView(
                 padding: const EdgeInsets.all(16),
                 children: [

@@ -186,7 +186,7 @@ class _SystemInformationPageState extends State<SystemInformationPage> {
           ? const Center(child: CircularProgressIndicator())
           : Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
+                constraints: const BoxConstraints(maxWidth: 1600),
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [

@@ -1168,3 +1168,32 @@ END OF DOCUMENT
 INVWISE_13_API_AND_EDGE_FUNCTION_SPECIFICATION.md
 
 Version 2.0.0
+
+---
+
+# CURRENT INVENTORY RPC CONTRACTS — 2026-11-09
+
+All routines below are in schema `public` and return `jsonb`. Authorization
+uses the authenticated user’s active profile in the database.
+
+| RPC signature | Authorization | Contract |
+|---|---|---|
+| `archive_inventory_item(p_item_id uuid)` | Active Inventory Administrator or Super Admin | Archives an active item, returns item ID/name/SKU, and writes an activity event. |
+| `restore_inventory_item(p_item_id uuid)` | Active Inventory Administrator or Super Admin | Restores an archived item, returns item ID/name/SKU, and writes an activity event. |
+| `permanently_delete_inventory_item(p_item_id uuid)` | Active Super Admin | Safe mode. Blocks if `stock_movements` or `stock_counts` exist; reports both counts. |
+| `permanently_delete_inventory_item(p_item_id uuid, p_force_delete boolean)` | Active Super Admin | `false` is safe mode; `true` deletes related movements/counts/levels and linked plural `activity_logs`, then the item. |
+
+Permanent delete requires `is_archived = true`. The two-argument function
+returns the deleted item identity, mode, and removed-row counts. It appends a
+deletion audit event with the item ID in metadata. Failures abort the complete
+transaction. The one-argument RPC remains a safe-mode wrapper for existing
+callers.
+
+## GitHub Releases API
+
+`AppUpdateService` performs unauthenticated GETs against `/releases/latest` and
+`/releases?per_page={limit}`, with `Accept: application/vnd.github+json` and
+`User-Agent: InvWise-App-Updater`. Each response has a separate one-hour
+persistent cache; history keys include the requested limit. On 403/429 the
+service uses stale cached data when present; otherwise the update result is
+unavailable with user-friendly retry guidance.

@@ -115,7 +115,7 @@ class _BackupRestorePageState extends State<BackupRestorePage> {
     appBar: AppBar(title: const Text('Backup & Restore Settings')),
     body: Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 700),
+        constraints: const BoxConstraints(maxWidth: 1600),
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [

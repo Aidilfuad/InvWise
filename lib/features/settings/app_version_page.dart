@@ -144,7 +144,7 @@ class _AppVersionPageState extends State<AppVersionPage> {
       appBar: AppBar(title: const Text('Version Information')),
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 700),
+          constraints: const BoxConstraints(maxWidth: 1600),
           child: _isLoading && result == null
               ? const Center(child: CircularProgressIndicator())
               : ListView(

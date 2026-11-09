@@ -125,8 +125,6 @@ StockMovementService
 
 ```text
 DashboardService
-
-DashboardPreferencesService
 ```
 
 ---
@@ -768,32 +766,6 @@ Reports
 
 ---
 
-# DashboardPreferencesService
-
-Purpose:
-
-```text
-Dashboard Mode Configuration
-```
-
-Supports:
-
-```text
-Full Dashboard
-
-Compact Dashboard
-```
-
-Used By:
-
-```text
-DashboardPage
-
-SettingsPage
-```
-
----
-
 # TELEMETRY MODULE
 
 ---
@@ -1426,3 +1398,40 @@ END OF DOCUMENT
 INVWISE_05_SERVICE_AND_API_REFERENCE.md
 
 Version 2.0.0
+
+---
+
+# CURRENT IMPLEMENTATION UPDATE — 2026-11-09
+
+## GitHub Release Updates
+
+`AppUpdateService` requests only the latest release endpoint and release-history
+endpoint from the public GitHub Releases API. Both requests include
+`User-Agent: InvWise-App-Updater` and `Accept: application/vnd.github+json`.
+
+Latest release data and history are cached independently through
+`OfflineCacheService` for one hour. History cache entries are separated by the
+requested page size. A fresh entry avoids an API request. When GitHub returns
+HTTP 403 or 429, the service uses an available cached payload and reports a
+user-facing stale-data notice. Without a cache, it returns an unavailable result
+with a retry-later message; the version screen handles latest-release and
+history errors independently rather than exposing the HTTP exception.
+
+The existing release parser continues to handle semantic major/minor/patch
+comparison, APK assets (`.apk` `browser_download_url`), release notes, and
+`force_update: true`. Required-update dialogs remain non-dismissible.
+
+## Inventory Archive and Deletion RPCs
+
+| RPC | Signature | Behavior |
+|---|---|---|
+| `archive_inventory_item` | `(p_item_id uuid)` | Active Inventory Administrator or Super Admin archives an active item, records archive metadata, and logs the action. |
+| `restore_inventory_item` | `(p_item_id uuid)` | Active Inventory Administrator or Super Admin restores an archived item and logs the action. |
+| `permanently_delete_inventory_item` | `(p_item_id uuid)` | Safe default; active Super Admin only. Blocks with movement/count counts when historical stock references exist. |
+| `permanently_delete_inventory_item` | `(p_item_id uuid, p_force_delete boolean)` | Active Super Admin only. `true` explicitly removes related movement, count, level, and plural `activity_logs` rows before deleting the archived item. |
+
+Safe deletion preserves prior activity history and does not remove movement or
+count records. Force deletion is irreversible. It writes a new deletion audit
+record with the item ID in metadata and deleted-row counts after removing the
+item-linked history. See the forward migration
+`supabase/migrations/20261109210000_permanent_inventory_delete_safety.sql`.

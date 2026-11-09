@@ -133,28 +133,6 @@ User Management
 
 ---
 
-## Dashboard Compact Mode
-
-File:
-
-```text
-dashboard_compact_mode_test.dart
-```
-
-Validates:
-
-```text
-Compact Layout
-
-Responsive Design
-
-Card Sizing
-```
-
-Discovery confirms compact dashboard height reduction behaviour is tested. 【1-612cf6】
-
----
-
 ## Dashboard Full Mode
 
 File:
@@ -622,8 +600,6 @@ AppUpdateService
 
 CurrencyService
 
-DashboardPreferencesService
-
 InventoryService
 
 LoginPreferencesService
@@ -1034,7 +1010,7 @@ when hardware environment becomes available.
 # CURRENT QUALITY FACTS
 
 ```text
-23 Test Files
+22 Test Files
 
 Inventory Tested
 
@@ -1066,3 +1042,30 @@ END OF DOCUMENT
 INVWISE_10_TESTING_QUALITY_AND_TECHNICAL_DEBT.md
 
 Version 2.0.0
+
+---
+
+# CURRENT QUALITY UPDATE — 2026-11-09
+
+The former dashboard-preference implementation and its preference/height
+tests have been removed. Dashboard tests now cover the single full Dashboard;
+the sensor card test retains reading, status, synchronization, history, and
+responsive-width coverage without a second dashboard presentation.
+
+New/updated focused checks cover: GitHub request headers, latest/history
+one-hour cache reuse and rate-limit fallback, release parsing and force-update
+detection; safe/force permanent-delete RPC arguments and database-provided
+history-block errors; and shared authenticated-page layout behavior at phone,
+tablet, and desktop widths with authentication-route exclusion.
+
+The permanent-delete migration still requires staging execution and live
+post-deployment verification. The live database reference names were inspected,
+but SQL behavior has not been applied to production. Responsive visual QA on
+physical mobile/tablet devices remains a deployment checklist item.
+
+## Final Implementation Validation
+
+After these changes, `flutter analyze` completed with no issues and the full
+`flutter test` suite passed all 81 tests. The active Flutter application
+hot-restarted successfully with no reported runtime errors. These checks do
+not replace staging RPC/authorization tests or physical-device responsive QA.

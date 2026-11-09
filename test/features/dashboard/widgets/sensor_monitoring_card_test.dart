@@ -240,56 +240,6 @@ void main() {
     expect(find.text('Last Sync: 9:12:45 PM'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
-    final fullCardHeight = tester
-        .getSize(find.byType(SensorMonitoringCard))
-        .height;
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: SensorMonitoringCard(
-              service: service,
-              clock: () => now,
-              offlineCheckInterval: null,
-              compact: true,
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final compactCardHeight = tester
-        .getSize(find.byType(SensorMonitoringCard))
-        .height;
-    // ignore: avoid_print
-    print(
-      'Phone sensor card: full=${fullCardHeight.toStringAsFixed(0)}px, '
-      'compact=${compactCardHeight.toStringAsFixed(0)}px, '
-      'reduction=${((fullCardHeight - compactCardHeight) / fullCardHeight * 100).toStringAsFixed(1)}%',
-    );
-    expect(compactCardHeight, lessThan(fullCardHeight * 0.7));
-    expect(
-      find.textContaining('240V · 5.1A · 1224W · 1450.25kWh'),
-      findsOneWidget,
-    );
-    expect(find.text('Updated 20 sec ago'), findsNothing);
-    expect(tester.takeException(), isNull);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: SingleChildScrollView(
-            child: SensorMonitoringCard(
-              service: service,
-              clock: () => now,
-              offlineCheckInterval: null,
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
     tester.view.physicalSize = const Size(800, 900);
     await tester.pumpAndSettle();
     expect(find.text('2 Sensors'), findsOneWidget);

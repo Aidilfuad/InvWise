@@ -1448,3 +1448,44 @@ END OF DOCUMENT
 INVWISE_11_SYSTEM_WORKFLOWS_AND_BUSINESS_PROCESSES.md
 
 Version 2.0.0
+
+---
+
+# CURRENT WORKFLOW UPDATE — 2026-11-09
+
+## Inventory Archive Flow
+
+An authorized active Inventory Administrator or Super Admin archives an active
+item through `archive_inventory_item(p_item_id uuid)`. The database sets
+`is_archived`, `archived_at`, and `archived_by`, deactivates the item, and
+records an activity event.
+
+## Inventory Restore Flow
+
+An authorized active Inventory Administrator or Super Admin selects an
+archived item and calls `restore_inventory_item(p_item_id uuid)`. The database
+clears the archive fields, reactivates the item, and records the restoration.
+
+## Inventory Permanent Delete Flow
+
+An active Super Admin opens an archived item, types `DELETE`, and completes
+password confirmation. Safe Delete calls the two-argument RPC with `false`.
+When movement or count references exist, the transaction is rejected with
+their counts and an explanation; the item and history remain intact. With no
+such history, current stock levels and the item are removed while previous
+activity history remains.
+
+## Inventory Force Delete Flow
+
+The Super Admin explicitly selects Force Delete after the same typed and
+password confirmations. The database rechecks the active Super Admin role,
+removes item/movement `activity_logs`, `stock_movements`, `stock_counts`, and
+`stock_levels`, then deletes the archived item. A separate deletion audit event
+with the operator and removed-row counts is retained. The whole operation is
+atomic; any failure rolls it all back.
+
+## Update Check Under Rate Limiting
+
+The updater checks its one-hour latest/history caches before making requests.
+For HTTP 403/429 it displays cached release details with a stale-data notice;
+without cached data it returns an unavailable status and a retry-later message.

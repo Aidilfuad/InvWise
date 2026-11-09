@@ -256,6 +256,8 @@ Legend:
 | Edit Inventory | ✅ | ✅ | ⚠ | ❌ |
 | Archive Inventory | ✅ | ✅ | ❌ | ❌ |
 | Restore Inventory | ✅ | ✅ | ❌ | ❌ |
+| Safe Permanent Delete | ✅ | ❌ | ❌ | ❌ |
+| Force Delete Inventory History | ✅ | ❌ | ❌ | ❌ |
 | Search Inventory | ✅ | ✅ | ✅ | ✅ |
 | View Inventory Details | ✅ | ✅ | ✅ | ✅ |
 
@@ -614,3 +616,13 @@ END OF DOCUMENT
 INVWISE_15_ROLE_PERMISSION_MATRIX.md
 
 Version 2.0.0
+
+---
+
+# PERMANENT DELETE PERMISSION NOTE — 2026-11-09
+
+Permanent deletion (including Force Delete) is Super Admin only. Inventory
+Administrators may archive and restore but cannot permanently delete. The
+database RPC independently checks for an active Super Admin profile; UI
+permissions are not the authorization boundary. Force Delete also requires an
+explicit request, typed `DELETE`, and password re-confirmation.

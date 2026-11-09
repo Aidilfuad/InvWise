@@ -10,7 +10,6 @@ import '../../services/auth_service.dart';
 import '../../services/login_preferences_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
-import '../../services/dashboard_preferences_service.dart';
 import '../../widgets/offline_sync_indicator.dart';
 import 'widgets/edit_profile_sheet.dart';
 import 'widgets/settings_header.dart';
@@ -36,7 +35,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  static const double _maxContentWidth = 600;
+  static const double _maxContentWidth = 1600;
   static const double _sectionGap = AppSpacing.xxxl;
 
   final ProfileService _profileService = ProfileService();
@@ -60,9 +59,6 @@ class _SettingsPageState extends State<SettingsPage> {
       final profile = await _profileService.getCurrentProfile();
       if (!mounted) return;
       _roleAccess.updateRole(profile?.role);
-      if (profile != null) {
-        await DashboardPreferencesService.instance.loadForProfile(profile.id);
-      }
       String? currencyError;
       if (profile != null) {
         try {
@@ -149,49 +145,6 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _onDashboardModeTap() async {
-    final preferences = DashboardPreferencesService.instance;
-    final selectedMode = await showDialog<DashboardMode>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Dashboard Mode'),
-        content: RadioGroup<DashboardMode>(
-          groupValue: preferences.mode,
-          onChanged: (mode) {
-            if (mode != null) Navigator.of(dialogContext).pop(mode);
-          },
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile<DashboardMode>(
-                value: DashboardMode.full,
-                title: Text('Full Dashboard'),
-                subtitle: Text('Detailed cards and visual summaries'),
-              ),
-              RadioListTile<DashboardMode>(
-                value: DashboardMode.compact,
-                title: Text('Compact Dashboard'),
-                subtitle: Text('Condensed metrics and activity rows'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (selectedMode == null) return;
-
-    try {
-      await preferences.setMode(selectedMode);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('Unable to save dashboard mode: $error')),
-        );
-    }
   }
 
   void _onWarehouseLocationsTap() {
@@ -497,26 +450,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                           );
                                       }
                                     },
-                                  ),
-                                );
-                              },
-                            ),
-                            AnimatedBuilder(
-                              animation: DashboardPreferencesService.instance,
-                              builder: (context, child) {
-                                final preferences =
-                                    DashboardPreferencesService.instance;
-                                return SettingsTile(
-                                  icon: Icons.dashboard_customize_outlined,
-                                  title: 'Dashboard Mode',
-                                  subtitle:
-                                      preferences.mode == DashboardMode.compact
-                                      ? 'Compact Dashboard'
-                                      : 'Full Dashboard',
-                                  onTap: _onDashboardModeTap,
-                                  trailing: Icon(
-                                    Icons.expand_more_rounded,
-                                    color: AppColors.textSecondary,
                                   ),
                                 );
                               },

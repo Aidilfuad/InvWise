@@ -13,21 +13,17 @@ class SensorMonitoringCard extends StatefulWidget {
     this.service,
     this.clock,
     this.offlineCheckInterval = const Duration(minutes: 1),
-    this.compact = false,
   });
 
   final SensorMonitoringService? service;
   final DateTime Function()? clock;
   final Duration? offlineCheckInterval;
-  final bool compact;
 
   @override
   State<SensorMonitoringCard> createState() => _SensorMonitoringCardState();
 }
 
 class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
-  bool get compact => widget.compact;
-
   late final SensorMonitoringService _service =
       widget.service ?? SensorMonitoringService();
   List<SensorReading> _readings = const [];
@@ -173,7 +169,7 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
         borderRadius: BorderRadius.circular(16),
         child: Container(
           width: double.infinity,
-          padding: EdgeInsets.all(compact ? 10 : 14),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.border),
@@ -223,71 +219,52 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
                   ),
                 ],
               ),
-              if (compact)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: Text(
-                    '${visibleReadings.length} sensors · '
-                    '${counts[SensorPresence.online] ?? 0} online · '
-                    'Sync ${_lastSync == null ? '--:--' : _compactTime(_lastSync!)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    '${visibleReadings.length} Sensors',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textSecondary,
                     ),
                   ),
-                )
-              else
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      '${visibleReadings.length} Sensors',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary,
-                      ),
+                  if (visibleReadings.isNotEmpty)
+                    _summaryStatus(
+                      '${counts[SensorPresence.online] ?? 0} Online',
+                      AppColors.success,
                     ),
-                    if (visibleReadings.isNotEmpty)
-                      _summaryStatus(
-                        '${counts[SensorPresence.online] ?? 0} Online',
-                        AppColors.success,
-                      ),
-                    if ((counts[SensorPresence.warning] ?? 0) > 0)
-                      _summaryStatus(
-                        '${counts[SensorPresence.warning]} Warning',
-                        AppColors.warning,
-                      ),
-                    if ((counts[SensorPresence.offline] ?? 0) > 0)
-                      _summaryStatus(
-                        '${counts[SensorPresence.offline]} Offline',
-                        AppColors.danger,
-                      ),
-                    if (visibleReadings.isNotEmpty)
-                      _summaryStatus(
-                        '${_healthPercent(counts, visibleReadings.length)}% Health',
-                        _healthPercent(counts, visibleReadings.length) >= 80
-                            ? AppColors.success
-                            : AppColors.warning,
-                      ),
-                  ],
+                  if ((counts[SensorPresence.warning] ?? 0) > 0)
+                    _summaryStatus(
+                      '${counts[SensorPresence.warning]} Warning',
+                      AppColors.warning,
+                    ),
+                  if ((counts[SensorPresence.offline] ?? 0) > 0)
+                    _summaryStatus(
+                      '${counts[SensorPresence.offline]} Offline',
+                      AppColors.danger,
+                    ),
+                  if (visibleReadings.isNotEmpty)
+                    _summaryStatus(
+                      '${_healthPercent(counts, visibleReadings.length)}% Health',
+                      _healthPercent(counts, visibleReadings.length) >= 80
+                          ? AppColors.success
+                          : AppColors.warning,
+                    ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Last Sync: ${_lastSync == null ? '--:--:--' : _formatTime(_lastSync!)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textSecondary,
                 ),
-              if (!compact) ...[
-                const SizedBox(height: 4),
-                Text(
-                  'Last Sync: ${_lastSync == null ? '--:--:--' : _formatTime(_lastSync!)}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ],
-              SizedBox(height: compact ? 2 : 9),
+              ),
+              const SizedBox(height: 9),
               if (_hasLoadError && visibleReadings.isEmpty)
                 _loadErrorState()
               else if (visibleReadings.isEmpty)
@@ -299,57 +276,47 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
                   ),
                 )
               else ...[
-                if (compact) ...[
-                  for (
-                    var index = 0;
-                    index < visibleReadings.length;
-                    index++
-                  ) ...[
-                    if (index > 0) const SizedBox(height: 4),
-                    _compactSensorSummary(visibleReadings[index]),
-                  ],
-                ] else
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth >= 600) {
-                        const columns = 2;
-                        final gap = 8.0;
-                        final cardWidth =
-                            (constraints.maxWidth - gap * (columns - 1)) /
-                            columns;
-                        return Wrap(
-                          spacing: gap,
-                          runSpacing: gap,
-                          children: [
-                            for (final card in sensorCards)
-                              SizedBox(width: cardWidth, child: card),
-                          ],
-                        );
-                      }
-                      return Column(
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth >= 600) {
+                      const columns = 2;
+                      const gap = 8.0;
+                      final cardWidth =
+                          (constraints.maxWidth - gap * (columns - 1)) /
+                          columns;
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
                         children: [
-                          for (
-                            var index = 0;
-                            index < sensorCards.length;
-                            index++
-                          ) ...[
-                            if (index > 0) const SizedBox(height: 7),
-                            sensorCards[index],
-                          ],
+                          for (final card in sensorCards)
+                            SizedBox(width: cardWidth, child: card),
                         ],
                       );
-                    },
-                  ),
-                SizedBox(height: compact ? 0 : 4),
+                    }
+                    return Column(
+                      children: [
+                        for (
+                          var index = 0;
+                          index < sensorCards.length;
+                          index++
+                        ) ...[
+                          if (index > 0) const SizedBox(height: 7),
+                          sensorCards[index],
+                        ],
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(height: 4),
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
                     onPressed: _openDetails,
                     style: TextButton.styleFrom(
                       visualDensity: VisualDensity.compact,
-                      padding: EdgeInsets.symmetric(
+                      padding: const EdgeInsets.symmetric(
                         horizontal: 6,
-                        vertical: compact ? 0 : 8,
+                        vertical: 8,
                       ),
                     ),
                     child: const Text('View Details →'),
@@ -376,110 +343,6 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
         child: const Text('Retry'),
       ),
     ],
-  );
-
-  Widget _compactEnergySummary(SensorReading reading) {
-    final presence = reading.presenceAt(
-      _now(),
-      offlineTimeoutMinutes: _offlineTimeoutMinutes,
-    );
-    return _compactSensorRow(
-      icon: Icons.bolt_rounded,
-      title: _energyName(reading),
-      status: _presenceLabel(presence),
-      statusColor: _statusColor(presence),
-      detail:
-          '${_valueWithUnit(reading.voltage, 'V')} · '
-          '${_valueWithUnit(reading.current, 'A')} · '
-          '${_valueWithUnit(reading.power, 'W')} · '
-          '${_valueWithUnit(reading.energy, 'kWh')}',
-      age: reading.updatedLabelAt(_now()).replaceFirst('Updated ', ''),
-    );
-  }
-
-  Widget _compactSwitchSummary(SensorReading reading) {
-    final presence = reading.presenceAt(
-      _now(),
-      offlineTimeoutMinutes: _offlineTimeoutMinutes,
-    );
-    return _compactSensorRow(
-      icon: Icons.toggle_on_rounded,
-      title: 'Toggle',
-      status: _presenceLabel(presence),
-      statusColor: _statusColor(presence),
-      detail: _switchState(reading),
-      age: reading.updatedLabelAt(_now()).replaceFirst('Updated ', ''),
-    );
-  }
-
-  Widget _compactSensorSummary(SensorReading reading) {
-    if (reading.sensorCode.toUpperCase().startsWith('DDS669')) {
-      return _compactEnergySummary(reading);
-    }
-    return _compactSwitchSummary(reading);
-  }
-
-  Widget _compactSensorRow({
-    required IconData icon,
-    required String title,
-    required String status,
-    required Color statusColor,
-    required String detail,
-    required String age,
-  }) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-    decoration: BoxDecoration(
-      color: AppColors.surfaceVariant,
-      borderRadius: BorderRadius.circular(9),
-    ),
-    child: Row(
-      children: [
-        Icon(icon, size: 15, color: AppColors.primary),
-        const SizedBox(width: 5),
-        Flexible(
-          flex: 2,
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          flex: 4,
-          child: Text(
-            detail,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Text(
-          status,
-          style: TextStyle(
-            fontSize: 9,
-            fontWeight: FontWeight.w700,
-            color: statusColor,
-          ),
-        ),
-        const SizedBox(width: 5),
-        Text(
-          age,
-          style: TextStyle(fontSize: 9, color: AppColors.textSecondary),
-        ),
-      ],
-    ),
   );
 
   Widget _energySummary(SensorReading reading) {
@@ -690,9 +553,4 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
         '${local.hour < 12 ? 'AM' : 'PM'}';
   }
 
-  String _compactTime(DateTime dateTime) {
-    final local = dateTime.toLocal();
-    final hour = local.hour % 12 == 0 ? 12 : local.hour % 12;
-    return '$hour:${local.minute.toString().padLeft(2, '0')}';
-  }
 }

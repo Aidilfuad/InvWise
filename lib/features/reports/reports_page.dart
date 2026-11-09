@@ -20,7 +20,7 @@ class ReportsPage extends StatefulWidget {
 }
 
 class _ReportsPageState extends State<ReportsPage> {
-  static const double _maxContentWidth = 900;
+  static const double _maxContentWidth = 1600;
 
   final ReportsService _reportsService = ReportsService();
   final ReportExportService _exportService = const ReportExportService();

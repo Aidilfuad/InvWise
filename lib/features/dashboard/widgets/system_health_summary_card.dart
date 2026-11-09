@@ -4,9 +4,7 @@ import '../../../app/constants/app_colors.dart';
 import '../../../services/offline_cache_service.dart';
 
 class SystemHealthSummaryCard extends StatelessWidget {
-  const SystemHealthSummaryCard({super.key, this.compact = false});
-
-  final bool compact;
+  const SystemHealthSummaryCard({super.key});
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -18,39 +16,32 @@ class SystemHealthSummaryCard extends StatelessWidget {
       return Card(
         margin: EdgeInsets.zero,
         child: Padding(
-          padding: EdgeInsets.all(compact ? 10 : 16),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
               Icon(
                 online ? Icons.health_and_safety_outlined : Icons.cloud_off,
                 color: online ? AppColors.success : AppColors.warning,
               ),
-              SizedBox(width: compact ? 7 : 10),
+              const SizedBox(width: 10),
               Expanded(
-                child: compact
-                    ? Text(
-                        online
-                            ? 'System Healthy'
-                            : 'Sync ${cache.syncState.name}',
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      )
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'System Health',
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                          Text(
-                            online
-                                ? 'Data synchronization is healthy'
-                                : 'Sync status: ${cache.syncState.name}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'System Health',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
+                    ),
+                    Text(
+                      online
+                          ? 'Data synchronization is healthy'
+                          : 'Sync status: ${cache.syncState.name}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ),
               if (lastSync != null)
                 Text(

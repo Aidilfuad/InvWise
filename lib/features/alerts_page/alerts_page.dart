@@ -87,7 +87,7 @@ class _AlertsPageState extends State<AlertsPage> {
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 600),
+            constraints: const BoxConstraints(maxWidth: 1600),
             child: ListView(
               padding: EdgeInsets.all(AppSpacing.lg),
               children: [

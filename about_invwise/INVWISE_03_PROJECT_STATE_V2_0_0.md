@@ -294,8 +294,6 @@ Supports:
 
 ```text
 Full Dashboard
-
-Compact Dashboard
 ```
 
 ---
@@ -442,34 +440,12 @@ System Health
 
 ---
 
-# COMPACT DASHBOARD
-
-Purpose:
-
-```text
-Daily Operations
-```
-
-Contains:
-
-```text
-Condensed Information
-
-Reduced Whitespace
-
-Faster Navigation
-```
-
----
-
 # DASHBOARD CHANGES MADE IN V2.0
 
 Added:
 
 ```text
-Full Dashboard Mode
-
-Compact Dashboard Mode
+Full Dashboard
 ```
 
 Removed:

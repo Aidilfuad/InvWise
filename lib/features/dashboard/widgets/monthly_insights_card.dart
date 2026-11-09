@@ -9,19 +9,17 @@ class MonthlyInsightsCard extends StatelessWidget {
     required this.month,
     required this.range,
     required this.insights,
-    this.compact = false,
   });
 
   final String month;
   final String range;
   final List<InsightStat> insights;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.all(compact ? 10 : 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
@@ -54,9 +52,9 @@ class MonthlyInsightsCard extends StatelessWidget {
               ),
             ],
           ),
-          SizedBox(height: compact ? 8 : 18),
+          const SizedBox(height: 18),
           for (var i = 0; i < insights.length; i++) ...[
-            if (i > 0) SizedBox(height: compact ? 6 : 18),
+            if (i > 0) const SizedBox(height: 18),
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -64,43 +62,40 @@ class MonthlyInsightsCard extends StatelessWidget {
                   child: Text(
                     insights[i].label,
                     style: TextStyle(
-                      fontSize: compact ? 11 : 13,
+                      fontSize: 13,
                       fontWeight: FontWeight.w600,
                       color: AppColors.textPrimary,
                     ),
                   ),
                 ),
-                if (!compact) ...[
-                  Text(
-                    insights[i].delta,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
+                Text(
+                  insights[i].delta,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
                   ),
-                  const SizedBox(width: 14),
-                ],
+                ),
+                const SizedBox(width: 14),
                 Text(
                   insights[i].value,
                   style: TextStyle(
-                    fontSize: compact ? 15 : 22,
+                    fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
                   ),
                 ),
               ],
             ),
-            if (!compact) const SizedBox(height: 8),
-            if (!compact)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: insights[i].progress,
-                  minHeight: 5,
-                  backgroundColor: AppColors.primary.withAlpha(30),
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
-                ),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: insights[i].progress,
+                minHeight: 5,
+                backgroundColor: AppColors.primary.withAlpha(30),
+                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
               ),
+            ),
           ],
         ],
       ),

@@ -1240,3 +1240,27 @@ END OF DOCUMENT
 INVWISE_07_SECURITY_ARCHITECTURE.md
 
 Version 2.0.0
+
+---
+
+# INVENTORY DELETION SECURITY UPDATE — 2026-11-09
+
+The archive and restore RPCs authorize an active Inventory Administrator or
+Super Admin. Permanent deletion and Force Delete require an active Super Admin
+inside the `SECURITY DEFINER` database function; client-side visibility and
+permissions are not trusted as the enforcement boundary.
+
+The archived-item UI requires the operator to type `DELETE` and pass the
+existing password re-confirmation flow. The safe RPC path blocks deletion when
+`stock_movements` or `stock_counts` reference the item, reports both counts, and
+retains existing activity history. Force Delete is an explicit boolean mode
+and removes the item’s stock movements, levels, counts, and item/movement
+`activity_logs` rows. The transaction writes a new deletion audit event with
+the operator, item ID, mode, and removal counts; PostgreSQL rolls back the
+entire operation on failure.
+
+Force Delete is high-risk and irreversible. Use it only after confirming
+business retention requirements and approval. Prefer archiving whenever
+historical reporting requirements are unclear. The legacy singular
+`activity_log` table is not purged by this RPC; its current foreign keys set
+item/movement references to null, retaining that legacy audit record.

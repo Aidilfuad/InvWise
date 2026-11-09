@@ -1003,3 +1003,38 @@ INVWISE_17_FINAL_SYSTEM_AUDIT_REPORT.md
 Version 2.0.0
 
 FINAL DOCUMENT IN THE INVWISE DOCUMENTATION SUITE
+
+---
+
+# SUPERSEDING IMPLEMENTATION AUDIT — 2026-11-09
+
+This addendum supersedes earlier release-update, inventory deletion,
+dashboard-mode, layout, and readiness findings in this report.
+
+| Area | Updated score | Current finding |
+|---|---:|---|
+| GitHub Update System | 9/10 | Latest/history have independent one-hour caches, required headers, friendly 403/429 handling, and retained parsing/dialog behavior. Automated tests cover the rate-limit path. |
+| Inventory Module | 8/10 | Safe and explicit Force Delete contracts are implemented with database role enforcement, typed/password confirmations, and a retained deletion audit. Staging and production migration execution remain pending. |
+| Authenticated Layout | 8/10 | A shared max-1600 responsive page viewport is implemented and tested at phone/tablet/desktop sizes. Physical-device visual QA remains. |
+| Dashboard | 9/10 | The full dashboard is the only implementation; its former preference service, settings toggle, storage export/import, and alternate-layout tests are removed. |
+
+## Updated Risks and Readiness
+
+**Readiness is conditional, not a claim that the production database has been
+changed.** The active production schema was queried read-only: the expected
+`item_id` columns and restrictive foreign keys for `stock_movements`,
+`stock_levels`, and `stock_counts` are present. The legacy singular
+`activity_log` keeps its audit rows by setting old item/movement references to
+null. The forward migration has not been applied.
+
+The full `flutter analyze` run completed with no issues and all 81 tests in
+`flutter test` passed; the running Flutter app hot-restarted without runtime
+errors. Before a production-ready release: test both RPC modes and
+authorization against staging data; reconcile migration history; apply the
+forward migration; confirm PostgREST has loaded both RPC signatures; and
+perform responsive visual checks on real mobile/tablet devices. Force Delete
+remains a high-impact, irreversible operation and requires retention approval.
+
+Technical debt reduced: obsolete dashboard preference code and tests were
+removed. Remaining release risks: migration rollout, database behavior under
+real related data, and physical-device layout verification.

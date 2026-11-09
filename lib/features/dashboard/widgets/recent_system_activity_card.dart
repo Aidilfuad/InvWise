@@ -7,16 +7,14 @@ class RecentSystemActivityCard extends StatelessWidget {
   const RecentSystemActivityCard({
     super.key,
     required this.entries,
-    this.compact = false,
   });
 
   final List<SystemActivityEntry> entries;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) => Container(
     width: double.infinity,
-    padding: EdgeInsets.all(compact ? 9 : 14),
+    padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(14),
@@ -34,11 +32,11 @@ class RecentSystemActivityCard extends StatelessWidget {
           ),
         for (var index = 0; index < entries.length; index++) ...[
           if (index > 0) ...[
-            SizedBox(height: compact ? 5 : 10),
+            const SizedBox(height: 10),
             Divider(height: 1, color: AppColors.border),
-            SizedBox(height: compact ? 5 : 10),
+            const SizedBox(height: 10),
           ],
-          _RecentActivityRow(entry: entries[index], compact: compact),
+          _RecentActivityRow(entry: entries[index]),
         ],
       ],
     ),
@@ -46,10 +44,9 @@ class RecentSystemActivityCard extends StatelessWidget {
 }
 
 class _RecentActivityRow extends StatelessWidget {
-  const _RecentActivityRow({required this.entry, required this.compact});
+  const _RecentActivityRow({required this.entry});
 
   final SystemActivityEntry entry;
-  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -64,55 +61,38 @@ class _RecentActivityRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(Icons.circle, size: 8, color: categoryColor),
-        SizedBox(width: compact ? 6 : 10),
+        const SizedBox(width: 10),
         Expanded(
-          child: compact
-              ? Text(
-                  '${entry.action} · ${entry.actorName}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${entry.action} · ${entry.actorName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${entry.category} · ${entry.description}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${entry.action} · ${entry.actorName}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: AppColors.textPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${entry.category} · ${entry.description}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
+              ),
+            ],
+          ),
         ),
         const SizedBox(width: 8),
         Text(
-          compact
-              ? '${date.hour % 12 == 0 ? 12 : date.hour % 12}:'
-                    '${date.minute.toString().padLeft(2, '0')}'
-              : '${date.hour.toString().padLeft(2, '0')}:'
-                    '${date.minute.toString().padLeft(2, '0')}',
+          '${date.hour.toString().padLeft(2, '0')}:'
+          '${date.minute.toString().padLeft(2, '0')}',
           style: TextStyle(
             color: AppColors.textSecondary,
-            fontSize: compact ? 9 : 10,
+            fontSize: 10,
           ),
         ),
       ],

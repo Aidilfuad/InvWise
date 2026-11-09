@@ -12,6 +12,7 @@ import 'services/login_preferences_service.dart';
 import 'services/offline_cache_service.dart';
 import 'services/app_update_service.dart';
 import 'features/settings/widgets/update_available_dialog.dart';
+import 'widgets/authenticated_page_layout.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,6 +43,10 @@ class _InvWiseAppState extends State<InvWiseApp> {
   StreamSubscription<AuthState>? _authSubscription;
   bool _registrationSetupOpen = false;
   bool _updateCheckStarted = false;
+  late final AuthenticatedPageRouteObserver _routeObserver =
+      AuthenticatedPageRouteObserver(
+        initialAuthenticationRoute: !widget.shouldOpenDashboard,
+      );
 
   @override
   void initState() {
@@ -120,6 +125,7 @@ class _InvWiseAppState extends State<InvWiseApp> {
   @override
   void dispose() {
     _authSubscription?.cancel();
+    _routeObserver.dispose();
     super.dispose();
   }
 
@@ -129,6 +135,15 @@ class _InvWiseAppState extends State<InvWiseApp> {
       animation: AppThemeController.instance,
       builder: (context, child) => MaterialApp(
         navigatorKey: _navigatorKey,
+        navigatorObservers: [_routeObserver],
+        builder: (context, navigator) => ValueListenableBuilder<bool>(
+          valueListenable: _routeObserver.isAuthenticationRoute,
+          child: navigator,
+          builder: (context, isAuthenticationRoute, child) =>
+              isAuthenticationRoute
+              ? child!
+              : AuthenticatedPageLayout(child: child!),
+        ),
         title: 'InvWise',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,

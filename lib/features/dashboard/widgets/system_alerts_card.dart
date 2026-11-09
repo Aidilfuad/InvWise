@@ -7,10 +7,9 @@ import '../../../services/sensor_monitoring_service.dart';
 import '../telemetry_alerts_page.dart';
 
 class SystemAlertsCard extends StatefulWidget {
-  const SystemAlertsCard({super.key, this.service, this.compact = false});
+  const SystemAlertsCard({super.key, this.service});
 
   final SensorMonitoringService? service;
-  final bool compact;
 
   @override
   State<SystemAlertsCard> createState() => _SystemAlertsCardState();
@@ -72,10 +71,7 @@ class _SystemAlertsCardState extends State<SystemAlertsCard> {
       },
       borderRadius: BorderRadius.circular(14),
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: widget.compact ? 10 : 14,
-          vertical: widget.compact ? 7 : 11,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         decoration: BoxDecoration(
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),

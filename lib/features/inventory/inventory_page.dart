@@ -45,7 +45,7 @@ class InventoryPage extends StatefulWidget {
 }
 
 class _InventoryPageState extends State<InventoryPage> {
-  static const double _maxContentWidth = 1120;
+  static const double _maxContentWidth = 1600;
   static const double _fabClearance = 96;
 
   final _searchController = TextEditingController();
@@ -269,50 +269,73 @@ class _InventoryPageState extends State<InventoryPage> {
   Future<void> _deleteArchivedItem(InventoryItem item) async {
     if (!_roleAccess.allows(AppPermission.bulkDeleteInventory)) return;
     final confirmation = TextEditingController();
-    final confirmed = await showDialog<bool>(
+    final confirmed = await showDialog<bool?>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Permanently delete item?'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('This cannot be undone. Delete ${item.name} (${item.sku})?'),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: confirmation,
-              decoration: const InputDecoration(
-                labelText: 'Type DELETE to confirm',
-                border: OutlineInputBorder(),
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Permanently delete item?'),
+          scrollable: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'This cannot be undone. Delete ${item.name} (${item.sku})? '
+                'Safe delete preserves existing activity history and is '
+                'blocked when stock movements or stock counts exist.',
               ),
+              const SizedBox(height: AppSpacing.sm),
+              const Text(
+                'Force Delete also removes this item\'s stock movements, '
+                'stock counts, current stock levels, and related activity '
+                'history.',
+              ),
+              const SizedBox(height: AppSpacing.md),
+              TextField(
+                controller: confirmation,
+                onChanged: (_) => setDialogState(() {}),
+                decoration: const InputDecoration(
+                  labelText: 'Type DELETE to confirm',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            OutlinedButton(
+              onPressed: confirmation.text.trim() == 'DELETE'
+                  ? () => Navigator.pop(dialogContext, false)
+                  : null,
+              child: const Text('Delete Safely'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: confirmation.text.trim() == 'DELETE'
+                  ? () => Navigator.pop(dialogContext, true)
+                  : null,
+              child: const Text('Force Delete'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.pop(
-              dialogContext,
-              confirmation.text.trim() == 'DELETE',
-            ),
-            child: const Text('Continue'),
-          ),
-        ],
       ),
     );
     confirmation.dispose();
-    if (confirmed != true || !mounted) return;
+    if (confirmed == null || !mounted) return;
     if (!await PasswordConfirmationService.confirm(
       context,
-      action: 'permanently delete this item',
+      action: confirmed
+          ? 'force delete this item and its stock and activity history'
+          : 'permanently delete this item',
     )) {
       return;
     }
-    final failures = await _service.deleteItemsPermanently([item.id]);
+    final failures = await _service.deleteItemsPermanently([
+      item.id,
+    ], forceDelete: confirmed);
     if (!mounted) return;
     if (failures.isNotEmpty) {
       _showMessage(failures[item.id]!);
