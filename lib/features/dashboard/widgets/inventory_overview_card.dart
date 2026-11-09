@@ -115,7 +115,7 @@ class InventoryOverviewCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Total Stock Quantity',
+                        'Total Asset Value',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppColors.textSecondary,
@@ -123,7 +123,7 @@ class InventoryOverviewCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        summary.totalStockQuantityLabel,
+                        summary.totalAssetValueLabel,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

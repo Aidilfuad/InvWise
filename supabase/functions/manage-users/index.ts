@@ -24,6 +24,8 @@ type UserProfile = {
   avatar_url: string | null;
   role: UserRole;
   is_active: boolean;
+  is_deletion_pending: boolean;
+  deletion_operation_id: string | null;
   last_login_at: string | null;
 };
 
@@ -43,6 +45,34 @@ const isUuid = (value: unknown): value is string =>
 
 const isRole = (value: unknown): value is UserRole =>
   typeof value === "string" && roles.includes(value as UserRole);
+
+const isNotFound = (error: unknown) =>
+  error instanceof Error && "status" in error && error.status === 404;
+
+const hasRecentPasswordAuthentication = (
+  accessToken: string,
+  userId: string,
+) => {
+  try {
+    const encodedClaims = accessToken.split(".")[1];
+    if (!encodedClaims) return false;
+    const normalized = encodedClaims.replace(/-/g, "+").replace(/_/g, "/");
+    const claims = JSON.parse(
+      atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=")),
+    );
+    if (claims.sub !== userId || !Array.isArray(claims.amr)) return false;
+    const now = Date.now();
+    return claims.amr.some(
+      (method: { method?: string; timestamp?: number }) =>
+        method.method === "password" &&
+        typeof method.timestamp === "number" &&
+        method.timestamp * 1000 >= now - 5 * 60 * 1000 &&
+        method.timestamp * 1000 <= now + 30 * 1000,
+    );
+  } catch {
+    return false;
+  }
+};
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -114,7 +144,8 @@ Deno.serve(async (request) => {
           .from("profiles")
           .select(
             "id, auth_user_id, employee_id, full_name, email, role, " +
-              "avatar_url, is_active, last_login_at",
+              "avatar_url, is_active, is_deletion_pending, " +
+              "deletion_operation_id, last_login_at",
           )
           .order("full_name", { ascending: true })
           .range(offset, offset + pageSize - 1);
@@ -132,6 +163,8 @@ Deno.serve(async (request) => {
           avatar_url: user.avatar_url,
           role: user.role,
           is_active: user.is_active,
+          is_deletion_pending: user.is_deletion_pending,
+          deletion_operation_id: user.deletion_operation_id,
           last_login_at: user.last_login_at,
           is_self: user.auth_user_id === authData.user.id,
         })),
@@ -144,12 +177,102 @@ Deno.serve(async (request) => {
 
     const { data: target, error: targetError } = await admin
       .from("profiles")
-      .select("id, auth_user_id, role, is_active")
+      .select(
+        "id, auth_user_id, role, is_active, is_deletion_pending, " +
+          "deletion_operation_id",
+      )
       .eq("id", body.user_id)
       .maybeSingle();
     if (targetError) throw targetError;
     if (!target || !target.auth_user_id) {
       return jsonResponse({ error: "The user account was not found." }, 404);
+    }
+
+    if (action === "permanent_delete") {
+      if (target.auth_user_id === authData.user.id) {
+        return jsonResponse(
+          { error: "You cannot permanently delete your own account." },
+          403,
+        );
+      }
+      if (target.is_active) {
+        return jsonResponse(
+          { error: "Deactivate the account before permanently deleting it." },
+          409,
+        );
+      }
+      if (!hasRecentPasswordAuthentication(accessToken, authData.user.id)) {
+        return jsonResponse(
+          { error: "Confirm your password again before permanently deleting a user." },
+          401,
+        );
+      }
+
+      let operationId: string;
+      let authUserId = target.auth_user_id;
+      const alreadyPending = target.is_deletion_pending === true;
+      if (alreadyPending && typeof target.deletion_operation_id === "string") {
+        operationId = target.deletion_operation_id;
+      } else {
+        const { data: prepared, error: prepareError } = await admin.rpc(
+          "prepare_permanent_user_deletion",
+          {
+            p_actor_auth_user_id: authData.user.id,
+            p_target_profile_id: target.id,
+          },
+        );
+        if (prepareError) throw prepareError;
+        if (!prepared || typeof prepared !== "object") {
+          throw new Error("Unable to prepare permanent user deletion.");
+        }
+        operationId = prepared.operation_id as string;
+        authUserId = prepared.auth_user_id as string;
+      }
+
+      try {
+        const { data: authAccount, error: lookupError } =
+          await admin.auth.admin.getUserById(authUserId);
+        if (lookupError && !isNotFound(lookupError)) throw lookupError;
+        if (!lookupError && authAccount.user) {
+          const { error: deleteError } = await admin.auth.admin.deleteUser(
+            authUserId,
+          );
+          if (deleteError) {
+            const { error: verifyError } = await admin.auth.admin
+              .getUserById(authUserId);
+            if (!isNotFound(verifyError)) throw deleteError;
+          }
+        }
+      } catch (deleteError) {
+        if (!alreadyPending) {
+          const { error: cancelError } = await admin.rpc(
+            "cancel_permanent_user_deletion",
+            { p_operation_id: operationId },
+          );
+          if (cancelError) {
+            throw new Error(
+              `Auth account deletion failed: ${messageOf(deleteError)}. ` +
+                `Deletion reservation cleanup failed: ${cancelError.message}`,
+            );
+          }
+        }
+        throw deleteError;
+      }
+
+      const { error: finishError } = await admin.rpc(
+        "finish_permanent_user_deletion",
+        { p_operation_id: operationId },
+      );
+      if (finishError) {
+        return jsonResponse({
+          error:
+            "The Auth account was deleted, but profile cleanup and audit " +
+            `finalization are pending (operation ${operationId}). Contact ` +
+            "a Super Admin to complete the operation.",
+          operation_id: operationId,
+        }, 500);
+      }
+      return jsonResponse({ deleted: true });
     }
 
     if (action === "change_role") {
@@ -167,6 +290,12 @@ Deno.serve(async (request) => {
     }
 
     if (action === "set_active") {
+      if (target.is_deletion_pending) {
+        return jsonResponse(
+          { error: "User deletion is already in progress." },
+          409,
+        );
+      }
       if (typeof body.is_active !== "boolean") {
         return jsonResponse({ error: "An is_active boolean is required." }, 400);
       }

@@ -30,17 +30,13 @@ class DashboardHomeHeader extends StatelessWidget {
       children: [
         Row(
           children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                Icons.inventory_2_rounded,
-                size: 18,
-                color: AppColors.textOnPrimary,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset(
+                'assets/logo/invwise_logo.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.cover,
               ),
             ),
             const SizedBox(width: 10),
@@ -54,41 +50,17 @@ class DashboardHomeHeader extends StatelessWidget {
             ),
             const Spacer(),
             InkWell(
-              onTap: onNotificationsTap,
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Icon(
-                      Icons.notifications_none_rounded,
-                      size: 22,
-                      color: AppColors.textPrimary,
-                    ),
-                    Positioned(
-                      top: 11,
-                      right: 12,
-                      child: Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: AppColors.danger,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.surface,
-                            width: 1.5,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+              onTap: onProfileTap,
+              borderRadius: BorderRadius.circular(14),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: ProfileAvatar(
+                  name: name,
+                  avatarUrl: avatarUrl,
+                  size: 48,
+                  backgroundColor: AppColors.primaryContainer,
+                  foregroundColor: AppColors.primary,
+                  fontSize: 14,
                 ),
               ),
             ),
@@ -133,17 +105,41 @@ class DashboardHomeHeader extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             InkWell(
-              onTap: onProfileTap,
-              borderRadius: BorderRadius.circular(14),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: ProfileAvatar(
-                  name: name,
-                  avatarUrl: avatarUrl,
-                  size: 48,
-                  backgroundColor: AppColors.primaryContainer,
-                  foregroundColor: AppColors.primary,
-                  fontSize: 14,
+              onTap: onNotificationsTap,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.notifications_none_rounded,
+                      size: 22,
+                      color: AppColors.textPrimary,
+                    ),
+                    Positioned(
+                      top: 11,
+                      right: 12,
+                      child: Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: AppColors.danger,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.surface,
+                            width: 1.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

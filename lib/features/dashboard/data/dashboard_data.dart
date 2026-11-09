@@ -9,6 +9,7 @@ class DashboardInventorySummary {
   const DashboardInventorySummary({
     required this.totalItems,
     required this.totalStockQuantity,
+    this.totalAssetValue = 0,
     required this.lowStockItems,
     required this.outOfStockItems,
     required this.warehouseLocations,
@@ -18,6 +19,7 @@ class DashboardInventorySummary {
 
   final int totalItems;
   final double totalStockQuantity;
+  final double totalAssetValue;
   final int lowStockItems;
   final int outOfStockItems;
   final int warehouseLocations;
@@ -111,6 +113,7 @@ class DashboardData {
       summary: DashboardInventorySummary(
         totalItems: summary['totalItems'] as int,
         totalStockQuantity: (summary['totalStockQuantity'] as num).toDouble(),
+        totalAssetValue: (summary['totalAssetValue'] as num?)?.toDouble() ?? 0,
         lowStockItems: summary['lowStockItems'] as int,
         outOfStockItems: summary['outOfStockItems'] as int,
         warehouseLocations: summary['warehouseLocations'] as int,
@@ -145,6 +148,7 @@ class DashboardData {
     'summary': {
       'totalItems': summary.totalItems,
       'totalStockQuantity': summary.totalStockQuantity,
+      'totalAssetValue': summary.totalAssetValue,
       'lowStockItems': summary.lowStockItems,
       'outOfStockItems': summary.outOfStockItems,
       'warehouseLocations': summary.warehouseLocations,
@@ -213,6 +217,15 @@ class DashboardData {
   ];
 
   String get totalItemsLabel => _formatInteger(summary.totalItems);
+  String get totalAssetValueLabel {
+    final amount = summary.totalAssetValue.toStringAsFixed(2).split('.');
+    final groupedAmount = amount.first.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+      (_) => ',',
+    );
+    return 'RM $groupedAmount.${amount.last}';
+  }
+
   String get totalStockQuantityLabel =>
       _formatQuantity(summary.totalStockQuantity);
   double get healthyPercent {

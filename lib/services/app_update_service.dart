@@ -9,11 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'offline_cache_service.dart';
 import 'system_activity_log_service.dart';
 
-const String currentAppVersion = String.fromEnvironment(
-  'APP_VERSION',
-  defaultValue: '2.0.0',
-);
-
 const String githubReleaseApi =
     'https://api.github.com/repos/Aidilfuad/InvWise/releases';
 
@@ -213,16 +208,6 @@ class AppUpdateService {
 
   static Future<String> installedVersion() async =>
       (await PackageInfo.fromPlatform()).version;
-
-  static Future<String> buildVersion() async {
-    final info = await PackageInfo.fromPlatform();
-    return info.buildNumber.isEmpty ? info.version : info.buildNumber;
-  }
-
-  static Future<String> buildDate() async {
-    final date = const String.fromEnvironment('BUILD_DATE');
-    return date.isEmpty ? 'Not supplied by build' : date;
-  }
 
   Future<AppVersionRelease?> latestRelease() async {
     final response = await _githubJson(

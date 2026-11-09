@@ -11,7 +11,7 @@ import 'widgets/login_brand_header.dart';
 import 'widgets/login_field.dart';
 import 'widgets/login_options_row.dart';
 
-/// Login screen with Supabase email/password authentication.
+/// Login screen with Employee ID or email and Supabase password authentication.
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -20,7 +20,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _employeeIdController = TextEditingController();
+  final _loginIdentifierController = TextEditingController();
   final _passwordController = TextEditingController();
   final _authService = AuthService();
 
@@ -31,13 +31,15 @@ class _LoginPageState extends State<LoginPage> {
   @override
   void initState() {
     super.initState();
-    _employeeIdController.text =
-        LoginPreferencesService.instance.rememberedEmail ?? '';
+    _loginIdentifierController.text =
+        LoginPreferencesService.instance.rememberedEmployeeId ??
+        LoginPreferencesService.instance.rememberedEmail ??
+        '';
   }
 
   @override
   void dispose() {
-    _employeeIdController.dispose();
+    _loginIdentifierController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
@@ -48,9 +50,9 @@ class _LoginPageState extends State<LoginPage> {
     setState(() => _isSigningIn = true);
 
     try {
-      debugPrint('[LOGIN-DEBUG] Calling AuthService.signInWithEmail');
-      final user = await _authService.signInWithEmail(
-        email: _employeeIdController.text.trim(),
+      debugPrint('[LOGIN-DEBUG] Calling AuthService.signInWithIdentifier');
+      final user = await _authService.signInWithIdentifier(
+        identifier: _loginIdentifierController.text.trim(),
         password: _passwordController.text,
         rememberMe: _rememberMe,
       );
@@ -120,8 +122,8 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _onForgotPassword() async {
     final controller = TextEditingController(
-      text: _employeeIdController.text.contains('@')
-          ? _employeeIdController.text.trim()
+      text: _loginIdentifierController.text.contains('@')
+          ? _loginIdentifierController.text.trim()
           : '',
     );
     final formKey = GlobalKey<FormState>();
@@ -361,9 +363,9 @@ class _LoginPageState extends State<LoginPage> {
           ),
           const SizedBox(height: 16),
           LoginField(
-            label: 'Email',
-            hint: 'Enter your email',
-            controller: _employeeIdController,
+            label: 'Employee ID or Email',
+            hint: 'Enter your Employee ID or email',
+            controller: _loginIdentifierController,
             textInputAction: TextInputAction.next,
           ),
           const SizedBox(height: 16),

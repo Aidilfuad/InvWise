@@ -7,16 +7,16 @@ import '../../services/reports_service.dart';
 import '../../services/sensor_monitoring_service.dart';
 import '../../services/telemetry_csv_export_service.dart';
 
-class TelemetryAlertsPage extends StatefulWidget {
-  const TelemetryAlertsPage({super.key, this.service});
+class HardwareAlertsPage extends StatefulWidget {
+  const HardwareAlertsPage({super.key, this.service});
 
   final SensorMonitoringService? service;
 
   @override
-  State<TelemetryAlertsPage> createState() => _TelemetryAlertsPageState();
+  State<HardwareAlertsPage> createState() => _HardwareAlertsPageState();
 }
 
-class _TelemetryAlertsPageState extends State<TelemetryAlertsPage> {
+class _HardwareAlertsPageState extends State<HardwareAlertsPage> {
   late final SensorMonitoringService _service =
       widget.service ?? SensorMonitoringService();
   List<TelemetryAlert> _alerts = const [];
@@ -47,10 +47,10 @@ class _TelemetryAlertsPageState extends State<TelemetryAlertsPage> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = 'Unable to load telemetry alerts';
+        _errorMessage = 'Unable to load Hardware Alerts';
         _isLoading = false;
       });
-      debugPrint('Telemetry alerts load failed: $error');
+      debugPrint('Hardware Alerts load failed: $error');
     }
   }
 
@@ -72,7 +72,7 @@ class _TelemetryAlertsPageState extends State<TelemetryAlertsPage> {
       await const TelemetryCsvExportService().export(
         context: context,
         report: ReportTable(
-          title: 'Telemetry Alerts',
+          title: 'Hardware Alerts',
           headers: const [
             'Timestamp',
             'Sensor',
@@ -84,10 +84,10 @@ class _TelemetryAlertsPageState extends State<TelemetryAlertsPage> {
           rows: rows,
           metrics: const [],
         ),
-        fileName: 'invwise_telemetry_alerts.csv',
+        fileName: 'invwise_hardware_alerts.csv',
       );
     } catch (error) {
-      if (mounted) _showMessage('Unable to export telemetry alerts: $error');
+      if (mounted) _showMessage('Unable to export Hardware Alerts: $error');
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -102,7 +102,7 @@ class _TelemetryAlertsPageState extends State<TelemetryAlertsPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Telemetry Alerts'),
+      title: const Text('Hardware Alerts'),
       actions: [
         IconButton(
           tooltip: 'Export CSV',
@@ -223,7 +223,7 @@ class _EmptyState extends StatelessWidget {
       children: [
         Icon(Icons.check_circle_outline, size: 44, color: AppColors.success),
         const SizedBox(height: 10),
-        const Text('No Active Alerts'),
+        const Text('No Active Hardware Alerts'),
       ],
     ),
   );

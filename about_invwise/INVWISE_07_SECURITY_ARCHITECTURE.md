@@ -874,25 +874,21 @@ High
 
 # EMPLOYEE LOGIN SECURITY
 
-Current Status:
+Implementation:
 
 ```text
-NOT IMPLEMENTED
+The Employee ID resolver is a narrowly scoped SECURITY DEFINER RPC.
+It returns only the linked Auth email for one active profile.
+Supabase Auth still verifies the password and issues tokens.
 ```
 
-Function:
+Security consideration:
 
 ```text
-login-with-employee-id
+The pre-authentication RPC can be queried to enumerate IDs and linked emails.
+The client uses generic credential failures; monitor and rate-limit requests
+at the API edge where available.
 ```
-
-is currently only:
-
-```text
-Starter Template Code
-```
-
-and should not be considered a login system. 【3-85f4bf】【1-87c6a8】
 
 ---
 

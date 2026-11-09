@@ -18,7 +18,6 @@ class AuthenticatedPageRouteObserver extends NavigatorObserver {
     '/user-management',
     '/activity-logs',
     '/system/version',
-    '/system/information',
     '/settings/backup',
   };
 

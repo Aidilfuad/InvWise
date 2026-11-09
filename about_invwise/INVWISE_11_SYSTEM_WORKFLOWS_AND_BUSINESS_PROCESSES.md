@@ -492,7 +492,7 @@ Telemetry Summary
 
 Recent Activity
 
-System Alerts
+Hardware Alerts
 
 Quick Actions
 ```
@@ -1404,7 +1404,7 @@ Super Admin Must Exist
 ## Rule 6
 
 ```text
-Telemetry Alerts
+Hardware Alerts
 Are Threshold Driven
 ```
 

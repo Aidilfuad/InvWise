@@ -729,26 +729,6 @@ Medium
 
 # TECHNICAL DEBT CATEGORY 3
 
-## Employee Login Endpoint
-
-Function:
-
-```text
-login-with-employee-id
-```
-
-exists but discovery classified it as starter code rather than a complete login implementation. 【6-deb48d】【2-f622a2】
-
-Priority:
-
-```text
-Medium
-```
-
----
-
-# TECHNICAL DEBT CATEGORY 4
-
 ## Telemetry Expansion Mismatch
 
 Database supports:
@@ -794,7 +774,7 @@ InfoGridCard
 
 SensorMonitoringCardState
 
-SystemAlertsCardState
+HardwareAlertsCardState
 ```
 
 and additional widget helper classes. 【2-f622a2】

@@ -760,7 +760,7 @@ Telemetry Analytics
 
 Telemetry History
 
-Telemetry Alerts
+Hardware Alerts
 
 Telemetry Energy Reports
 ```

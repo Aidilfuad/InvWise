@@ -55,7 +55,6 @@ Settings
 ├── Security
 ├── User Management
 ├── Registration Approvals
-├── System Information
 └── Version Information
 
 Telemetry
@@ -128,7 +127,7 @@ LoginPreferencesService
 Features:
 
 ```text
-Email Login
+Employee ID or Email Login
 
 Password Login
 
@@ -342,24 +341,30 @@ OfflineCacheService
 ```text
 Dashboard Header
 
-KPI Grid
-
 Inventory Overview
 
-Inventory Health
-
-System Alerts
-
-Recent Activity
-
-Recent System Activity
+KPI Grid
 
 Quick Actions
 
+Attention Required
+
+Inventory Health
+
 Sensor Monitoring
 
-Monthly Insights
+Hardware Alerts
+
+Recent Activity
+
+Recent Stock Movements
+
+Live Inventory Summary
 ```
+
+Inventory Overview shows total items and total asset value. Asset value is
+calculated by `DashboardService` from each active item's aggregated quantity
+multiplied by its `unit_price`, and displayed in Malaysian Ringgit.
 
 ---
 
@@ -483,7 +488,7 @@ DDS669 Data
 
 ---
 
-## TelemetryAlertsPage
+## HardwareAlertsPage
 
 Purpose:
 
@@ -1038,13 +1043,9 @@ LoginPreferencesService
 ```text
 Security
 
-Language
-
 User Management
 
 Registration Approvals
-
-System Information
 
 Currency Settings
 
@@ -1161,45 +1162,13 @@ Source:
 GitHub Releases
 ```
 
+Installed version:
+
+```text
+PackageInfo.fromPlatform()
+```
+
 ---
-
-## SystemInformationPage
-
-Route:
-
-```text
-/system/information
-```
-
-Purpose:
-
-```text
-System Diagnostics
-```
-
-Services:
-
-```text
-AppUpdateService
-
-ProfileService
-
-OfflineCacheService
-
-SensorMonitoringService
-```
-
-Displays:
-
-```text
-Application Version
-
-Cache Status
-
-Telemetry Status
-
-System Health
-```
 
 ---
 
@@ -1334,8 +1303,18 @@ Activation
 
 Deactivation
 
+Restore Deactivated Users
+
+Permanent Delete Deactivated Users
+
 User Search
 ```
+
+Permanent deletion is limited to deactivated accounts and requires the acting
+Super Admin to type `DELETE`, confirm their password, and accept a final warning.
+The database blocks self-deletion and deletion of the last Super Admin or Super
+User, records the action in `activity_logs`, and detaches historical records
+rather than deleting audit history.
 
 ---
 
@@ -1371,29 +1350,8 @@ notify-support-request
 
 ---
 
-# LANGUAGE MODULE
-
----
-
-## LanguagePage
-
-Purpose:
-
-```text
-Language Management
-```
-
-Stores:
-
-```text
-User Language Preference
-```
-
-Supported By:
-
-```text
-UserSettingsService
-```
+The Language selection page is temporarily unavailable. The saved locale
+continues to be loaded so the application's current language remains unchanged.
 
 ---
 

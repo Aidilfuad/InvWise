@@ -1103,7 +1103,7 @@ Stores:
 ```text
 Theme
 
-Language
+Saved locale preference (retained for current locale and backup compatibility)
 
 Currency
 ```
@@ -1286,15 +1286,15 @@ Support Notifications
 
 ---
 
-## login-with-employee-id
+## Employee ID Login Resolver
 
 Status:
 
-```text
-Not Implemented
-```
+Implemented with `public.resolve_login_email_by_employee_id(text)`.
 
-Current code is a starter template. 【4-e4b71d】【5-b6b67c】
+The resolver returns the Auth email for one active profile matching the
+provided Employee ID. `AuthService` then uses Supabase email/password auth.
+Unknown or ambiguous IDs return no email.
 
 ---
 

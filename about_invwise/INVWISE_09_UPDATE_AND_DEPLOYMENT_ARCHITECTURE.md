@@ -180,8 +180,6 @@ manage-users
 notify-support-request
 
 provision-approved-registration
-
-login-with-employee-id
 ```
 
 【6-92bc19】
@@ -702,37 +700,6 @@ AppUpdateService
 
 ---
 
-# SYSTEM INFORMATION SCREEN
-
----
-
-## SystemInformationPage
-
-Route:
-
-```text
-/system/information
-```
-
-Displays:
-
-```text
-System Version
-
-Application Details
-
-Telemetry Status
-
-Cache Information
-```
-
-Uses:
-
-```text
-AppUpdateService
-```
-
-【8-7865e6】
 
 ---
 

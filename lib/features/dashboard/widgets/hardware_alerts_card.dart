@@ -4,18 +4,18 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../services/sensor_monitoring_service.dart';
-import '../telemetry_alerts_page.dart';
+import '../hardware_alerts_page.dart';
 
-class SystemAlertsCard extends StatefulWidget {
-  const SystemAlertsCard({super.key, this.service});
+class HardwareAlertsCard extends StatefulWidget {
+  const HardwareAlertsCard({super.key, this.service});
 
   final SensorMonitoringService? service;
 
   @override
-  State<SystemAlertsCard> createState() => _SystemAlertsCardState();
+  State<HardwareAlertsCard> createState() => _HardwareAlertsCardState();
 }
 
-class _SystemAlertsCardState extends State<SystemAlertsCard> {
+class _HardwareAlertsCardState extends State<HardwareAlertsCard> {
   late final SensorMonitoringService _service =
       widget.service ?? SensorMonitoringService();
   int _activeCount = 0;
@@ -53,7 +53,7 @@ class _SystemAlertsCardState extends State<SystemAlertsCard> {
         _errorMessage = 'Unable to load alerts';
         _isLoading = false;
       });
-      debugPrint('System alert summary load failed: $error');
+      debugPrint('Hardware alert summary load failed: $error');
     }
   }
 
@@ -64,7 +64,7 @@ class _SystemAlertsCardState extends State<SystemAlertsCard> {
       onTap: () async {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => TelemetryAlertsPage(service: _service),
+            builder: (_) => HardwareAlertsPage(service: _service),
           ),
         );
         if (mounted) await _load();
@@ -83,7 +83,7 @@ class _SystemAlertsCardState extends State<SystemAlertsCard> {
             const SizedBox(width: 9),
             Expanded(
               child: Text(
-                'System Alerts',
+                'Hardware Alerts',
                 style: TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
@@ -96,8 +96,8 @@ class _SystemAlertsCardState extends State<SystemAlertsCard> {
                   ? 'Loading…'
                   : _errorMessage ??
                         (_activeCount == 0
-                            ? 'No Active Alerts'
-                            : '$_activeCount Active Alerts'),
+                            ? 'No Active Hardware Alerts'
+                            : '$_activeCount Active Hardware Alerts'),
               style: TextStyle(
                 color: _errorMessage == null ? color : AppColors.textSecondary,
                 fontSize: 11,

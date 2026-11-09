@@ -14,8 +14,7 @@ import 'quick_actions_grid.dart';
 import 'recent_activity_card.dart';
 import 'recent_system_activity_card.dart';
 import 'sensor_monitoring_card.dart';
-import 'system_alerts_card.dart';
-import 'system_health_summary_card.dart';
+import 'hardware_alerts_card.dart';
 
 class FullDashboardContent extends StatelessWidget {
   const FullDashboardContent({
@@ -33,7 +32,7 @@ class FullDashboardContent extends StatelessWidget {
     required this.onActivityTap,
     required this.onQuickActionTap,
     this.sensorMonitoring,
-    this.systemAlerts,
+    this.hardwareAlerts,
   });
 
   final DashboardData data;
@@ -49,7 +48,7 @@ class FullDashboardContent extends StatelessWidget {
   final VoidCallback onActivityTap;
   final ValueChanged<QuickActionItem> onQuickActionTap;
   final Widget? sensorMonitoring;
-  final Widget? systemAlerts;
+  final Widget? hardwareAlerts;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +72,15 @@ class FullDashboardContent extends StatelessWidget {
         const SizedBox(height: cardGap),
         KpiGrid(stats: data.kpis),
         const SizedBox(height: sectionGap),
+        if (visibleActions.isNotEmpty) ...[
+          DashboardSectionHeader(title: 'Quick Actions'),
+          const SizedBox(height: cardGap),
+          QuickActionsGrid(
+            actions: visibleActions,
+            onActionTap: onQuickActionTap,
+          ),
+          const SizedBox(height: sectionGap),
+        ],
         DashboardSectionHeader(
           title: 'Attention Required',
           actionLabel: 'View Alerts',
@@ -81,6 +89,16 @@ class FullDashboardContent extends StatelessWidget {
         const SizedBox(height: cardGap),
         AttentionRequiredCard(items: data.attentionItems),
         const SizedBox(height: sectionGap),
+        DashboardSectionHeader(title: 'Inventory Health'),
+        const SizedBox(height: cardGap),
+        InventoryHealthCard(summary: data.summary),
+        const SizedBox(height: sectionGap),
+        sensorMonitoring ?? const SensorMonitoringCard(),
+        const SizedBox(height: sectionGap),
+        DashboardSectionHeader(title: 'Hardware Alerts'),
+        const SizedBox(height: cardGap),
+        hardwareAlerts ?? const HardwareAlertsCard(),
+        const SizedBox(height: sectionGap),
         DashboardSectionHeader(
           title: 'Recent Activity',
           actionLabel: activityPermission ? 'View All' : null,
@@ -88,26 +106,6 @@ class FullDashboardContent extends StatelessWidget {
         ),
         const SizedBox(height: cardGap),
         RecentSystemActivityCard(entries: data.systemActivities),
-        const SizedBox(height: sectionGap),
-        DashboardSectionHeader(title: 'Live Inventory Summary'),
-        const SizedBox(height: cardGap),
-        MonthlyInsightsCard(
-          month: data.insightsMonth,
-          range: 'Current totals',
-          insights: data.insights,
-        ),
-        const SizedBox(height: sectionGap),
-        sensorMonitoring ?? const SensorMonitoringCard(),
-        const SizedBox(height: sectionGap),
-        const SystemHealthSummaryCard(),
-        const SizedBox(height: sectionGap),
-        DashboardSectionHeader(title: 'Inventory Health'),
-        const SizedBox(height: cardGap),
-        InventoryHealthCard(summary: data.summary),
-        const SizedBox(height: sectionGap),
-        DashboardSectionHeader(title: 'System Alerts'),
-        const SizedBox(height: cardGap),
-        systemAlerts ?? const SystemAlertsCard(),
         const SizedBox(height: sectionGap),
         DashboardSectionHeader(
           title: 'Recent Stock Movements',
@@ -119,15 +117,14 @@ class FullDashboardContent extends StatelessWidget {
           dateLabel: 'LATEST MOVEMENTS',
           entries: data.recentMovements,
         ),
-        if (visibleActions.isNotEmpty) ...[
-          const SizedBox(height: sectionGap),
-          DashboardSectionHeader(title: 'Quick Actions'),
-          const SizedBox(height: cardGap),
-          QuickActionsGrid(
-            actions: visibleActions,
-            onActionTap: onQuickActionTap,
-          ),
-        ],
+        const SizedBox(height: sectionGap),
+        DashboardSectionHeader(title: 'Live Inventory Summary'),
+        const SizedBox(height: cardGap),
+        MonthlyInsightsCard(
+          month: data.insightsMonth,
+          range: 'Current totals',
+          insights: data.insights,
+        ),
       ],
     );
   }

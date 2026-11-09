@@ -92,8 +92,7 @@ tests, or the `about_invwise/` documentation suite.
 - `lib/features/dashboard/widgets/recent_activity_card.dart`
 - `lib/features/dashboard/widgets/recent_system_activity_card.dart`
 - `lib/features/dashboard/widgets/sensor_monitoring_card.dart`
-- `lib/features/dashboard/widgets/system_alerts_card.dart`
-- `lib/features/dashboard/widgets/system_health_summary_card.dart`
+- `lib/features/dashboard/widgets/hardware_alerts_card.dart`
 - `lib/features/inventory/inventory_page.dart`
 - `lib/features/inventory/item_details_page.dart`
 - `lib/features/reports/reports_page.dart`

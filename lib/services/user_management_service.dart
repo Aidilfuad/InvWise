@@ -23,6 +23,7 @@ class ManagedUser {
     required this.role,
     required this.isActive,
     required this.isSelf,
+    this.deletionPending = false,
     this.authUserId,
     this.employeeId,
     this.avatarUrl,
@@ -43,6 +44,7 @@ class ManagedUser {
   final String role;
   final bool isActive;
   final bool isSelf;
+  final bool deletionPending;
   final String? employeeId;
   final String? avatarUrl;
   final DateTime? lastLoginAt;
@@ -57,6 +59,7 @@ class ManagedUser {
       role: map['role'] as String,
       isActive: map['is_active'] as bool,
       isSelf: map['is_self'] as bool? ?? false,
+      deletionPending: map['is_deletion_pending'] as bool? ?? false,
       employeeId: map['employee_id'] as String?,
       avatarUrl: map['avatar_url'] as String?,
       lastLoginAt: lastLoginValue is String
@@ -169,6 +172,13 @@ class UserManagementService {
     } catch (error) {
       debugPrint('[UserManagementService] Unable to record activation: $error');
     }
+  }
+
+  Future<void> permanentlyDelete({
+    required String userId,
+  }) async {
+    _requireSuperAdmin();
+    await _invoke({'action': 'permanent_delete', 'user_id': userId});
   }
 
   void _requireSuperAdmin() {

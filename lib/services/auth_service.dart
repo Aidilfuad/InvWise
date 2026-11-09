@@ -38,6 +38,63 @@ class AuthService {
 
   String? lastTrackingWarning;
 
+  /// Signs in with an email or resolves an employee ID to its account email.
+  ///
+  /// Supabase Auth always receives an email and the supplied password.
+  Future<User?> signInWithIdentifier({
+    required String identifier,
+    required String password,
+    bool rememberMe = false,
+  }) async {
+    final trimmedIdentifier = identifier.trim();
+    if (trimmedIdentifier.isEmpty || password.isEmpty) {
+      throw const AuthServiceException(
+        'Please enter your Employee ID or email and password.',
+      );
+    }
+    if (trimmedIdentifier.contains('@') && !_isValidEmail(trimmedIdentifier)) {
+      throw const AuthServiceException(
+        'Enter a valid Employee ID or email address.',
+      );
+    }
+    if (_isValidEmail(trimmedIdentifier)) {
+      return signInWithEmail(
+        email: trimmedIdentifier,
+        password: password,
+        rememberMe: rememberMe,
+      );
+    }
+
+    String? email;
+    try {
+      final response = await _client.rpc(
+        'resolve_login_email_by_employee_id',
+        params: {'p_employee_id': trimmedIdentifier},
+      );
+      if (response is String) email = response;
+    } catch (error) {
+      debugPrint('[AuthService] Employee ID lookup failed: $error');
+      throw const AuthServiceException(
+        'Unable to verify your Employee ID. Check your connection and try '
+        'again.',
+      );
+    }
+
+    final resolvedEmail = email?.trim();
+    if (resolvedEmail == null || !_isValidEmail(resolvedEmail)) {
+      throw const AuthServiceException(
+        'Invalid Employee ID/email or password.',
+      );
+    }
+    return signInWithEmail(
+      email: resolvedEmail,
+      password: password,
+      rememberMe: rememberMe,
+      attemptedIdentifier: trimmedIdentifier,
+      employeeId: trimmedIdentifier,
+    );
+  }
+
   /// Signs in with [email] and [password].
   ///
   /// Returns the signed-in [User], or null if Supabase returned no user.
@@ -46,11 +103,15 @@ class AuthService {
     required String email,
     required String password,
     bool rememberMe = false,
+    String? attemptedIdentifier,
+    String? employeeId,
   }) async {
     final trimmedEmail = email.trim();
 
     if (trimmedEmail.isEmpty || password.isEmpty) {
-      throw const AuthServiceException('Please enter your email and password.');
+      throw const AuthServiceException(
+        'Please enter your Employee ID or email and password.',
+      );
     }
 
     lastTrackingWarning = null;
@@ -66,6 +127,7 @@ class AuthService {
           await _loginPreferences.rememberLogin(
             email: trimmedEmail,
             enabled: rememberMe,
+            employeeId: employeeId,
           );
         } catch (error) {
           lastTrackingWarning =
@@ -98,7 +160,10 @@ class AuthService {
       }
       return user;
     } on AuthException catch (e) {
-      await _recordFailedLogin(trimmedEmail, _friendlyMessage(e));
+      await _recordFailedLogin(
+        attemptedIdentifier ?? trimmedEmail,
+        _friendlyMessage(e),
+      );
       throw AuthServiceException(_friendlyMessage(e));
     } catch (e, st) {
       if (kDebugMode) {
@@ -106,7 +171,7 @@ class AuthService {
         debugPrint('$st');
       }
       await _recordFailedLogin(
-        trimmedEmail,
+        attemptedIdentifier ?? trimmedEmail,
         'Unable to authenticate because of a connection or service error.',
       );
       throw const AuthServiceException(
@@ -221,7 +286,7 @@ class AuthService {
     final message = e.message.toLowerCase();
 
     if (message.contains('invalid login credentials')) {
-      return 'Invalid email or password.';
+      return 'Invalid Employee ID/email or password.';
     }
     if (message.contains('email not confirmed')) {
       return 'Your email has not been confirmed yet.';

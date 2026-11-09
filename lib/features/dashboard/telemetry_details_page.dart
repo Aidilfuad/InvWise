@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../services/sensor_monitoring_service.dart';
-import 'telemetry_alerts_page.dart';
+import 'hardware_alerts_page.dart';
 import 'telemetry_analytics_page.dart';
 import 'telemetry_history_page.dart';
 import 'telemetry_settings_page.dart';
@@ -32,7 +32,7 @@ class TelemetryDetailsPage extends StatelessWidget {
             onSelected: (value) {
               final Widget? page = switch (value) {
                 'settings' => TelemetrySettingsPage(service: service),
-                'alerts' => TelemetryAlertsPage(service: service),
+                'alerts' => HardwareAlertsPage(service: service),
                 _ => null,
               };
               if (page != null) {
@@ -45,7 +45,7 @@ class TelemetryDetailsPage extends StatelessWidget {
                 value: 'settings',
                 child: Text('Telemetry Settings'),
               ),
-              PopupMenuItem(value: 'alerts', child: Text('Telemetry Alerts')),
+              PopupMenuItem(value: 'alerts', child: Text('Hardware Alerts')),
             ],
           ),
         ],

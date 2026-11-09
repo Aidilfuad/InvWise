@@ -7,6 +7,7 @@ import '../../app/routes/app_routes.dart';
 import '../../app/theme/app_theme_controller.dart';
 import '../../services/currency_service.dart';
 import '../../services/auth_service.dart';
+import '../../services/app_update_service.dart';
 import '../../services/login_preferences_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
@@ -23,7 +24,6 @@ import '../support_center/support_center_page.dart';
 import '../personal_information/personal_information_page.dart';
 import '../warehouse_location/warehouse_locations_page.dart';
 import '../security/security_page.dart';
-import '../language/language_page.dart';
 import '../user_management/user_management_page.dart';
 
 /// Settings screen with live profile data and app configuration links.
@@ -43,11 +43,26 @@ class _SettingsPageState extends State<SettingsPage> {
   ProfileLookupResult? _profile;
   String? _profileError;
   bool _isLoadingProfile = true;
+  String _versionSubtitle = 'Loading installed version…';
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadInstalledVersion();
+  }
+
+  Future<void> _loadInstalledVersion() async {
+    try {
+      final version = await AppUpdateService.installedVersion();
+      if (!mounted) return;
+      setState(() => _versionSubtitle = 'Installed: v$version');
+    } catch (error) {
+      if (!mounted) return;
+      setState(
+        () => _versionSubtitle = 'Unable to load installed version: $error',
+      );
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -237,11 +252,6 @@ class _SettingsPageState extends State<SettingsPage> {
     };
   }
 
-  void _onLanguageTap() {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const LanguagePage()));
-  }
-
   void _onSupportCenterTap() {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -261,10 +271,6 @@ class _SettingsPageState extends State<SettingsPage> {
     Navigator.of(
       context,
     ).push(MaterialPageRoute<void>(builder: (_) => const UserManagementPage()));
-  }
-
-  void _onSystemInformationTap() {
-    Navigator.of(context).pushNamed(AppRoutes.systemInformation);
   }
 
   void _onBackupRestoreTap() {
@@ -478,12 +484,6 @@ class _SettingsPageState extends State<SettingsPage> {
                                   'Export, import, or restore preferences',
                               onTap: _onBackupRestoreTap,
                             ),
-                            SettingsTile(
-                              icon: Icons.language_rounded,
-                              title: 'Language',
-                              subtitle: 'Choose your preferred language',
-                              onTap: _onLanguageTap,
-                            ),
                           ],
                         ),
                         const SizedBox(height: _sectionGap),
@@ -517,16 +517,9 @@ class _SettingsPageState extends State<SettingsPage> {
                                 onTap: _onSupportCenterTap,
                               ),
                             SettingsTile(
-                              icon: Icons.monitor_heart_outlined,
-                              title: 'System Information',
-                              subtitle: 'Review connection and service status',
-                              onTap: _onSystemInformationTap,
-                            ),
-                            SettingsTile(
                               icon: Icons.system_update_alt,
                               title: 'Version Information',
-                              subtitle:
-                                  'Check the installed and latest version',
+                              subtitle: _versionSubtitle,
                               onTap: _onVersionTap,
                             ),
                           ],

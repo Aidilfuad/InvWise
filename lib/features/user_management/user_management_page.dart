@@ -139,7 +139,7 @@ class _UserManagementContentState extends State<_UserManagementContent> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(activate ? 'Activate account?' : 'Deactivate account?'),
+        title: Text(activate ? 'Restore account?' : 'Deactivate account?'),
         content: Text(
           activate
               ? 'Allow ${user.fullName} to sign in and use InvWise?'
@@ -152,7 +152,7 @@ class _UserManagementContentState extends State<_UserManagementContent> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(activate ? 'Activate' : 'Deactivate'),
+            child: Text(activate ? 'Restore' : 'Deactivate'),
           ),
         ],
       ),
@@ -165,8 +165,99 @@ class _UserManagementContentState extends State<_UserManagementContent> {
         isActive: activate,
         userName: user.fullName,
       ),
-      activate ? 'Account activated.' : 'Account deactivated.',
+      activate ? 'Account restored.' : 'Account deactivated.',
     );
+  }
+
+  Future<void> _permanentlyDelete(ManagedUser user) async {
+    if (user.isActive || user.isSelf) return;
+    final phraseConfirmed = await _confirmDeletePhrase();
+    if (!phraseConfirmed || !mounted) return;
+
+    final passwordConfirmed = await PasswordConfirmationService.confirm(
+      context,
+      action: 'permanently delete ${user.fullName}',
+    );
+    if (!passwordConfirmed || !mounted) return;
+
+    final finalConfirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Permanently delete user?'),
+        content: Text(
+          'Delete ${user.fullName} (${user.email})?\n\n'
+          'This action is permanent and cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Permanently Delete'),
+          ),
+        ],
+      ),
+    );
+    if (finalConfirmed != true || !mounted) return;
+
+    await _runUserUpdate(
+      user,
+      () => _service.permanentlyDelete(userId: user.id),
+      'User permanently deleted.',
+    );
+  }
+
+  Future<bool> _confirmDeletePhrase() async {
+    final controller = TextEditingController();
+    try {
+      return await showDialog<bool>(
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => StatefulBuilder(
+              builder: (context, setDialogState) => AlertDialog(
+                title: const Text('Confirm permanent deletion'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Type DELETE to continue.'),
+                    const SizedBox(height: AppSpacing.md),
+                    TextField(
+                      controller: controller,
+                      autofocus: true,
+                      onChanged: (_) => setDialogState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'Type DELETE',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext, false),
+                    child: const Text('Cancel'),
+                  ),
+                  FilledButton(
+                    onPressed: controller.text == 'DELETE'
+                        ? () => Navigator.pop(dialogContext, true)
+                        : null,
+                    child: const Text('Continue'),
+                  ),
+                ],
+              ),
+            ),
+          ) ??
+          false;
+    } finally {
+      controller.dispose();
+    }
   }
 
   Future<void> _runUserUpdate(
@@ -416,7 +507,13 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text(user.isActive ? 'Active' : 'Inactive'),
+                          Text(
+                            user.deletionPending
+                                ? 'Deletion pending'
+                                : user.isActive
+                                ? 'Active'
+                                : 'Inactive',
+                          ),
                           Text(
                             _formatLastLogin(context, user.lastLoginAt),
                             style: Theme.of(context).textTheme.bodySmall,
@@ -431,7 +528,12 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                     DataCell(SelectableText(user.email)),
                     DataCell(Text(user.employeeId ?? '—')),
                     DataCell(Text(user.role)),
-                    DataCell(_StatusBadge(isActive: user.isActive)),
+                    DataCell(
+                      _StatusBadge(
+                        isActive: user.isActive,
+                        deletionPending: user.deletionPending,
+                      ),
+                    ),
                     DataCell(Text(_formatLastLogin(context, user.lastLoginAt))),
                     DataCell(_userActions(user)),
                   ],
@@ -449,6 +551,13 @@ class _UserManagementContentState extends State<_UserManagementContent> {
         child: CircularProgressIndicator(strokeWidth: 2),
       );
     }
+    if (user.deletionPending) {
+      return IconButton(
+        tooltip: 'Complete permanent deletion',
+        onPressed: user.isSelf ? null : () => _permanentlyDelete(user),
+        icon: const Icon(Icons.delete_forever_outlined),
+      );
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -457,15 +566,24 @@ class _UserManagementContentState extends State<_UserManagementContent> {
           onPressed: user.isSelf ? null : () => _changeRole(user),
           icon: const Icon(Icons.manage_accounts_outlined),
         ),
-        IconButton(
-          tooltip: user.isActive ? 'Deactivate' : 'Activate',
-          onPressed: user.isSelf ? null : () => _toggleActive(user),
-          icon: Icon(
-            user.isActive
-                ? Icons.person_off_outlined
-                : Icons.person_add_alt_1_outlined,
+        if (user.isActive)
+          IconButton(
+            tooltip: 'Deactivate',
+            onPressed: user.isSelf ? null : () => _toggleActive(user),
+            icon: const Icon(Icons.person_off_outlined),
+          )
+        else ...[
+          IconButton(
+            tooltip: 'Restore',
+            onPressed: user.isSelf ? null : () => _toggleActive(user),
+            icon: const Icon(Icons.person_add_alt_1_outlined),
           ),
-        ),
+          IconButton(
+            tooltip: 'Permanent Delete',
+            onPressed: user.isSelf ? null : () => _permanentlyDelete(user),
+            icon: const Icon(Icons.delete_forever_outlined),
+          ),
+        ],
       ],
     );
   }
@@ -534,7 +652,10 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                     ],
                   ),
                 ),
-                _StatusBadge(isActive: user.isActive),
+                _StatusBadge(
+                  isActive: user.isActive,
+                  deletionPending: user.deletionPending,
+                ),
               ],
             ),
             const SizedBox(height: AppSpacing.md),
@@ -561,14 +682,14 @@ class _UserManagementContentState extends State<_UserManagementContent> {
               runSpacing: AppSpacing.sm,
               children: [
                 OutlinedButton.icon(
-                  onPressed: isUpdating || user.isSelf
+                  onPressed: isUpdating || user.isSelf || user.deletionPending
                       ? null
                       : () => _changeRole(user),
                   icon: const Icon(Icons.manage_accounts_outlined),
                   label: const Text('Change role'),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: isUpdating || user.isSelf
+                  onPressed: isUpdating || user.isSelf || user.deletionPending
                       ? null
                       : () => _toggleActive(user),
                   icon: Icon(
@@ -576,8 +697,20 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                         ? Icons.person_off_outlined
                         : Icons.person_add_alt_1_outlined,
                   ),
-                  label: Text(user.isActive ? 'Deactivate' : 'Activate'),
+                  label: Text(user.isActive ? 'Deactivate' : 'Restore'),
                 ),
+                if (!user.isActive)
+                  OutlinedButton.icon(
+                    onPressed: isUpdating || user.isSelf
+                        ? null
+                        : () => _permanentlyDelete(user),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: Text(
+                      user.deletionPending
+                          ? 'Complete Permanent Delete'
+                          : 'Permanent Delete',
+                    ),
+                  ),
                 if (isUpdating)
                   const Padding(
                     padding: EdgeInsets.all(AppSpacing.sm),
@@ -623,17 +756,28 @@ class _LoadError extends StatelessWidget {
 }
 
 class _StatusBadge extends StatelessWidget {
-  const _StatusBadge({required this.isActive});
+  const _StatusBadge({required this.isActive, this.deletionPending = false});
 
   final bool isActive;
+  final bool deletionPending;
 
   @override
   Widget build(BuildContext context) => Chip(
     avatar: Icon(
-      isActive ? Icons.check_circle_outline : Icons.block_outlined,
+      deletionPending
+          ? Icons.hourglass_top_rounded
+          : isActive
+          ? Icons.check_circle_outline
+          : Icons.block_outlined,
       size: 18,
     ),
-    label: Text(isActive ? 'Active' : 'Inactive'),
+    label: Text(
+      deletionPending
+          ? 'Deletion pending'
+          : isActive
+          ? 'Active'
+          : 'Inactive',
+    ),
     visualDensity: VisualDensity.compact,
   );
 }

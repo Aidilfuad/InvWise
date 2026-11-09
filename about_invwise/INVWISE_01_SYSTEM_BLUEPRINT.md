@@ -193,7 +193,7 @@ password123
 ### Method 2
 
 ```text
-Email + Password
+Employee ID or Email + Password
 ```
 
 Example:
@@ -216,15 +216,15 @@ Flutter App
 
 ↓
 
-Edge Function
+Employee ID lookup RPC
 
 ↓
 
-Lookup Email
+Resolve the linked Auth email
 
 ↓
 
-Supabase Auth
+Supabase Auth email/password sign-in
 
 ↓
 
@@ -755,7 +755,7 @@ Inventory Summary
 
 Sensor Monitoring
 
-System Health
+Hardware Alerts
 ```
 
 ---

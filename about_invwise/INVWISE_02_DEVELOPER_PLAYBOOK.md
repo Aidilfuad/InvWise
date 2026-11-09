@@ -598,9 +598,9 @@ Recent Activity
 
 Inventory Summary
 
-System Health
-
 Sensor Monitoring
+
+Hardware Alerts
 ```
 
 ---

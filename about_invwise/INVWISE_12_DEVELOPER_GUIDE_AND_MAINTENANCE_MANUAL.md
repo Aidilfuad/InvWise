@@ -525,8 +525,6 @@ manage-users
 notify-support-request
 
 provision-approved-registration
-
-login-with-employee-id
 ```
 
 【4-26ed8d】
@@ -770,7 +768,7 @@ Provisioning
 
 User Management
 
-Telemetry Alerts
+Hardware Alerts
 
 Update System
 ```

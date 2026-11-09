@@ -435,7 +435,7 @@ Live Inventory Summary
 
 Sensor Monitoring
 
-System Health
+Hardware Alerts
 ```
 
 ---

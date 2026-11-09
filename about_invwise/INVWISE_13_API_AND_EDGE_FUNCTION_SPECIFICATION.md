@@ -81,7 +81,8 @@ provision-approved-registration
 login-with-employee-id
 ```
 
-EDGE_FUNCTION_DISCOVERY.md confirms these functions as the active edge-function inventory. 【1-aaab99】
+Employee ID authentication uses the database RPC documented below; the app
+does not call an Employee ID Edge Function.
 
 ---
 
@@ -691,50 +692,39 @@ Permission Failure
 
 ---
 
-# EDGE FUNCTION
-# login-with-employee-id
+# EMPLOYEE ID LOGIN RESOLUTION
 
 ---
 
 ## Purpose
 
-Employee ID login endpoint.
+Resolves a unique active employee profile to its linked Supabase Auth email.
 
 ---
 
 ## Current Status
 
-```text
-NOT IMPLEMENTED
-```
-
-Discovery indicates this edge function contains:
-
-```text
-Starter Code
-
-Greeting Endpoint
-```
-
-and does not currently provide actual Employee ID authentication. 【1-aaab99】
+Implemented by the `public.resolve_login_email_by_employee_id(text)` database
+function. The app passes only the Employee ID to this function, then submits
+the resolved email and the user's password to Supabase Auth's existing
+email/password sign-in flow.
 
 ---
 
 ## Authentication
 
-JWT Verification:
+Function access:
 
 ```text
-false
+Anonymous and authenticated roles can execute the narrowly scoped resolver.
+The function returns only an email for one matching active profile linked to
+an Auth user; ambiguous and unknown IDs return null.
 ```
 
-【1-aaab99】
-
----
-
-## Current Recommendation
-
-Do not use as a production login API until implemented and security-reviewed.
+Employee ID resolution returns only the email address needed for the existing
+Supabase Auth flow. The resolver is callable before authentication, so callers
+can attempt identifier enumeration; use generic login errors and monitor
+request rates.
 
 ---
 

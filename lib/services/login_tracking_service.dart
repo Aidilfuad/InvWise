@@ -8,14 +8,15 @@ class LoginTrackingService {
   LoginTrackingService({
     ProfileService? profileService,
     SupabaseClient? client,
-    SecuritySessionTracker? sessionTracker,
-  }) : _profileService = profileService ?? ProfileService(),
-       _client = client ?? Supabase.instance.client,
-       _sessionTracker = sessionTracker ?? SecuritySessionTracker.instance;
+    this._sessionTracker,
+  }) : _profileService =
+           profileService ??
+           ProfileService(client: client ?? Supabase.instance.client),
+       _client = client ?? Supabase.instance.client;
 
   final ProfileService _profileService;
   final SupabaseClient _client;
-  final SecuritySessionTracker _sessionTracker;
+  final SecuritySessionTracker? _sessionTracker;
 
   Future<void> recordFailedLogin({
     required String attemptedIdentifier,
@@ -100,7 +101,7 @@ class LoginTrackingService {
           'The created device session did not return an id.',
         );
       }
-      _sessionTracker.start(sessionId);
+      (_sessionTracker ?? SecuritySessionTracker.instance).start(sessionId);
     } on PostgrestException catch (error) {
       trackingErrors.add('device session: ${error.message}');
     } on FormatException catch (error) {

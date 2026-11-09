@@ -589,20 +589,6 @@ Date Range
 
 ---
 
-## System Information
-
-Provides:
-
-```text
-Version
-
-Build
-
-Update Status
-
-Release Information
-```
-
 ---
 
 # HARDWARE INTEGRATION
@@ -688,7 +674,7 @@ Live Inventory Summary
 
 Sensor Monitoring
 
-System Health
+Hardware Alerts
 ```
 
 ---

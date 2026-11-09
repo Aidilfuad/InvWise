@@ -152,7 +152,9 @@ class _AppVersionPageState extends State<AppVersionPage> {
                   children: [
                     _VersionRow(
                       label: 'Installed Version',
-                      value: result?.installedVersion ?? 'Unavailable',
+                      value: result == null
+                          ? 'Unavailable'
+                          : 'v${result.installedVersion}',
                     ),
                     _VersionRow(
                       label: 'Latest Version',

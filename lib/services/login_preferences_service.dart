@@ -92,6 +92,9 @@ class LoginPreferencesService extends ChangeNotifier {
         scopeId: 'global',
       );
       _rememberedEmployeeId = normalizedEmployeeId;
+    } else {
+      await cache.remove(_employeeIdKey, scopeId: 'global');
+      _rememberedEmployeeId = null;
     }
     notifyListeners();
   }

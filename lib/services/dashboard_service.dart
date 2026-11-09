@@ -44,7 +44,7 @@ class DashboardService {
       final results = await Future.wait<Object>([
         (() async => await _client
             .from('inventory_items')
-            .select('id,minimum_stock,is_active,is_archived'))(),
+            .select('id,minimum_stock,is_active,is_archived,unit_price'))(),
         (() async =>
             await _client.from('inventory_items_with_quantity').select())(),
         (() async => await _client.from('inventory_alerts').select())(),
@@ -78,11 +78,18 @@ class DashboardService {
       final systemActivities = results[5] as List<SystemActivityEntry>;
 
       final quantityByItem = <String, double>{};
+      final unitPriceByItem = <String, double>{};
       final activeItemIds = inventoryItems
           .map((item) => _stringValue(item['id']))
           .whereType<String>()
           .toSet();
       var totalStockQuantity = 0.0;
+      for (final item in inventoryItems) {
+        final itemId = _stringValue(item['id']);
+        if (itemId != null) {
+          unitPriceByItem[itemId] = _numberValue(item['unit_price']);
+        }
+      }
       for (final row in quantityRows) {
         final itemId = _stringValue(row['item_id'] ?? row['id']);
         if (itemId == null || !activeItemIds.contains(itemId)) continue;
@@ -94,6 +101,11 @@ class DashboardService {
           ifAbsent: () => quantity,
         );
       }
+      final totalAssetValue = quantityByItem.entries.fold<double>(
+        0,
+        (total, entry) =>
+            total + entry.value * (unitPriceByItem[entry.key] ?? 0),
+      );
 
       final minimumStockByItem = <String, double>{};
       for (final row in inventoryItems) {
@@ -150,6 +162,7 @@ class DashboardService {
         summary: DashboardInventorySummary(
           totalItems: inventoryItems.length,
           totalStockQuantity: totalStockQuantity,
+          totalAssetValue: totalAssetValue,
           lowStockItems: lowStockItems,
           outOfStockItems: outOfStockItems,
           warehouseLocations: warehouseRows.length,

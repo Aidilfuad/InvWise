@@ -381,6 +381,10 @@ UserManagementService
 manage-users Edge Function
 
 manage_user_account() RPC
+
+prepare_permanent_user_deletion() RPC
+
+finish_permanent_user_deletion() RPC
 ```
 
 【3-772e80】【5-a3dce0】
@@ -392,7 +396,12 @@ manage_user_account() RPC
 | Activate User | ✅ | ✅ | ❌ | ❌ |
 | Deactivate User | ✅ | ✅ | ❌ | ❌ |
 | Change Role | ✅ | ✅ | ❌ | ❌ |
-| Delete User | ❌ | ❌ | ❌ | ❌ |
+| Permanently delete a deactivated user | ✅ | ❌ | ❌ | ❌ |
+
+Permanent deletion also requires a recent password-authenticated session and a
+typed `DELETE` confirmation. The database rejects active targets, self-deletion,
+and deletion of the last Super Admin or Super User. It preserves audit and
+business history while removing profile settings and the Auth account.
 
 ---
 
@@ -436,10 +445,8 @@ manage_user_account() RPC
 |----------|------------|------------|------------|------------|
 | Personal Settings | ✅ | ✅ | ✅ | ✅ |
 | Dashboard Preferences | ✅ | ✅ | ✅ | ✅ |
-| Language Settings | ✅ | ✅ | ✅ | ✅ |
 | Currency Settings | ✅ | ✅ | ❌ | ❌ |
 | Backup & Restore | ✅ | ✅ | ❌ | ❌ |
-| System Information | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
