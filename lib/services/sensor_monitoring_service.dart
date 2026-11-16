@@ -338,6 +338,39 @@ class SensorMonitoringService {
         .toList(growable: false);
   }
 
+  Future<SensorReading> setSwitchState({
+    required String sensorId,
+    required bool isOn,
+  }) async {
+    if (sensorId.trim().isEmpty) {
+      throw ArgumentError.value(sensorId, 'sensorId', 'Must not be empty.');
+    }
+
+    await _client.from('switch_events').insert({
+      'sensor_id': sensorId,
+      'switch_state': isOn ? 'ON' : 'OFF',
+    });
+
+    final reading = (await fetchLatest())
+        .where((reading) => reading.sensorId == sensorId)
+        .firstOrNull;
+    if (reading == null || reading.sensorType != 'toggle_switch') {
+      throw const FormatException(
+        'Switch event was recorded, but the sensor status could not be read.',
+      );
+    }
+
+    final state = reading.valueText?.trim().toUpperCase();
+    final confirmedOn =
+        state == 'ON' || (state != 'OFF' && (reading.valueNumeric ?? 0) != 0);
+    if (confirmedOn != isOn) {
+      throw StateError(
+        'Switch event was recorded, but sensor status did not confirm it.',
+      );
+    }
+    return reading;
+  }
+
   Future<List<SwitchEventHistory>> fetchSwitchExport(String sensorId) async {
     final result = <SwitchEventHistory>[];
     const pageSize = 500;

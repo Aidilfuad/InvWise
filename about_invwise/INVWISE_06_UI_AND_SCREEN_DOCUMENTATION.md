@@ -1162,10 +1162,10 @@ Source:
 GitHub Releases
 ```
 
-Installed version:
+Installed version (read from platform package metadata on each refresh):
 
 ```text
-PackageInfo.fromPlatform()
+AppUpdateService.installedVersion()
 ```
 
 ---
@@ -1354,6 +1354,14 @@ The Language selection page is temporarily unavailable. The saved locale
 continues to be loaded so the application's current language remains unchanged.
 
 ---
+
+## Add/Edit Item Unit Price
+
+The Unit Price field in Stock Information follows the active `CurrencyService`
+display currency. Input is converted to the MYR base value stored in
+`inventory_items`; editing an existing price without changing it preserves its
+original value. Current supported currencies are MYR and USD, matching the
+preference schema.
 
 # PERSONAL PROFILE MODULE
 

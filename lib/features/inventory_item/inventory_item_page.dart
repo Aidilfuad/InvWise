@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/category_service.dart';
+import '../../services/currency_service.dart';
 import '../../services/inventory_service.dart';
 import '../../services/role_access_service.dart';
 import '../../services/unit_service.dart';
@@ -36,6 +37,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
   late final TextEditingController _notesController;
 
   final _inventoryService = InventoryService();
+  final _currencyService = CurrencyService.instance;
   final _roleAccess = RoleAccessService.instance;
   final _categoryService = CategoryService();
   final _unitService = UnitService();
@@ -51,7 +53,12 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
   bool _isLoadingCategories = true;
   bool _isLoadingUnits = true;
   bool _isLoadingLocations = true;
+  bool _isLoadingCurrency = true;
   bool _isSaving = false;
+  late DisplayCurrency _priceCurrency;
+  late double _priceExchangeRate;
+  bool _isUpdatingPriceCurrency = false;
+  bool _hasEditedUnitPrice = false;
 
   bool get _isEdit => widget.mode == InventoryItemMode.edit;
 
@@ -67,13 +74,19 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
     _minStockController = TextEditingController(
       text: item?.minStock.toString() ?? '',
     );
+    _priceCurrency = _currencyService.displayCurrency;
+    _priceExchangeRate = _currencyService.exchangeRateUsdMyr;
     _unitPriceController = TextEditingController(
-      text: item?.unitPrice.toString() ?? '',
-    );
+      text: item == null
+          ? ''
+          : _currencyService.fromMyr(item.unitPrice).toStringAsFixed(2),
+    )..addListener(_onUnitPriceChanged);
     _notesController = TextEditingController(text: item?.notes ?? '');
     _categoryId = item?.categoryId;
     _unitId = item?.unitId;
     _locationId = item?.locationId;
+    _currencyService.addListener(_onCurrencyChanged);
+    _loadCurrency();
     _loadCategories();
     _loadUnits();
     _loadLocations();
@@ -85,6 +98,8 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
     _nameController.dispose();
     _quantityController.dispose();
     _minStockController.dispose();
+    _currencyService.removeListener(_onCurrencyChanged);
+    _unitPriceController.removeListener(_onUnitPriceChanged);
     _unitPriceController.dispose();
     _notesController.dispose();
     super.dispose();
@@ -95,12 +110,55 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
     return unit?.abbreviation ?? '';
   }
 
-  String get _priceSuffix {
-    final short = _unitShort;
-    final singular = short.endsWith('s') && short.length > 1
-        ? short.substring(0, short.length - 1)
-        : short;
-    return 'USD / $singular';
+  void _onUnitPriceChanged() {
+    if (!_isUpdatingPriceCurrency) _hasEditedUnitPrice = true;
+  }
+
+  void _onCurrencyChanged() {
+    final currency = _currencyService.displayCurrency;
+    final exchangeRate = _currencyService.exchangeRateUsdMyr;
+    if (currency == _priceCurrency && exchangeRate == _priceExchangeRate) {
+      return;
+    }
+
+    final displayedAmount = double.tryParse(_unitPriceController.text.trim());
+    if (displayedAmount != null && displayedAmount.isFinite) {
+      final amountMyr = _currencyService.toMyr(
+        displayedAmount,
+        currency: _priceCurrency,
+        exchangeRateUsdMyr: _priceExchangeRate,
+      );
+      final text = _currencyService.fromMyr(amountMyr).toStringAsFixed(2);
+      _isUpdatingPriceCurrency = true;
+      _unitPriceController.value = TextEditingValue(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+      _isUpdatingPriceCurrency = false;
+    }
+    _priceCurrency = currency;
+    _priceExchangeRate = exchangeRate;
+  }
+
+  double _unitPriceInMyr(double enteredPrice) {
+    if (_isEdit && !_hasEditedUnitPrice) {
+      return widget.initialItem!.unitPrice;
+    }
+    return _currencyService.toMyr(enteredPrice);
+  }
+
+  Future<void> _loadCurrency() async {
+    try {
+      await _currencyService.loadForCurrentUser();
+    } on CurrencyServiceException catch (error) {
+      if (!mounted) return;
+      _showMessage(error.message);
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Unable to load currency settings: $error');
+    } finally {
+      if (mounted) setState(() => _isLoadingCurrency = false);
+    }
   }
 
   Future<void> _loadCategories() async {
@@ -195,6 +253,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
       return;
     }
     if (_isSaving ||
+        _isLoadingCurrency ||
         _isLoadingCategories ||
         _isLoadingUnits ||
         _isLoadingLocations ||
@@ -233,6 +292,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
 
     setState(() => _isSaving = true);
     try {
+      final storedUnitPrice = _unitPriceInMyr(unitPrice.value!);
       final item = _isEdit
           ? await _inventoryService.updateItem(
               id: widget.initialItem!.id,
@@ -243,7 +303,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
               locationId: _locationId ?? '',
               quantity: quantity.value!,
               minStock: minStock.value!,
-              unitPrice: unitPrice.value!,
+              unitPrice: storedUnitPrice,
               notes: _notesController.text,
             )
           : await _inventoryService.createItem(
@@ -254,7 +314,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
               locationId: _locationId ?? '',
               quantity: quantity.value!,
               minStock: minStock.value!,
-              unitPrice: unitPrice.value!,
+              unitPrice: storedUnitPrice,
               notes: _notesController.text,
             );
       if (!mounted) return;
@@ -325,6 +385,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
               onSave: _onSubmit,
               isSaving:
                   _isSaving ||
+                  _isLoadingCurrency ||
                   _isLoadingCategories ||
                   _isLoadingUnits ||
                   _isLoadingLocations ||
@@ -440,7 +501,6 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
                       minStockController: _minStockController,
                       unitPriceController: _unitPriceController,
                       unitSuffix: _unitShort,
-                      priceSuffix: _priceSuffix,
                       locations: locationLabels,
                       selectedLocation: selectedLocation,
                       onLocationChanged: (name) => setState(() {
@@ -462,6 +522,7 @@ class _InventoryItemPageState extends State<InventoryItemPage> {
               onSubmit: _onSubmit,
               isSubmitting:
                   _isSaving ||
+                  _isLoadingCurrency ||
                   _isLoadingCategories ||
                   _isLoadingUnits ||
                   _isLoadingLocations ||

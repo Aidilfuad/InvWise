@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
-import 'package:package_info_plus/package_info_plus.dart';
+import 'package:package_info_plus_platform_interface/package_info_platform_interface.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -206,14 +206,20 @@ class AppUpdateService {
   static Future<void> _writePersistentCache(String key, Object value) =>
       OfflineCacheService.instance.writeValue(key, value, scopeId: _cacheScope);
 
-  static Future<String> installedVersion() async =>
-      (await PackageInfo.fromPlatform()).version;
+  static Future<String> installedVersion() async {
+    final packageInfo = await PackageInfoPlatform.instance.getAll();
+    final buildNumber = packageInfo.buildNumber.trim();
+    return buildNumber.isEmpty
+        ? packageInfo.version
+        : '${packageInfo.version}+$buildNumber';
+  }
 
-  Future<AppVersionRelease?> latestRelease() async {
+  Future<AppVersionRelease?> latestRelease({bool refresh = false}) async {
     final response = await _githubJson(
       Uri.parse('$githubReleaseApi/latest'),
       cacheKey: _latestReleaseCacheKey,
       notFoundIsNull: true,
+      refresh: refresh,
     );
     _latestReleaseNotice = response.notice;
     final decoded = response.payload;
@@ -248,9 +254,10 @@ class AppUpdateService {
     Uri uri, {
     required String cacheKey,
     bool notFoundIsNull = false,
+    bool refresh = false,
   }) async {
     final cached = await _readCache(cacheKey);
-    if (cached != null && cached.isFreshAt(_clock())) {
+    if (!refresh && cached != null && cached.isFreshAt(_clock())) {
       return _GitHubJsonResponse(payload: cached.payload);
     }
 
@@ -342,7 +349,7 @@ class AppUpdateService {
     String? installed;
     try {
       installed = await installedVersion();
-      final release = await latestRelease();
+      final release = await latestRelease(refresh: true);
       await _record(
         action: 'Checked For Updates',
         description: 'Checked for application updates.',

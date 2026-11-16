@@ -238,9 +238,7 @@ class CurrencyService extends ChangeNotifier {
         'Cannot format a non-finite currency amount.',
       );
     }
-    final amount = _displayCurrency == DisplayCurrency.myr
-        ? amountMyr
-        : amountMyr / _exchangeRateUsdMyr;
+    final amount = fromMyr(amountMyr);
     final formatted = amount
         .abs()
         .toStringAsFixed(2)
@@ -248,6 +246,38 @@ class CurrencyService extends ChangeNotifier {
     final sign = amount < 0 ? '-' : '';
     return '$sign${_displayCurrency.symbol}${_displayCurrency.separator}'
         '$formatted';
+  }
+
+  double toMyr(
+    double displayAmount, {
+    DisplayCurrency? currency,
+    double? exchangeRateUsdMyr,
+  }) {
+    if (!displayAmount.isFinite) {
+      throw const CurrencyServiceException(
+        'Cannot convert a non-finite currency amount.',
+      );
+    }
+    final sourceCurrency = currency ?? _displayCurrency;
+    if (sourceCurrency == DisplayCurrency.myr) return displayAmount;
+    final rate = exchangeRateUsdMyr ?? _exchangeRateUsdMyr;
+    if (!rate.isFinite || rate <= 0) {
+      throw const CurrencyServiceException(
+        'Exchange rate must be a number greater than zero.',
+      );
+    }
+    return displayAmount * rate;
+  }
+
+  double fromMyr(double amountMyr) {
+    if (!amountMyr.isFinite) {
+      throw const CurrencyServiceException(
+        'Cannot convert a non-finite currency amount.',
+      );
+    }
+    return _displayCurrency == DisplayCurrency.myr
+        ? amountMyr
+        : amountMyr / _exchangeRateUsdMyr;
   }
 
   void _requirePermission(AppPermission permission) {

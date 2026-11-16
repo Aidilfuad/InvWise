@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:invwise/features/inventory/data/item_details_data.dart';
 import 'package:invwise/features/inventory/widgets/inventory_summary_card.dart';
+import 'package:invwise/features/inventory_item/widgets/stock_information_card.dart';
 import 'package:invwise/features/settings/currency_settings_page.dart';
 import 'package:invwise/features/settings/settings_page.dart';
 import 'package:invwise/services/currency_service.dart';
@@ -192,6 +193,22 @@ void main() {
     },
   );
 
+  test('converts displayed amounts to and from the stored MYR value', () async {
+    final service = _createService();
+    await service.loadForProfile(profileId);
+
+    expect(service.toMyr(100), 100);
+    expect(service.fromMyr(100), 100);
+
+    await service.setDisplayCurrency(
+      profileId: profileId,
+      currency: DisplayCurrency.usd,
+    );
+    expect(service.toMyr(100), 425);
+    expect(service.fromMyr(425), 100);
+    expect(service.formatMyr(425), r'$100.00');
+  });
+
   test('currency preference stays local offline and syncs on retry', () async {
     final settings = UserSettingsService();
     isOffline = true;
@@ -358,6 +375,56 @@ void main() {
     expect(find.text(r'$4,050.12'), findsOneWidget);
     expect(item.unitPriceLabel, r'$4,050.12');
     expect(item.inventoryValueLabel, r'$4,050.12');
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('stock unit price field follows the active display currency', (
+    tester,
+  ) async {
+    final service = CurrencyService.instance;
+    await service.loadForProfile(profileId, refresh: true);
+    await service.setDisplayCurrency(
+      profileId: profileId,
+      currency: DisplayCurrency.myr,
+    );
+    final quantity = TextEditingController();
+    final minimum = TextEditingController();
+    final unitPrice = TextEditingController(text: '100.00');
+    addTearDown(quantity.dispose);
+    addTearDown(minimum.dispose);
+    addTearDown(unitPrice.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StockInformationCard(
+            quantityController: quantity,
+            minStockController: minimum,
+            unitPriceController: unitPrice,
+            unitSuffix: 'pcs',
+            locations: const [],
+            selectedLocation: null,
+            onLocationChanged: (_) {},
+          ),
+        ),
+      ),
+    );
+
+    TextField unitPriceField() =>
+        tester.widget<TextField>(find.byType(TextField).last);
+    expect(find.text('Unit Price (MYR)'), findsOneWidget);
+    expect(unitPriceField().decoration?.prefixText, 'RM ');
+    expect(find.text('MYR / pc'), findsOneWidget);
+
+    await service.setDisplayCurrency(
+      profileId: profileId,
+      currency: DisplayCurrency.usd,
+    );
+    await tester.pump();
+
+    expect(find.text('Unit Price (USD)'), findsOneWidget);
+    expect(unitPriceField().decoration?.prefixText, r'$');
+    expect(find.text('USD / pc'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

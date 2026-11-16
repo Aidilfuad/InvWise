@@ -12,10 +12,12 @@ class AppVersionPage extends StatefulWidget {
   State<AppVersionPage> createState() => _AppVersionPageState();
 }
 
-class _AppVersionPageState extends State<AppVersionPage> {
+class _AppVersionPageState extends State<AppVersionPage>
+    with WidgetsBindingObserver {
   late final AppUpdateService _service = widget.service ?? AppUpdateService();
   late final bool _ownsService = widget.service == null;
   AppUpdateCheckResult? _result;
+  String? _installedVersion;
   List<AppVersionRelease> _history = const [];
   bool _isLoading = true;
   bool _isDiagnosing = false;
@@ -26,11 +28,20 @@ class _AppVersionPageState extends State<AppVersionPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _check();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && !_isLoading) {
+      _check();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     if (_ownsService) _service.dispose();
     super.dispose();
   }
@@ -38,6 +49,9 @@ class _AppVersionPageState extends State<AppVersionPage> {
   Future<void> _check() async {
     setState(() {
       _isLoading = true;
+      _result = null;
+      _installedVersion = null;
+      _history = const [];
       _error = null;
       _notice = null;
       _historyError = null;
@@ -46,13 +60,22 @@ class _AppVersionPageState extends State<AppVersionPage> {
     List<AppVersionRelease> history = const [];
     String? updateError;
     String? historyError;
+    String? installedVersion;
+
+    try {
+      installedVersion = await AppUpdateService.installedVersion();
+    } catch (error) {
+      updateError = 'Unable to load the installed application version.';
+      debugPrint('Installed version refresh failed: $error');
+    }
 
     try {
       result = await _service.checkForUpdates();
+      installedVersion = result.installedVersion;
     } on GitHubReleaseException catch (error) {
-      updateError = error.message;
+      updateError ??= error.message;
     } catch (error) {
-      updateError = 'Unable to check for updates. Please try again later.';
+      updateError ??= 'Unable to check for updates. Please try again later.';
       debugPrint('Update screen check failed: $error');
     }
 
@@ -67,7 +90,8 @@ class _AppVersionPageState extends State<AppVersionPage> {
 
     if (!mounted) return;
     setState(() {
-      _result = result ?? _result;
+      _result = result;
+      _installedVersion = installedVersion;
       _history = history;
       _error = updateError;
       _historyError = historyError;
@@ -152,9 +176,9 @@ class _AppVersionPageState extends State<AppVersionPage> {
                   children: [
                     _VersionRow(
                       label: 'Installed Version',
-                      value: result == null
+                      value: _installedVersion == null
                           ? 'Unavailable'
-                          : 'v${result.installedVersion}',
+                          : 'v$_installedVersion',
                     ),
                     _VersionRow(
                       label: 'Latest Version',

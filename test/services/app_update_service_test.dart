@@ -3,10 +3,26 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:package_info_plus_platform_interface/package_info_data.dart';
+import 'package:package_info_plus_platform_interface/package_info_platform_interface.dart';
 import 'package:invwise/services/app_update_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 void main() {
+  test(
+    'installed version refreshes platform metadata and includes build',
+    () async {
+      final platform = _MutablePackageInfoPlatform();
+      PackageInfoPlatform.instance = platform;
+
+      expect(await AppUpdateService.installedVersion(), '2.2.0+4');
+      platform.version = '2.2.1';
+      platform.buildNumber = '5';
+      expect(await AppUpdateService.installedVersion(), '2.2.1+5');
+      expect(platform.readCount, 2);
+    },
+  );
+
   test(
     'compares semantic versions without treating build numbers as release',
     () {
@@ -253,6 +269,38 @@ void main() {
   });
 
   test(
+    'explicit release refresh bypasses a fresh cached latest version',
+    () async {
+      final now = DateTime.utc(2026, 11, 9);
+      final cache = <String, Object>{
+        'github.latest_release': {
+          'saved_at': now.toIso8601String(),
+          'payload': _githubRelease(tag: 'v2.0.0'),
+        },
+      };
+      var requests = 0;
+      final service = AppUpdateService(
+        client: _clientWithActivityLog(),
+        httpClient: MockClient((request) async {
+          requests++;
+          return http.Response(
+            jsonEncode(_githubRelease(tag: 'v2.0.1')),
+            200,
+            request: request,
+          );
+        }),
+        cacheReader: (key) async => cache[key],
+        cacheWriter: (key, value) async => cache[key] = value,
+        clock: () => now,
+      );
+
+      expect((await service.latestRelease(refresh: true))?.version, 'v2.0.1');
+      expect(requests, 1);
+      service.dispose();
+    },
+  );
+
+  test(
     'falls back to stale release cache after GitHub rate limiting',
     () async {
       final cache = <String, Object>{};
@@ -342,6 +390,24 @@ void main() {
     );
     service.dispose();
   });
+}
+
+class _MutablePackageInfoPlatform extends PackageInfoPlatform {
+  String version = '2.2.0';
+  String buildNumber = '4';
+  int readCount = 0;
+
+  @override
+  Future<PackageInfoData> getAll({String? baseUrl}) async {
+    readCount++;
+    return PackageInfoData(
+      appName: 'InvWise',
+      packageName: 'com.example.invwise',
+      version: version,
+      buildNumber: buildNumber,
+      buildSignature: '',
+    );
+  }
 }
 
 Map<String, dynamic> _githubRelease({

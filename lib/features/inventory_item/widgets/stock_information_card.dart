@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_spacing.dart';
+import '../../../services/currency_service.dart';
 import 'item_information_card.dart';
 
 class StockInformationCard extends StatelessWidget {
@@ -10,7 +11,6 @@ class StockInformationCard extends StatelessWidget {
     required this.minStockController,
     required this.unitPriceController,
     required this.unitSuffix,
-    required this.priceSuffix,
     required this.locations,
     required this.selectedLocation,
     required this.onLocationChanged,
@@ -23,8 +23,6 @@ class StockInformationCard extends StatelessWidget {
   /// e.g. "pcs"
   final String unitSuffix;
 
-  /// e.g. "USD / pc"
-  final String priceSuffix;
   final List<String> locations;
   final String? selectedLocation;
   final ValueChanged<String?> onLocationChanged;
@@ -58,13 +56,25 @@ class StockInformationCard extends StatelessWidget {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: AppSpacing.md),
-          InventoryItemField(
-            label: 'Unit Price',
-            controller: unitPriceController,
-            hint: '0.00',
-            prefix: '\$',
-            suffix: priceSuffix,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          AnimatedBuilder(
+            animation: CurrencyService.instance,
+            builder: (context, _) {
+              final currency = CurrencyService.instance.displayCurrency;
+              final short = unitSuffix;
+              final singular = short.endsWith('s') && short.length > 1
+                  ? short.substring(0, short.length - 1)
+                  : short;
+              return InventoryItemField(
+                label: 'Unit Price (${currency.code})',
+                controller: unitPriceController,
+                hint: '0.00',
+                prefix: '${currency.symbol}${currency.separator}',
+                suffix: '${currency.code} / $singular',
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+              );
+            },
           ),
         ],
       ),

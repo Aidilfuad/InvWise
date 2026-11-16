@@ -300,6 +300,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sensor Monitoring'));
     await tester.pumpAndSettle();
+    expect(find.text('Telemetry Details'), findsNothing);
+    await tester.tap(find.text('View Details →'));
+    await tester.pumpAndSettle();
     expect(find.text('Telemetry Details'), findsOneWidget);
     await tester.tap(find.text('Telemetry Analytics'));
     await tester.pumpAndSettle();
@@ -563,11 +566,101 @@ void main() {
     expect(find.text('Last Detection'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('app switch records an event and confirms status and LED', (
+    tester,
+  ) async {
+    final now = DateTime(2026, 11, 8, 21, 12);
+    var switchIsOn = false;
+    final events = <Map<String, dynamic>>[];
+    final client = SupabaseClient(
+      'http://localhost:54321',
+      'test-key',
+      httpClient: MockClient((request) async {
+        if (request.url.path.endsWith('/telemetry_settings')) {
+          return http.Response(
+            jsonEncode({
+              'id': 'default',
+              'voltage_warning_threshold': 250,
+              'current_warning_threshold': 10,
+              'offline_timeout_minutes': 5,
+              'realtime_enabled': false,
+            }),
+            200,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          );
+        }
+        if (request.url.path.endsWith('/sensor_alerts')) {
+          return http.Response(
+            '[]',
+            200,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          );
+        }
+        if (request.url.path.endsWith('/switch_events')) {
+          if (request.method == 'POST') {
+            final event = jsonDecode(request.body) as Map<String, dynamic>;
+            events.add(event);
+            switchIsOn = event['switch_state'] == 'ON';
+            return http.Response('', 201, request: request);
+          }
+          return http.Response(
+            '[]',
+            200,
+            headers: {'content-type': 'application/json'},
+            request: request,
+          );
+        }
+        if (request.url.path.endsWith('/activity_logs')) {
+          return http.Response('', 201, request: request);
+        }
+        return http.Response(
+          jsonEncode(_sensorRows(now, switchState: switchIsOn ? 'ON' : 'OFF')),
+          200,
+          headers: {'content-type': 'application/json'},
+          request: request,
+        );
+      }),
+      authOptions: FlutterAuthClientOptions(
+        autoRefreshToken: false,
+        persistSession: false,
+        localStorage: const EmptyLocalStorage(),
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SensorMonitoringCard(
+            service: SensorMonitoringService(client: client),
+            clock: () => now,
+            offlineCheckInterval: null,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('OFF'), findsOneWidget);
+    expect(find.byTooltip('App LED: OFF'), findsOneWidget);
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(events, [
+      {'sensor_id': 'switch-1', 'switch_state': 'ON'},
+    ]);
+    expect(find.text('ON'), findsOneWidget);
+    expect(find.byTooltip('App LED: ON'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 List<Map<String, dynamic>> _sensorRows(
   DateTime now, {
   bool includeIriv = false,
+  String switchState = 'ON',
 }) {
   final lastSeen = now.toUtc().toIso8601String();
   return [
@@ -584,8 +677,8 @@ List<Map<String, dynamic>> _sensorRows(
     },
     {
       'sensor_id': 'switch-1',
-      'value_numeric': 1,
-      'value_text': 'ON',
+      'value_numeric': switchState == 'ON' ? 1 : 0,
+      'value_text': switchState,
       'last_seen': lastSeen,
       'sensors': {
         'sensor_code': 'SW_01',

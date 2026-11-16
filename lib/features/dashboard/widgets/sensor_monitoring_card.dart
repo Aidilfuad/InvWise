@@ -31,6 +31,8 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
   bool _isSyncing = false;
   bool _hasLoadError = false;
   int _offlineTimeoutMinutes = 5;
+  String? _switchWriteSensorId;
+  bool? _pendingSwitchState;
   Timer? _ageTimer;
   Timer? _offlineCheckTimer;
   RealtimeChannel? _sensorStatusChannel;
@@ -164,167 +166,156 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: visibleReadings.isEmpty ? null : _openDetails,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.shadow,
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Sensor Monitoring',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Manual Sync',
-                    onPressed: _isSyncing
-                        ? null
-                        : () => _sync(showFeedback: true),
-                    visualDensity: VisualDensity.compact,
-                    style: IconButton.styleFrom(
-                      backgroundColor: AppColors.primaryContainer,
-                      foregroundColor: AppColors.primary,
-                    ),
-                    icon: _isSyncing
-                        ? SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: AppColors.primary,
-                            ),
-                          )
-                        : const Icon(Icons.refresh_rounded, size: 20),
-                  ),
-                ],
-              ),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    '${visibleReadings.length} Sensors',
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.border),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadow,
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Sensor Monitoring',
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textSecondary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
                     ),
                   ),
-                  if (visibleReadings.isNotEmpty)
-                    _summaryStatus(
-                      '${counts[SensorPresence.online] ?? 0} Online',
-                      AppColors.success,
-                    ),
-                  if ((counts[SensorPresence.warning] ?? 0) > 0)
-                    _summaryStatus(
-                      '${counts[SensorPresence.warning]} Warning',
-                      AppColors.warning,
-                    ),
-                  if ((counts[SensorPresence.offline] ?? 0) > 0)
-                    _summaryStatus(
-                      '${counts[SensorPresence.offline]} Offline',
-                      AppColors.danger,
-                    ),
-                  if (visibleReadings.isNotEmpty)
-                    _summaryStatus(
-                      '${_healthPercent(counts, visibleReadings.length)}% Health',
-                      _healthPercent(counts, visibleReadings.length) >= 80
-                          ? AppColors.success
-                          : AppColors.warning,
-                    ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Last Sync: ${_lastSync == null ? '--:--:--' : _formatTime(_lastSync!)}',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textSecondary,
                 ),
-              ),
-              const SizedBox(height: 9),
-              if (_hasLoadError && visibleReadings.isEmpty)
-                _loadErrorState()
-              else if (visibleReadings.isEmpty)
-                Text(
-                  'No configured sensor data available',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
+                IconButton(
+                  tooltip: 'Manual Sync',
+                  onPressed: _isSyncing
+                      ? null
+                      : () => _sync(showFeedback: true),
+                  visualDensity: VisualDensity.compact,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.primaryContainer,
+                    foregroundColor: AppColors.primary,
                   ),
-                )
-              else ...[
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth >= 600) {
-                      const columns = 2;
-                      const gap = 8.0;
-                      final cardWidth =
-                          (constraints.maxWidth - gap * (columns - 1)) /
-                          columns;
-                      return Wrap(
-                        spacing: gap,
-                        runSpacing: gap,
-                        children: [
-                          for (final card in sensorCards)
-                            SizedBox(width: cardWidth, child: card),
-                        ],
-                      );
-                    }
-                    return Column(
-                      children: [
-                        for (
-                          var index = 0;
-                          index < sensorCards.length;
-                          index++
-                        ) ...[
-                          if (index > 0) const SizedBox(height: 7),
-                          sensorCards[index],
-                        ],
-                      ],
-                    );
-                  },
-                ),
-                const SizedBox(height: 4),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: _openDetails,
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 8,
-                      ),
-                    ),
-                    child: const Text('View Details →'),
-                  ),
+                  icon: _isSyncing
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        )
+                      : const Icon(Icons.refresh_rounded, size: 20),
                 ),
               ],
+            ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  '${visibleReadings.length} Sensors',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                if (visibleReadings.isNotEmpty)
+                  _summaryStatus(
+                    '${counts[SensorPresence.online] ?? 0} Online',
+                    AppColors.success,
+                  ),
+                if ((counts[SensorPresence.warning] ?? 0) > 0)
+                  _summaryStatus(
+                    '${counts[SensorPresence.warning]} Warning',
+                    AppColors.warning,
+                  ),
+                if ((counts[SensorPresence.offline] ?? 0) > 0)
+                  _summaryStatus(
+                    '${counts[SensorPresence.offline]} Offline',
+                    AppColors.danger,
+                  ),
+                if (visibleReadings.isNotEmpty)
+                  _summaryStatus(
+                    '${_healthPercent(counts, visibleReadings.length)}% Health',
+                    _healthPercent(counts, visibleReadings.length) >= 80
+                        ? AppColors.success
+                        : AppColors.warning,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Last Sync: ${_lastSync == null ? '--:--:--' : _formatTime(_lastSync!)}',
+              style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 9),
+            if (_hasLoadError && visibleReadings.isEmpty)
+              _loadErrorState()
+            else if (visibleReadings.isEmpty)
+              Text(
+                'No configured sensor data available',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              )
+            else ...[
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth >= 600) {
+                    const columns = 2;
+                    const gap = 8.0;
+                    final cardWidth =
+                        (constraints.maxWidth - gap * (columns - 1)) / columns;
+                    return Wrap(
+                      spacing: gap,
+                      runSpacing: gap,
+                      children: [
+                        for (final card in sensorCards)
+                          SizedBox(width: cardWidth, child: card),
+                      ],
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (
+                        var index = 0;
+                        index < sensorCards.length;
+                        index++
+                      ) ...[
+                        if (index > 0) const SizedBox(height: 7),
+                        sensorCards[index],
+                      ],
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: _openDetails,
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 8,
+                    ),
+                  ),
+                  child: const Text('View Details →'),
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -378,27 +369,102 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
     icon: Icons.toggle_on_rounded,
     title: 'Toggle Switch',
     reading: reading,
-    body: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    body: Row(
       children: [
-        Text(
-          _switchState(reading),
-          style: TextStyle(
-            color: _switchState(reading) == 'ON'
-                ? AppColors.success
-                : AppColors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
+        Expanded(
+          child: Row(
+            children: [
+              Text(
+                _effectiveSwitchState(reading) ? 'ON' : 'OFF',
+                style: TextStyle(
+                  color: _effectiveSwitchState(reading)
+                      ? AppColors.success
+                      : AppColors.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 8),
+              _appLedIndicator(_effectiveSwitchState(reading)),
+            ],
           ),
         ),
-        const SizedBox(height: 3),
+        Switch.adaptive(
+          value: _effectiveSwitchState(reading),
+          onChanged: _switchWriteSensorId == null
+              ? (isOn) => _setSwitchState(reading, isOn)
+              : null,
+          activeTrackColor: AppColors.success,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        ),
+      ],
+    ),
+  );
+
+  Widget _appLedIndicator(bool isOn) => Tooltip(
+    message: 'App LED: ${isOn ? 'ON' : 'OFF'}',
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            color: isOn ? AppColors.success : AppColors.border,
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 4),
         Text(
-          'Last updated ${reading.updatedLabelAt(_now()).replaceFirst('Updated ', '')}',
+          'App LED',
           style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
         ),
       ],
     ),
   );
+
+  bool _effectiveSwitchState(SensorReading reading) {
+    if (reading.sensorId == _switchWriteSensorId &&
+        _pendingSwitchState != null) {
+      return _pendingSwitchState!;
+    }
+    return _switchState(reading) == 'ON';
+  }
+
+  Future<void> _setSwitchState(SensorReading reading, bool isOn) async {
+    if (_switchWriteSensorId != null) return;
+    setState(() {
+      _switchWriteSensorId = reading.sensorId;
+      _pendingSwitchState = isOn;
+    });
+    try {
+      final confirmedReading = await _service.setSwitchState(
+        sensorId: reading.sensorId,
+        isOn: isOn,
+      );
+      if (!mounted) return;
+      setState(() {
+        _readings = [
+          for (final current in _readings)
+            if (current.sensorId == confirmedReading.sensorId)
+              confirmedReading
+            else
+              current,
+        ];
+        _switchWriteSensorId = null;
+        _pendingSwitchState = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _switchWriteSensorId = null;
+        _pendingSwitchState = null;
+      });
+      _showMessage('Unable to update the toggle switch: $error');
+      debugPrint('Toggle switch update failed: $error');
+      unawaited(_sync(showFeedback: false));
+    }
+  }
 
   Widget _sensorSummary({
     required IconData icon,
@@ -552,5 +618,4 @@ class _SensorMonitoringCardState extends State<SensorMonitoringCard> {
         '${local.second.toString().padLeft(2, '0')} '
         '${local.hour < 12 ? 'AM' : 'PM'}';
   }
-
 }

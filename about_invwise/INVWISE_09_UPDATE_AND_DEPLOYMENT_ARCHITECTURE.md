@@ -982,6 +982,25 @@ fallback, and cleanup-error handling before production rollout.
 
 ---
 
+## Installed Version Refresh
+
+The displayed installed version is read from the platform package metadata on
+each settings/version screen load and includes the build number from the
+installed package. Update checks bypass the fresh latest-release cache to
+recheck GitHub; if the request is rate-limited, the existing cached response
+remains an explicitly labeled fallback. The Version Information page checks
+again when the app resumes after an external installer flow.
+
+## Inventory Currency Input
+
+Inventory item prices are stored in MYR. The Add/Edit Item form uses the shared
+`CurrencyService` to show the active supported display currency (MYR or USD),
+convert user-entered values back to the stored MYR amount, and preserve an
+unedited original value when editing. EUR is not a supported currency in the
+current preference schema or exchange-rate settings.
+
+---
+
 END OF DOCUMENT
 
 INVWISE_09_UPDATE_AND_DEPLOYMENT_ARCHITECTURE.md

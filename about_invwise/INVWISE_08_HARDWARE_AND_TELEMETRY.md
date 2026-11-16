@@ -953,6 +953,23 @@ Retention Management
 
 【1-2d735d】【2-71689a】
 
+## Application-Controlled Toggle
+
+The Sensor Monitoring card exposes an application switch for the configured
+`toggle_switch` sensor. The client appends `ON`/`OFF` events to
+`switch_events`; it does not write `sensor_status` or `sensor_history`
+directly. The existing database trigger remains responsible for updating the
+current state and history, which the app reads back before clearing its
+pending UI state.
+
+The repository does not contain the deployed `switch_events` table/trigger
+definition, its write policy, or a Node-RED/hardware output flow. The app event
+and trigger path can therefore be verified only when the production database
+permits authenticated inserts; physical LED actuation still requires an
+external output listener and end-to-end hardware verification. The configured
+sensor remains `SW_01`; no active IRIV device is present in the repository
+documentation.
+
 ---
 
 END OF DOCUMENT
