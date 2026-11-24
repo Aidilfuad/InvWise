@@ -10,8 +10,16 @@ export default function ChangePasswordModal({ email, onClose, onSuccess }) {
 
   async function submit(event) {
     event.preventDefault()
+    if (!values.current) {
+      setError('Enter your current password.')
+      return
+    }
     if (values.next.length < 8) {
       setError('Use a new password with at least 8 characters.')
+      return
+    }
+    if (!/[A-Za-z]/.test(values.next) || !/\d/.test(values.next)) {
+      setError('Use a new password that includes at least one letter and one number.')
       return
     }
     if (values.next !== values.confirm) {

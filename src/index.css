@@ -43,36 +43,62 @@ button:disabled {
   background: #0d9488;
 }
 
-html[data-theme="dark"] {
+html.dark {
   color-scheme: dark;
 }
 
-html[data-theme="dark"] body {
+html.dark body {
   background: #0f172a;
   color: #e2e8f0;
 }
 
-html[data-theme="dark"] .bg-white,
-html[data-theme="dark"] .bg-\[\#f8fafc\] {
+html.dark .bg-white,
+html.dark .bg-\[\#f8fafc\],
+html.dark .bg-\[\#f7f9fc\],
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
   background-color: #111827 !important;
 }
 
-html[data-theme="dark"] .border-slate-200,
-html[data-theme="dark"] .border-slate-100,
-html[data-theme="dark"] .border-slate-300 {
+html.dark .bg-slate-900 {
+  background-color: #020617 !important;
+}
+
+html.dark .border-slate-200,
+html.dark .border-slate-100,
+html.dark .border-slate-300,
+html.dark .divide-slate-100 {
   border-color: #334155 !important;
 }
 
-html[data-theme="dark"] .text-slate-900,
-html[data-theme="dark"] .text-slate-800,
-html[data-theme="dark"] .text-slate-700 {
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
   color: #f1f5f9 !important;
 }
 
-html[data-theme="dark"] .text-slate-600,
-html[data-theme="dark"] .text-slate-500,
-html[data-theme="dark"] .text-slate-400 {
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-slate-400 {
   color: #94a3b8 !important;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background-color: #111827;
+  color: #e2e8f0;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+
+html.dark .shadow-sm,
+html.dark .shadow-xl,
+html.dark .shadow-2xl {
+  --tw-shadow-color: rgb(2 6 23 / 0.45);
 }
 
 @layer components {

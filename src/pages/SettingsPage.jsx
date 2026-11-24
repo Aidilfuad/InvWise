@@ -4,11 +4,13 @@ import {
   Check,
   ChevronDown,
   Globe2,
+  History,
   Menu,
   Save,
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  UserRound,
 } from 'lucide-react'
 import { useOutletContext } from 'react-router-dom'
 import ChangePasswordModal from '../components/settings/ChangePasswordModal'
@@ -16,6 +18,7 @@ import TwoFactorModal from '../components/settings/TwoFactorModal'
 import RolePermissionsModal from '../components/users/RolePermissionsModal'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isSuperAdminRole, useWorkspaceAccess } from '../lib/workspaceAccess'
+import { getStoredThemeMode, setThemeMode } from '../lib/theme'
 
 const initialPreferences = {
   workspaceName: 'Acme Operations',
@@ -23,7 +26,7 @@ const initialPreferences = {
   timezone: 'Asia/Kuala_Lumpur',
   dateFormat: 'DD/MM/YYYY',
   language: 'en',
-  appearance: 'light',
+  appearance: getStoredThemeMode(),
   temperatureMin: '18',
   temperatureMax: '26',
   humidityMin: '40',
@@ -72,13 +75,6 @@ function showTime(value) {
   return value ? new Date(value).toLocaleString([], { hour: '2-digit', minute: '2-digit' }) : 'just now'
 }
 
-function applyWebAppearance(mode) {
-  const dark = mode === 'dark' ||
-    (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light'
-  document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
-}
-
 function Toggle({ checked, label, onChange, disabled = false }) {
   return (
     <button
@@ -119,6 +115,10 @@ export default function SettingsPage() {
   const [modal, setModal] = useState(null)
   const [mfaFactorId, setMfaFactorId] = useState('')
   const [mfaError, setMfaError] = useState('')
+  const [ownActivity, setOwnActivity] = useState([])
+  const [ownActivityLoading, setOwnActivityLoading] = useState(true)
+  const [ownActivityError, setOwnActivityError] = useState('')
+  const [personalSaving, setPersonalSaving] = useState(false)
 
   const alertCount = context.data?.activeAlertCount ?? 0
   const globalProfile = context.data?.profile
@@ -128,8 +128,36 @@ export default function SettingsPage() {
   }, [])
 
   useEffect(() => {
-    applyWebAppearance(preferences.appearance)
+    setThemeMode(preferences.appearance)
   }, [preferences.appearance])
+
+  useEffect(() => {
+    if (!supabase || !session?.user?.id) {
+      setOwnActivity([])
+      setOwnActivityError('Sign in to view your activity logs.')
+      return
+    }
+
+    let active = true
+    supabase
+      .from('activity_logs')
+      .select('id,occurred_at,action,description,category,entity_type,entity_id')
+      .eq('actor_user_id', session.user.id)
+      .order('occurred_at', { ascending: false })
+      .limit(100)
+      .then(({ data, error }) => {
+        if (!active) return
+        if (error) {
+          setOwnActivity([])
+          setOwnActivityError(error.message || 'Unable to load your activity logs.')
+        } else {
+          setOwnActivity(data ?? [])
+        }
+        setOwnActivityLoading(false)
+      })
+
+    return () => { active = false }
+  }, [session?.user?.id])
 
   useEffect(() => {
     let active = true
@@ -242,7 +270,7 @@ export default function SettingsPage() {
 
   const updatePreference = (key, value) => {
     setPreferences((current) => ({ ...current, [key]: value }))
-    if (key === 'appearance') applyWebAppearance(value)
+    if (key === 'appearance') setThemeMode(value)
     setDirty(true)
     setSaveMessage('Unsaved changes')
   }
@@ -346,6 +374,47 @@ export default function SettingsPage() {
     setSaveMessage('Unsaved changes')
   }
 
+  async function savePersonalInformation(event) {
+    event.preventDefault()
+    if (!profile.fullName.trim()) {
+      setLoadError('Enter your full name before saving.')
+      return
+    }
+    if (!supabase || !isSupabaseConfigured || !session?.user?.id) {
+      setLoadError('A signed-in Supabase account is required to update personal information.')
+      return
+    }
+
+    setPersonalSaving(true)
+    setLoadError('')
+    setSaveMessage('Saving personal information…')
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ full_name: profile.fullName.trim() })
+        .eq('auth_user_id', session.user.id)
+        .select('id,full_name,email,employee_id,role')
+        .maybeSingle()
+      if (error) throw error
+      if (!data) throw new Error('Your profile was not updated.')
+      setProfile((current) => ({
+        ...current,
+        fullName: data.full_name ?? current.fullName,
+        employeeId: data.employee_id ?? current.employeeId,
+        role: data.role ?? current.role,
+      }))
+      setDirty(false)
+      setSaveMessage('Personal information saved.')
+      setNotice('Personal information updated.')
+      if (typeof context.refresh === 'function') await context.refresh()
+    } catch (saveError) {
+      setLoadError(saveError instanceof Error ? saveError.message : 'Unable to update personal information.')
+      setSaveMessage('Personal information was not saved.')
+    } finally {
+      setPersonalSaving(false)
+    }
+  }
+
   function startMfaChange() {
     setMfaError('')
     if (!supabase || !isSupabaseConfigured) {
@@ -442,6 +511,25 @@ export default function SettingsPage() {
           </SettingsCard>
         )}
 
+        {showAccount && (
+          <SettingsCard icon={UserRound} title="Personal Information" subtitle="View and update details for your signed-in workspace profile.">
+            <form onSubmit={savePersonalInformation}>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <TextSetting label="Full name" onChange={updateProfileName} value={profile.fullName} />
+                <TextSetting label="Email address" readOnly value={profile.email} />
+                <TextSetting label="Employee ID" readOnly value={profile.employeeId || '—'} muted />
+                <TextSetting label="Workspace role" readOnly value={profile.role} muted />
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+                <p className="text-[8px] text-slate-400">Email, employee ID, and role are managed by the workspace and cannot be changed here.</p>
+                <button className="h-8 shrink-0 rounded-md bg-teal-600 px-3 text-[9px] font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={personalSaving || loading} type="submit">
+                  {personalSaving ? 'Saving…' : 'Save personal information'}
+                </button>
+              </div>
+            </form>
+          </SettingsCard>
+        )}
+
         {showTelemetry && (
           <SettingsCard icon={Bell} title="Telemetry & Alert Defaults" subtitle="Starting thresholds for new sensors. Individual sensor settings take priority.">
             <div className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
@@ -467,13 +555,9 @@ export default function SettingsPage() {
           <SettingsCard icon={ShieldCheck} title="Account & Security" subtitle="Manage your profile and protect access to your account.">
             <div className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
               <div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <TextSetting label="Full name" onChange={updateProfileName} value={profile.fullName} />
-                  <TextSetting label="Email address" readOnly value={profile.email} />
-                  <TextSetting label="Employee ID" readOnly value={profile.employeeId || '—'} muted />
-                  <TextSetting label="Workspace role" readOnly value={profile.role} muted />
-                </div>
-                <p className="mt-3 text-[8px] text-slate-400">Contact a workspace administrator to update your role or employee ID.</p>
+                <p className="text-[9px] font-semibold text-slate-700">Signed-in account</p>
+                <p className="mt-1 text-[8px] leading-4 text-slate-500">{profile.fullName || 'Your profile'} · {profile.email || 'Email unavailable'}</p>
+                <p className="mt-3 text-[8px] leading-4 text-slate-400">Personal details are available in the Personal Information section above.</p>
               </div>
               <div className="space-y-3 border-t border-slate-100 pt-3 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-0">
                 <div className="flex items-center justify-between gap-3">
@@ -490,6 +574,42 @@ export default function SettingsPage() {
                 </div>
               </div>
             </div>
+          </SettingsCard>
+        )}
+
+        {showAccount && (
+          <SettingsCard icon={History} title="My Activity Logs" subtitle="A private view of actions created by your signed-in account.">
+            {ownActivityLoading ? (
+              <p className="rounded-md border border-slate-100 bg-slate-50 px-3 py-8 text-center text-[9px] text-slate-500">Loading your activity logs…</p>
+            ) : ownActivityError ? (
+              <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-3 text-[9px] text-rose-700" role="alert">{ownActivityError}</p>
+            ) : ownActivity.length === 0 ? (
+              <p className="rounded-md border border-dashed border-slate-200 px-3 py-8 text-center text-[9px] text-slate-400">No activity has been recorded for your account.</p>
+            ) : (
+              <div className="max-h-[360px] overflow-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[8px] uppercase tracking-wide text-slate-400">
+                      <th className="px-2 py-2 font-semibold">Action</th>
+                      <th className="px-2 py-2 font-semibold">Details</th>
+                      <th className="px-2 py-2 text-right font-semibold">Time</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ownActivity.map((row) => (
+                      <tr className="border-b border-slate-100 last:border-0" key={row.id}>
+                        <td className="px-2 py-2.5">
+                          <p className="text-[9px] font-semibold text-slate-700">{row.action || 'Activity'}</p>
+                          <p className="mt-0.5 text-[8px] text-slate-400">{row.category || row.entity_type || 'Workspace'}</p>
+                        </td>
+                        <td className="max-w-[420px] px-2 py-2.5 text-[9px] leading-4 text-slate-600">{row.description || '—'}</td>
+                        <td className="whitespace-nowrap px-2 py-2.5 text-right text-[8px] text-slate-500">{showTime(row.occurred_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </SettingsCard>
         )}
 

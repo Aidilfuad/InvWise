@@ -8,6 +8,19 @@
     <title>Sign in | InvWise</title>
   </head>
   <body>
+    <script>
+      (() => {
+        let mode = 'system'
+        try {
+          const stored = localStorage.getItem('invwise.theme')
+          if (stored === 'light' || stored === 'dark' || stored === 'system') mode = stored
+        } catch {}
+        const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.classList.toggle('dark', dark)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      })()
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
