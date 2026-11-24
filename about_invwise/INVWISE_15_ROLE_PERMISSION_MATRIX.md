@@ -1,6 +1,6 @@
 # INVWISE_15_ROLE_PERMISSION_MATRIX
 ## Complete Role-Based Access Control (RBAC) & Permission Governance Guide
-### Version 2.0.0
+### Version 2.3.0
 ### Source: Security Discovery + UI Discovery + Service Discovery + Workflow Analysis
 
 ---
@@ -70,6 +70,12 @@ Edge Functions
 ```
 
 Supported roles are documented across the security and workflow architecture. 【1-9cd5b8】【2-e57a1f】【3-772e80】
+
+InvWise 2.3.0 also stores departments, custom roles, and role-permission grants
+in Supabase. Super Admin can add departments and roles, edit role permissions,
+permanently delete deactivated non-self accounts, and run bulk registration
+request acceptance/deletion from Web and App. Super Admin always retains full
+access regardless of missing or empty role-permission rows.
 
 ---
 
@@ -414,6 +420,8 @@ business history while removing profile settings and the Auth account.
 | Approve Requests | ✅ | ✅ | ❌ | ❌ |
 | Reject Requests | ✅ | ✅ | ❌ | ❌ |
 | Provision Accounts | ✅ | ✅ | ❌ | ❌ |
+| Bulk accept pending requests | ✅ | ❌ | ❌ | ❌ |
+| Bulk delete pending requests | ✅ | ❌ | ❌ | ❌ |
 
 ---
 

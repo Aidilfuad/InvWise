@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'profile_service.dart';
 
@@ -35,6 +36,8 @@ enum AppPermission {
   accessPersonalSecurity,
   manageSecurity,
   manageRegistrationRequests,
+  viewTelemetry,
+  manageTelemetryThresholds,
   viewSupportCenter,
   viewCurrencySettings,
   changeDisplayCurrency,
@@ -51,6 +54,8 @@ class RoleAccessService extends ChangeNotifier {
   Future<void>? _pendingLoad;
 
   AppRole _role = AppRole.unknown;
+  String _roleName = '';
+  Set<AppPermission> _dynamicPermissions = const {};
   bool _isLoaded = false;
   bool _isLoading = false;
   String? _errorMessage;
@@ -59,9 +64,14 @@ class RoleAccessService extends ChangeNotifier {
   bool get isLoaded => _isLoaded;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  String get roleName => _roleName;
+  bool _dynamicPermissionsLoaded = false;
 
   void updateRole(String? profileRole) {
     _role = _parseRole(profileRole);
+    _roleName = profileRole?.trim() ?? '';
+    _dynamicPermissionsLoaded = false;
+    _dynamicPermissions = const {};
     _isLoaded = true;
     _isLoading = false;
     _errorMessage = null;
@@ -95,6 +105,7 @@ class RoleAccessService extends ChangeNotifier {
         );
       }
       updateRole(profile.role);
+      await _loadDynamicPermissions(profile.role);
     } on ProfileServiceException catch (error) {
       _role = AppRole.unknown;
       _isLoaded = true;
@@ -111,8 +122,40 @@ class RoleAccessService extends ChangeNotifier {
     }
   }
 
-  bool allows(AppPermission permission) =>
-      _permissionsByRole[_role]?.contains(permission) ?? false;
+  Future<void> _loadDynamicPermissions(String? roleName) async {
+    if (roleName == null || roleName.trim().isEmpty) return;
+    try {
+      final rows = await Supabase.instance.client
+          .from('role_permissions')
+          .select('permission_key,granted')
+          .eq('role_name', roleName)
+          .eq('granted', true);
+      final permissions = <AppPermission>{};
+      for (final row in rows) {
+        final key = row['permission_key'] as String?;
+        final permission = _permissionForKey(key);
+        if (permission != null) permissions.add(permission);
+      }
+      _dynamicPermissions = permissions;
+      _dynamicPermissionsLoaded = true;
+      notifyListeners();
+    } catch (_) {
+      _dynamicPermissions = const {};
+      _dynamicPermissionsLoaded = true;
+      notifyListeners();
+    }
+  }
+
+  bool allows(AppPermission permission) {
+    if (_role == AppRole.superAdmin ||
+        _normalizeRoleName(_roleName) == 'superadmin') {
+      return true;
+    }
+    if (_dynamicPermissionsLoaded) {
+      return _dynamicPermissions.contains(permission);
+    }
+    return _permissionsByRole[_role]?.contains(permission) ?? false;
+  }
 
   bool allowsAny(Iterable<AppPermission> permissions) =>
       permissions.any(allows);
@@ -124,7 +167,7 @@ class RoleAccessService extends ChangeNotifier {
   }
 
   AppRole _parseRole(String? value) {
-    final normalized = value?.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '');
+    final normalized = _normalizeRoleName(value);
     return switch (normalized) {
       'superadmin' => AppRole.superAdmin,
       'inventoryadministrator' => AppRole.inventoryAdministrator,
@@ -133,6 +176,35 @@ class RoleAccessService extends ChangeNotifier {
       _ => AppRole.unknown,
     };
   }
+
+  String _normalizeRoleName(String? value) =>
+      value?.toLowerCase().replaceAll(RegExp(r'[^a-z]'), '') ?? '';
+
+  AppPermission? _permissionForKey(String? key) => switch (key) {
+    'view_dashboard' => AppPermission.viewDashboard,
+    'view_inventory' => AppPermission.viewInventory,
+    'create_inventory' => AppPermission.createInventory,
+    'edit_inventory' => AppPermission.editInventory,
+    'delete_inventory' => AppPermission.deleteInventory,
+    'adjust_stock' => AppPermission.adjustStock,
+    'receive_stock' => AppPermission.receiveStock,
+    'issue_stock' => AppPermission.issueStock,
+    'view_activity' => AppPermission.viewActivityLog,
+    'view_alerts' => AppPermission.viewAlerts,
+    'view_reports' => AppPermission.viewReports,
+    'export_reports' => AppPermission.exportReports,
+    'view_telemetry' => AppPermission.viewTelemetry,
+    'manage_telemetry_thresholds' => AppPermission.manageTelemetryThresholds,
+    'manage_users' => AppPermission.manageUsers,
+    'manage_registration_requests' => AppPermission.manageRegistrationRequests,
+    'manage_settings' => AppPermission.manageSecurity,
+    'manage_departments' => AppPermission.manageUsers,
+    'manage_roles' => AppPermission.manageUsers,
+    'manage_categories' => AppPermission.manageCategories,
+    'manage_units' => AppPermission.manageUnits,
+    'manage_warehouses' => AppPermission.manageWarehouses,
+    _ => null,
+  };
 }
 
 const Set<AppPermission> _inventoryAdministratorPermissions = {
@@ -148,6 +220,7 @@ const Set<AppPermission> _inventoryAdministratorPermissions = {
   AppPermission.exportReports,
   AppPermission.viewActivityLog,
   AppPermission.viewAlerts,
+  AppPermission.viewTelemetry,
   AppPermission.manageCategories,
   AppPermission.manageUnits,
   AppPermission.manageWarehouses,
@@ -181,6 +254,7 @@ const Set<AppPermission> _warehouseSupervisorPermissions = {
   AppPermission.bulkChangeWarehouse,
   AppPermission.viewReports,
   AppPermission.exportReports,
+  AppPermission.viewTelemetry,
 };
 
 const Set<AppPermission> _storekeeperPermissions = {

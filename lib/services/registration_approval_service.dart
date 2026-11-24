@@ -150,6 +150,32 @@ class RegistrationApprovalService {
     }
   }
 
+  Future<int> deletePendingRequests(List<String> requestIds) async {
+    _requireAdmin();
+    if (requestIds.isEmpty) return 0;
+    try {
+      final result = await _client.rpc(
+        'delete_pending_registration_requests',
+        params: {'p_request_ids': requestIds},
+      );
+      if (result is Map && result['deleted_count'] is int) {
+        return result['deleted_count'] as int;
+      }
+      if (result is Map && result['deleted_count'] != null) {
+        return int.tryParse(result['deleted_count'].toString()) ?? 0;
+      }
+      return 0;
+    } on PostgrestException catch (error) {
+      throw RegistrationApprovalServiceException(
+        _friendlyMessage(error, 'delete pending registration requests'),
+      );
+    } catch (error) {
+      throw RegistrationApprovalServiceException(
+        'Unable to delete selected registration requests. $error',
+      );
+    }
+  }
+
   Future<void> provisionApprovedRequest(String requestId) async {
     _requireAdmin();
     try {

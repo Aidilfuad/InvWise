@@ -43,8 +43,10 @@ const isUuid = (value: unknown): value is string =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     .test(value);
 
-const isRole = (value: unknown): value is UserRole =>
-  typeof value === "string" && roles.includes(value as UserRole);
+const normalizeRoleName = (value: unknown) =>
+  typeof value === "string"
+    ? value.trim().toLowerCase().replace(/[_\-\s]+/g, "")
+    : "";
 
 const isNotFound = (error: unknown) =>
   error instanceof Error && "status" in error && error.status === 404;
@@ -116,7 +118,8 @@ Deno.serve(async (request) => {
       error: `Unable to verify Super Admin access: ${callerError.message}`,
     }, 500);
   }
-  if (caller?.role !== "Super Admin" || caller.is_active !== true) {
+  if (normalizeRoleName(caller?.role) !== "superadmin" ||
+      caller.is_active !== true) {
     return jsonResponse(
       { error: "Only an active Super Admin can manage users." },
       403,
@@ -276,14 +279,27 @@ Deno.serve(async (request) => {
     }
 
     if (action === "change_role") {
-      if (!isRole(body.role)) {
+      if (typeof body.role !== "string" ||
+          body.role.trim().length < 1 ||
+          body.role.trim().length > 100) {
         return jsonResponse({ error: "Select a supported user role." }, 400);
+      }
+      const roleName = body.role.trim();
+      const { data: roleRecord, error: roleError } = await admin
+        .from("custom_roles")
+        .select("name")
+        .eq("name", roleName)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (roleError) throw roleError;
+      if (!roleRecord) {
+        return jsonResponse({ error: "Select an active workspace role." }, 400);
       }
       const { error } = await admin.rpc("manage_user_account", {
         p_actor_auth_user_id: authData.user.id,
         p_target_profile_id: target.id,
         p_action: "change_role",
-        p_role: body.role,
+        p_role: roleName,
       });
       if (error) throw error;
       return jsonResponse({ updated: true });

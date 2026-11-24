@@ -1,6 +1,6 @@
 # INVWISE 00 - EXECUTIVE OVERVIEW
 ## Complete Project Introduction & Business Understanding Guide
-### Version 2.0.0
+### Version 2.3.0
 ### Read This First Before Reading Any Other InvWise Documentation
 
 ---

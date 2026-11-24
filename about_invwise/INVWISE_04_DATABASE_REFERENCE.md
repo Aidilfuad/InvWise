@@ -1,7 +1,7 @@
 # INVWISE_04_DATABASE_REFERENCE
 ## Complete Database Reference
 ### Live Production Schema Documentation
-### Version 2.0.0
+### Version 2.3.0
 ### Source: Live Supabase Database
 ### Last Updated: November 2026
 
@@ -28,6 +28,11 @@ InvWise currently operates on:
 ```text
 Supabase PostgreSQL
 ```
+
+InvWise 2.3.0 includes dynamic `departments`, `custom_roles`, and
+`role_permissions` catalogs. The Super Admin workspace-access RPCs manage these
+tables, while `delete_pending_registration_requests(uuid[])` safely removes
+only selected pending registration rows for active Super Admin users.
 
 Production schema contains:
 
@@ -481,6 +486,8 @@ sku UNIQUE
 
 name
 
+barcode
+
 description
 
 category_id
@@ -704,6 +711,8 @@ item_id
 location_id
 
 quantity
+
+bin_location
 
 updated_at
 ```

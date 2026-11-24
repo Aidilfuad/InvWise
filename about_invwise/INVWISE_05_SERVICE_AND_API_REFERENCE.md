@@ -1,7 +1,7 @@
 # INVWISE_05_SERVICE_AND_API_REFERENCE
 ## Complete Service Layer Documentation
 ### Business Logic, Data Access & Application Services
-### Version 2.0.0
+### Version 2.3.0
 ### Source: Live Source Code Discovery
 
 ---

@@ -1,5 +1,9 @@
 # InvWise
 
+InvWise 2.3.0 adds dynamic Supabase-backed departments and roles, interactive
+role permissions, Super Admin permanent deletion of deactivated users, and bulk
+accept/delete workflows for pending registration requests.
+
 ## Publishing app updates
 
 InvWise checks the latest stable release from the public GitHub Releases API for

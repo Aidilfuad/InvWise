@@ -25,6 +25,7 @@ import '../personal_information/personal_information_page.dart';
 import '../warehouse_location/warehouse_locations_page.dart';
 import '../security/security_page.dart';
 import '../user_management/user_management_page.dart';
+import '../../widgets/role_permission_manager.dart';
 
 /// Settings screen with live profile data and app configuration links.
 class SettingsPage extends StatefulWidget {
@@ -286,6 +287,12 @@ class _SettingsPageState extends State<SettingsPage>
     ).push(MaterialPageRoute<void>(builder: (_) => const UserManagementPage()));
   }
 
+  void _onRoleAccessManagementTap() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const RolePermissionManager()),
+    );
+  }
+
   void _onBackupRestoreTap() {
     Navigator.of(context).pushNamed(AppRoutes.backupRestore);
   }
@@ -503,6 +510,13 @@ class _SettingsPageState extends State<SettingsPage>
                         SettingsSection(
                           title: 'System',
                           children: [
+                            if (_roleAccess.role == AppRole.superAdmin)
+                              SettingsTile(
+                                icon: Icons.admin_panel_settings_outlined,
+                                title: 'Role & Department Management',
+                                subtitle: 'Manage role permissions, new roles, and departments',
+                                onTap: _onRoleAccessManagementTap,
+                              ),
                             if (_roleAccess.allows(AppPermission.manageUsers))
                               SettingsTile(
                                 icon: Icons.manage_accounts_outlined,

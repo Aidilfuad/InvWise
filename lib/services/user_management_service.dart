@@ -126,9 +126,15 @@ class UserManagementService {
     String? oldRole,
   }) async {
     _requireSuperAdmin();
-    if (!ManagedUser.roles.contains(role)) {
+    final roleRows = await _client
+        .from('custom_roles')
+        .select('name')
+        .eq('name', role)
+        .eq('is_active', true)
+        .maybeSingle();
+    if (roleRows == null) {
       throw const UserManagementServiceException(
-        'Select one of the supported user roles.',
+        'Select one of the available active user roles.',
       );
     }
     await _invoke({'action': 'change_role', 'user_id': userId, 'role': role});
@@ -174,9 +180,7 @@ class UserManagementService {
     }
   }
 
-  Future<void> permanentlyDelete({
-    required String userId,
-  }) async {
+  Future<void> permanentlyDelete({required String userId}) async {
     _requireSuperAdmin();
     await _invoke({'action': 'permanent_delete', 'user_id': userId});
   }

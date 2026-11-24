@@ -1,6 +1,6 @@
 # INVWISE_13_API_AND_EDGE_FUNCTION_SPECIFICATION
 ## Complete API, RPC & Edge Function Reference
-### Version 2.0.0
+### Version 2.3.0
 ### Source: Edge Function Discovery + Database Discovery + Security Discovery
 
 ---
@@ -30,6 +30,12 @@ Error Handling
 
 Integration Contracts
 ```
+
+The `manage-users` Edge Function normalizes Super Admin role variants and
+permits permanent deletion only for inactive, non-self targets. It uses the
+prepare/delete/finish RPC flow to remove the profile and linked Supabase Auth
+account cleanly. `delete_pending_registration_requests(uuid[])` is the
+Super Admin-only RPC for bulk deletion of pending registration requests.
 
 This document is intended for:
 

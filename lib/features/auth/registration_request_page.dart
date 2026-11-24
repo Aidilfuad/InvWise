@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/registration_request_service.dart';
+import '../../services/workspace_access_service.dart';
 import 'registration_request_validation.dart';
 
 class RegistrationRequestPage extends StatefulWidget {
@@ -15,32 +16,80 @@ class RegistrationRequestPage extends StatefulWidget {
 
 class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
   static const double _maxContentWidth = 480;
-  static const List<String> _roles = ['Warehouse Supervisor', 'Storekeeper'];
-
   final _formKey = GlobalKey<FormState>();
   final _fullNameController = TextEditingController();
   final _employeeIdController = TextEditingController();
   final _emailController = TextEditingController();
-  final _departmentController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _reasonController = TextEditingController();
   final _service = RegistrationRequestService();
+  final _accessService = WorkspaceAccessService();
 
   String? _requestedRole;
+  String? _department;
+  List<String> _departments = const [];
+  List<String> _roles = const [];
+  bool _obscurePassword = true;
+  bool _obscureConfirmation = true;
   bool _isSubmitting = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOptions();
+  }
+
+  Future<void> _loadOptions() async {
+    try {
+      final departments = await _accessService.getDepartments();
+      var roles = await _accessService.getRoles();
+      if (departments.isEmpty) {
+        _departments = const [
+          'Warehouse Operations',
+          'Inventory Control',
+          'Telemetry & Maintenance',
+          'Logistics & Distribution',
+          'Quality & Compliance',
+          'Administration',
+        ];
+      } else {
+        _departments = departments.map((item) => item.name).toList();
+      }
+      roles = roles.where((role) => role.name != 'Super Admin').toList();
+      _roles = roles.map((role) => role.name).toList(growable: false);
+    } catch (_) {
+      _departments = const [
+        'Warehouse Operations',
+        'Inventory Control',
+        'Telemetry & Maintenance',
+        'Logistics & Distribution',
+        'Quality & Compliance',
+        'Administration',
+      ];
+      _roles = const ['Warehouse Supervisor', 'Storekeeper'];
+    } finally {
+      if (mounted) setState(() {});
+    }
+  }
 
   @override
   void dispose() {
     _fullNameController.dispose();
     _employeeIdController.dispose();
     _emailController.dispose();
-    _departmentController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _reasonController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (_isSubmitting || !(_formKey.currentState?.validate() ?? false)) return;
     final role = _requestedRole;
-    if (role == null) return;
+    final department = _department;
+    if (role == null || department == null) return;
 
     setState(() {
       _isSubmitting = true;
@@ -52,8 +101,9 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
         fullName: _fullNameController.text,
         employeeId: _employeeIdController.text,
         email: _emailController.text,
-        department: _departmentController.text,
+        department: department,
         requestedRole: role,
+        reason: _reasonController.text,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -148,9 +198,26 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
                   validator: RegistrationRequestValidation.email,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                _textField(
-                  label: 'Department',
-                  controller: _departmentController,
+                DropdownButtonFormField<String>(
+                  initialValue: _department,
+                  decoration: const InputDecoration(
+                    labelText: 'Department',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _departments
+                      .map(
+                        (department) => DropdownMenuItem(
+                          value: department,
+                          child: Text(department),
+                        ),
+                      )
+                      .toList(growable: false),
+                  validator: (value) => value == null
+                      ? RegistrationRequestValidation.required(null)
+                      : null,
+                  onChanged: _isSubmitting
+                      ? null
+                      : (value) => setState(() => _department = value),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 DropdownButtonFormField<String>(
@@ -171,6 +238,77 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
                   onChanged: _isSubmitting
                       ? null
                       : (role) => setState(() => _requestedRole = role),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _textField(
+                  label: 'Password',
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  suffixIcon: IconButton(
+                    tooltip: _obscurePassword
+                        ? 'Show password'
+                        : 'Hide password',
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                  ),
+                  validator: (value) {
+                    final password = value ?? '';
+                    if (password.length < 8 ||
+                        !RegExp(r'[A-Za-z]').hasMatch(password) ||
+                        !RegExp(r'\d').hasMatch(password)) {
+                      return 'Use at least 8 characters, including a letter and a number.';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _textField(
+                  label: 'Confirm Password',
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirmation,
+                  suffixIcon: IconButton(
+                    tooltip: _obscureConfirmation
+                        ? 'Show password'
+                        : 'Hide password',
+                    onPressed: () => setState(
+                      () => _obscureConfirmation = !_obscureConfirmation,
+                    ),
+                    icon: Icon(
+                      _obscureConfirmation
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                  ),
+                  validator: (value) =>
+                      RegistrationRequestValidation.confirmation(
+                        password: _passwordController.text,
+                        confirmation: value,
+                      ),
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Text(
+                  'For your security, this password is checked only in this form '
+                  'and is never saved with your access request. You will set '
+                  'your account password from the invitation email after approval.',
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: _reasonController,
+                  enabled: !_isSubmitting,
+                  minLines: 3,
+                  maxLines: 5,
+                  validator: RegistrationRequestValidation.required,
+                  decoration: const InputDecoration(
+                    labelText: 'Reason for access',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
                 if (_errorMessage != null) ...[
                   const SizedBox(height: AppSpacing.md),

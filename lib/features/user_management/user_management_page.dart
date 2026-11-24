@@ -4,7 +4,9 @@ import '../../app/constants/app_spacing.dart';
 import '../../services/role_access_service.dart';
 import '../../services/password_confirmation_service.dart';
 import '../../services/user_management_service.dart';
+import '../../services/workspace_access_service.dart';
 import '../../widgets/profile_avatar.dart';
+import '../../widgets/role_permission_manager.dart';
 
 class UserManagementPage extends StatelessWidget {
   const UserManagementPage({super.key});
@@ -25,6 +27,7 @@ class _UserManagementContent extends StatefulWidget {
 
 class _UserManagementContentState extends State<_UserManagementContent> {
   final UserManagementService _service = UserManagementService();
+  final WorkspaceAccessService _accessService = WorkspaceAccessService();
   final TextEditingController _searchController = TextEditingController();
   List<ManagedUser> _users = const [];
   final Set<String> _updatingUserIds = {};
@@ -32,11 +35,28 @@ class _UserManagementContentState extends State<_UserManagementContent> {
   bool? _selectedStatus;
   String? _errorMessage;
   bool _isLoading = true;
+  List<String> _roles = const [
+    'Super Admin',
+    'Inventory Administrator',
+    'Warehouse Supervisor',
+    'Storekeeper',
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
+    _loadRoles();
+  }
+
+  Future<void> _loadRoles() async {
+    try {
+      final roles = await _accessService.getRoles();
+      if (!mounted) return;
+      setState(() {
+        _roles = roles.map((role) => role.name).toList(growable: false);
+      });
+    } catch (_) {}
   }
 
   @override
@@ -93,7 +113,7 @@ class _UserManagementContentState extends State<_UserManagementContent> {
             initialValue: selectedRole,
             decoration: const InputDecoration(labelText: 'Role'),
             items: [
-              for (final role in ManagedUser.roles)
+              for (final role in _roles)
                 DropdownMenuItem(value: role, child: Text(role)),
             ],
             onChanged: (value) {
@@ -309,6 +329,31 @@ class _UserManagementContentState extends State<_UserManagementContent> {
         title: const Text('User Management'),
         actions: [
           IconButton(
+            tooltip: 'New department',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const RolePermissionManager(initialTab: 2),
+              ),
+            ),
+            icon: const Icon(Icons.domain_add_outlined),
+          ),
+          IconButton(
+            tooltip: 'New role',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const RolePermissionManager(initialTab: 1),
+              ),
+            ),
+            icon: const Icon(Icons.person_add_alt_1_outlined),
+          ),
+          IconButton(
+            tooltip: 'Roles, departments, and permissions',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RolePermissionManager()),
+            ),
+            icon: const Icon(Icons.admin_panel_settings_outlined),
+          ),
+          IconButton(
             tooltip: 'Refresh users',
             onPressed: _isLoading ? null : _loadUsers,
             icon: const Icon(Icons.refresh_rounded),
@@ -374,7 +419,7 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                                 const DropdownMenuItem<String?>(
                                   child: Text('All roles'),
                                 ),
-                                for (final role in ManagedUser.roles)
+                                for (final role in _roles)
                                   DropdownMenuItem<String?>(
                                     value: role,
                                     child: Text(role),

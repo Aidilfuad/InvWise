@@ -43,7 +43,7 @@ Industrial Inventory Intelligence
 ## Current Release
 
 ```text
-v2.0.0
+v2.3.0
 ```
 
 ---
@@ -51,7 +51,7 @@ v2.0.0
 ## Current Build
 
 ```text
-2.0.0+2
+2.3.0+1
 ```
 
 ---
@@ -719,7 +719,7 @@ Original Final Release.
 ## Release 2
 
 ```text
-v2.0.0
+v2.3.0
 ```
 
 Current Production Release.
@@ -755,13 +755,13 @@ Operational
 Latest Release:
 
 ```text
-v2.0.0
+v2.3.0
 ```
 
 APK:
 
 ```text
-InvWise-v2.0.0.apk
+InvWise-v2.3.0.apk
 ```
 
 Release published successfully.
@@ -1027,7 +1027,7 @@ Stable
 Current Release:
 
 ```text
-v2.0.0
+v2.3.0
 ```
 
 Current Hardware:

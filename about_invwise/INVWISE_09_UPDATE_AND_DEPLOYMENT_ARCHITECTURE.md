@@ -1,6 +1,6 @@
 # INVWISE_09_UPDATE_AND_DEPLOYMENT_ARCHITECTURE
 ## Application Updates, Release Management & Deployment Design
-### Version 2.0.0
+### Version 2.3.0
 ### Source: Live Update Discovery + Project Analysis
 
 ---

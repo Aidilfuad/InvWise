@@ -33,6 +33,15 @@ class _RegistrationApprovalsViewState
   bool _isLoading = true;
   bool _showApproved = false;
   String? _updatingRequestId;
+  final Set<String> _selectedRequestIds = {};
+  bool _bulkBusy = false;
+  bool get _isSuperAdmin =>
+      RoleAccessService.instance.role == AppRole.superAdmin ||
+      RoleAccessService.instance.roleName.toLowerCase().replaceAll(
+            RegExp(r'[^a-z]'),
+            '',
+          ) ==
+          'superadmin';
 
   @override
   void initState() {
@@ -62,6 +71,96 @@ class _RegistrationApprovalsViewState
         _errorMessage = error.message;
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _acceptSelected() async {
+    if (_bulkBusy || _selectedRequestIds.isEmpty) return;
+    setState(() => _bulkBusy = true);
+    var approvedCount = 0;
+    var provisionedCount = 0;
+    final failures = <String>[];
+    for (final requestId in _selectedRequestIds.toList(growable: false)) {
+      RegistrationRequest? request;
+      for (final candidate in _requests) {
+        if (candidate.id == requestId) {
+          request = candidate;
+          break;
+        }
+      }
+      if (request == null) continue;
+      try {
+        await _service.updateRequestStatus(
+          requestId: requestId,
+          status: RegistrationRequestStatus.approved,
+        );
+        approvedCount++;
+        await _service.provisionApprovedRequest(requestId);
+        provisionedCount++;
+      } catch (error) {
+        failures.add('${request.fullName}: $error');
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _bulkBusy = false;
+      _selectedRequestIds.clear();
+    });
+    await _loadRequests(showApproved: false);
+    if (!mounted) return;
+    _showMessage(
+      failures.isEmpty
+          ? 'Accepted and invited $provisionedCount registration request(s).'
+          : 'Accepted $approvedCount; invited $provisionedCount. ${failures.join(' ')}',
+    );
+  }
+
+  Future<void> _deleteSelected() async {
+    if (_bulkBusy || _selectedRequestIds.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(
+          'Delete ${_selectedRequestIds.length} selected request(s)?',
+        ),
+        content: const Text(
+          'This permanently removes the selected pending registration requests. '
+          'This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Delete Selected'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _bulkBusy = true);
+    try {
+      final deletedCount = await _service.deletePendingRequests(
+        _selectedRequestIds.toList(growable: false),
+      );
+      if (!mounted) return;
+      setState(() {
+        _bulkBusy = false;
+        _selectedRequestIds.clear();
+      });
+      await _loadRequests(showApproved: false);
+      if (!mounted) return;
+      _showMessage('Deleted $deletedCount pending registration request(s).');
+    } on RegistrationApprovalServiceException catch (error) {
+      if (!mounted) return;
+      setState(() => _bulkBusy = false);
+      _showMessage(error.message);
     }
   }
 
@@ -150,6 +249,39 @@ class _RegistrationApprovalsViewState
         title: const Text('Registration Approvals'),
         backgroundColor: AppColors.surface,
         actions: [
+          if (!_showApproved && _isSuperAdmin && _requests.isNotEmpty)
+            TextButton(
+              onPressed: _bulkBusy
+                  ? null
+                  : () {
+                      setState(() {
+                        if (_selectedRequestIds.length == _requests.length) {
+                          _selectedRequestIds.clear();
+                        } else {
+                          _selectedRequestIds
+                            ..clear()
+                            ..addAll(_requests.map((request) => request.id));
+                        }
+                      });
+                    },
+              child: Text(
+                _selectedRequestIds.length == _requests.length
+                    ? 'Clear all'
+                    : 'Select all',
+              ),
+            ),
+          if (!_showApproved &&
+              _isSuperAdmin &&
+              _selectedRequestIds.isNotEmpty) ...[
+            TextButton(
+              onPressed: _bulkBusy ? null : _acceptSelected,
+              child: Text(_bulkBusy ? 'Working…' : 'Accept Selected'),
+            ),
+            TextButton(
+              onPressed: _bulkBusy ? null : _deleteSelected,
+              child: const Text('Delete Selected'),
+            ),
+          ],
           IconButton(
             tooltip: 'Refresh pending requests',
             onPressed: _isLoading || _updatingRequestId != null
@@ -209,6 +341,17 @@ class _RegistrationApprovalsViewState
                           request: request,
                           createdDate: _formatDate(request.createdAt),
                           isUpdating: _updatingRequestId == request.id,
+                          selected: _selectedRequestIds.contains(request.id),
+                          showSelection: !_showApproved && _isSuperAdmin,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedRequestIds.add(request.id);
+                              } else {
+                                _selectedRequestIds.remove(request.id);
+                              }
+                            });
+                          },
                           onApprove: () => _updateStatus(
                             request,
                             RegistrationRequestStatus.approved,
@@ -250,6 +393,9 @@ class _RequestCard extends StatelessWidget {
     required this.onReject,
     required this.onProvision,
     required this.showApproved,
+    required this.selected,
+    required this.showSelection,
+    required this.onSelected,
   });
 
   final RegistrationRequest request;
@@ -259,6 +405,9 @@ class _RequestCard extends StatelessWidget {
   final VoidCallback onReject;
   final VoidCallback onProvision;
   final bool showApproved;
+  final bool selected;
+  final bool showSelection;
+  final ValueChanged<bool> onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -270,13 +419,29 @@ class _RequestCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              request.fullName,
-              style: textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary,
+            if (showSelection)
+              CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  request.fullName,
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                value: selected,
+                onChanged: isUpdating
+                    ? null
+                    : (value) => onSelected(value == true),
+              )
+            else
+              Text(
+                request.fullName,
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
               ),
-            ),
             const SizedBox(height: AppSpacing.sm),
             _RequestDetail(label: 'Employee ID', value: request.employeeId),
             _RequestDetail(label: 'Email', value: request.email),

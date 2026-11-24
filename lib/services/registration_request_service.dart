@@ -14,11 +14,6 @@ class RegistrationRequestService {
     : _client = client ?? Supabase.instance.client;
 
   static const String _table = 'registration_requests';
-  static const Set<String> requestedRoles = {
-    'Warehouse Supervisor',
-    'Storekeeper',
-  };
-
   final SupabaseClient _client;
 
   Future<void> submitRequest({
@@ -27,6 +22,7 @@ class RegistrationRequestService {
     required String email,
     required String department,
     required String requestedRole,
+    String? reason,
   }) async {
     final trimmedName = fullName.trim();
     final trimmedEmployeeId = employeeId.trim();
@@ -45,12 +41,6 @@ class RegistrationRequestService {
         'Enter a valid email address.',
       );
     }
-    if (!requestedRoles.contains(requestedRole)) {
-      throw const RegistrationRequestServiceException(
-        'Select a valid requested role.',
-      );
-    }
-
     try {
       await _client.from(_table).insert({
         'full_name': trimmedName,
@@ -58,6 +48,7 @@ class RegistrationRequestService {
         'email': trimmedEmail,
         'department': trimmedDepartment,
         'requested_role': requestedRole,
+        'reason': reason?.trim(),
         'status': 'pending',
       });
     } on PostgrestException catch (error) {
