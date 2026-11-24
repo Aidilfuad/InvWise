@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useWorkspaceAccess } from '../../lib/workspaceAccess'
 import { DEFAULT_WORKSPACE_NAME, useWorkspaceName } from '../../lib/workspaceName'
+import { getProfileAvatarUrl } from '../../lib/profileAvatar'
 import {
   Activity,
   Boxes,
@@ -160,6 +161,23 @@ export default function WorkspaceSidebar({
           ))}
         </nav>
 
+        <a
+          aria-label="Download InvWise app version 2.3.0 from GitHub Releases"
+          className={`mt-4 inline-flex h-9 items-center rounded-md border border-slate-700/80 bg-[#131c31] text-[10px] font-semibold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400 ${
+            collapsed ? 'justify-center gap-0 px-0 lg:mx-auto lg:w-10' : 'gap-2.5 px-2.5'
+          }`}
+          href="https://github.com/Aidilfuad/InvWise/releases/tag/v2.3.0"
+          onClick={onClose}
+          rel="noopener noreferrer"
+          target="_blank"
+          title={collapsed ? 'Download InvWise app v2.3.0' : undefined}
+        >
+          <svg aria-hidden="true" className="shrink-0" fill="currentColor" height="15" viewBox="0 0 24 24" width="15">
+            <path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.65-1.25-1.65-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 .1.56 2.44 3.42 1.71.1-.73.39-1.23.7-1.52-2.5-.29-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.29-.5-1.44.11-2.99 0 0 .95-.3 3.08 1.15a10.7 10.7 0 0 1 5.61 0c2.13-1.45 3.08-1.15 3.08-1.15.61 1.55.23 2.7.11 2.99.72.79 1.16 1.79 1.16 3.02 0 4.32-2.63 5.27-5.14 5.55.4.35.75 1.03.75 2.08v3.08c0 .3.2.65.78.54A11.2 11.2 0 0 0 12 .8Z" />
+          </svg>
+          <span className={collapsed ? 'lg:hidden' : ''}>Download app v2.3.0</span>
+        </a>
+
         <div className="mt-auto">
           {!collapsed ? <div>
           <div className="flex items-center gap-2 px-1.5">
@@ -169,6 +187,10 @@ export default function WorkspaceSidebar({
           <p className="mt-1 pl-4 text-[9px] text-slate-500">Last synced just now</p>
 
           <div className="mt-4 flex items-center gap-2.5 border-t border-slate-800 pt-3">
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#131c31] text-[10px] font-semibold text-slate-100">
+              {(profile?.full_name?.trim() || 'A').split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
+              {profile?.avatar_url && <img alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none' }} src={getProfileAvatarUrl(profile.avatar_url)} />}
+            </span>
             <div className="min-w-0 flex-1 rounded-lg bg-[#131c31] px-3 py-2.5">
               <p className="truncate text-[11px] font-semibold text-slate-100">{profile?.full_name?.trim() || 'Alex Mercer'}</p>
               <p className="mt-0.5 truncate text-[9px] text-slate-400">{profile?.role || 'Super Admin'}</p>
@@ -186,8 +208,9 @@ export default function WorkspaceSidebar({
           </div> : <div className="flex flex-col items-center gap-2 border-t border-slate-800 pt-3">
             <span aria-label="All systems operational" className="h-1.5 w-1.5 rounded-full bg-emerald-400" title="All systems operational" />
             <span className="text-[8px] text-slate-500">Live</span>
-            <span aria-label={profile?.full_name?.trim() || 'Alex Mercer'} className="grid h-8 w-8 place-items-center rounded-lg bg-[#131c31] text-[9px] font-semibold text-slate-100" title={profile?.full_name?.trim() || 'Alex Mercer'}>
+            <span aria-label={profile?.full_name?.trim() || 'Alex Mercer'} className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-lg bg-[#131c31] text-[9px] font-semibold text-slate-100" title={profile?.full_name?.trim() || 'Alex Mercer'}>
               {(profile?.full_name?.trim() || 'Alex Mercer').split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
+              {profile?.avatar_url && <img alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none' }} src={getProfileAvatarUrl(profile.avatar_url)} />}
             </span>
             <button aria-label="Sign out" className="rounded-md p-2 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50" disabled={signOutPending} onClick={onSignOut} title="Sign out" type="button"><LogOut size={15} /></button>
           </div>}

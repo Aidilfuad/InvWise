@@ -3,9 +3,11 @@ import {
   Bell,
   Check,
   ChevronDown,
+  Camera,
   Globe2,
   History,
   Menu,
+  Trash2,
   Save,
   Search,
   ShieldCheck,
@@ -20,6 +22,7 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isSuperAdminRole, useWorkspaceAccess } from '../lib/workspaceAccess'
 import { getStoredThemeMode, setThemeMode } from '../lib/theme'
 import { useWorkspaceName } from '../lib/workspaceName'
+import { getOwnedProfilePhotoPath, getProfileAvatarUrl, PROFILE_PHOTO_BUCKET } from '../lib/profileAvatar'
 
 const initialPreferences = {
   currencyCode: 'MYR',
@@ -102,8 +105,15 @@ export default function SettingsPage() {
     fullName: context.data?.profile?.full_name ?? '',
     email: session?.user?.email ?? '',
     employeeId: '',
+    phoneNumber: '',
     role: context.data?.profile?.role ?? 'Staff',
+    avatarUrl: context.data?.profile?.avatar_url ?? '',
   })
+  const [photoFile, setPhotoFile] = useState(null)
+  const [photoPreview, setPhotoPreview] = useState('')
+  const [photoBusy, setPhotoBusy] = useState(false)
+  const [photoMessage, setPhotoMessage] = useState('')
+  const [photoError, setPhotoError] = useState('')
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -127,6 +137,11 @@ export default function SettingsPage() {
   useEffect(() => {
     document.title = 'Settings | InvWise'
   }, [])
+
+  useEffect(() => {
+    if (!photoPreview.startsWith('blob:')) return undefined
+    return () => URL.revokeObjectURL(photoPreview)
+  }, [photoPreview])
 
   useEffect(() => {
     setThemeMode(preferences.appearance)
@@ -169,7 +184,9 @@ export default function SettingsPage() {
         fullName: globalProfile?.full_name ?? '',
         email: session?.user?.email ?? '',
         employeeId: '',
+        phoneNumber: '',
         role: globalProfile?.role ?? 'Staff',
+        avatarUrl: globalProfile?.avatar_url ?? '',
       }
       let nextPreferences = { ...initialPreferences, ...safeLocalPreferences(currentProfileId) }
       const issues = []
@@ -177,7 +194,7 @@ export default function SettingsPage() {
       if (supabase && isSupabaseConfigured && session?.user?.id) {
         const [profileResult, userSettingsResult, telemetryResult] = await Promise.allSettled([
           supabase.from('profiles')
-            .select('id,full_name,email,employee_id,role,is_active')
+            .select('id,full_name,email,employee_id,phone,role,avatar_url,is_active')
             .eq('auth_user_id', session.user.id)
             .maybeSingle(),
           currentProfileId
@@ -196,7 +213,9 @@ export default function SettingsPage() {
             fullName: row.full_name ?? nextProfile.fullName,
             email: row.email ?? session.user.email ?? '',
             employeeId: row.employee_id ?? '',
+            phoneNumber: row.phone ?? '',
             role: row.role ?? nextProfile.role,
+            avatarUrl: row.avatar_url ?? '',
           }
           nextPreferences = { ...nextPreferences, ...safeLocalPreferences(row.id) }
         } else {
@@ -256,7 +275,7 @@ export default function SettingsPage() {
       setLoading(false)
     })
     return () => { active = false }
-  }, [globalProfile?.id, globalProfile?.full_name, globalProfile?.role, session?.user?.email, session?.user?.id])
+  }, [globalProfile?.avatar_url, globalProfile?.id, globalProfile?.full_name, globalProfile?.role, session?.user?.email, session?.user?.id])
 
   useEffect(() => {
     if (!notice) return undefined
@@ -378,6 +397,12 @@ export default function SettingsPage() {
     setSaveMessage('Unsaved changes')
   }
 
+  function updateProfilePhone(value) {
+    setProfile((current) => ({ ...current, phoneNumber: value }))
+    setDirty(true)
+    setSaveMessage('Unsaved changes')
+  }
+
   function updateWorkspaceName(value) {
     setWorkspaceName(value)
     setDirty(true)
@@ -401,9 +426,13 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .update({ full_name: profile.fullName.trim() })
+        .update({
+          full_name: profile.fullName.trim(),
+          phone: profile.phoneNumber.trim() || null,
+        })
+        .eq('id', profile.id)
         .eq('auth_user_id', session.user.id)
-        .select('id,full_name,email,employee_id,role')
+        .select('id,full_name,email,employee_id,phone,role,avatar_url')
         .maybeSingle()
       if (error) throw error
       if (!data) throw new Error('Your profile was not updated.')
@@ -411,7 +440,9 @@ export default function SettingsPage() {
         ...current,
         fullName: data.full_name ?? current.fullName,
         employeeId: data.employee_id ?? current.employeeId,
+        phoneNumber: data.phone ?? '',
         role: data.role ?? current.role,
+        avatarUrl: data.avatar_url ?? current.avatarUrl,
       }))
       setDirty(false)
       setSaveMessage('Personal information saved.')
@@ -422,6 +453,118 @@ export default function SettingsPage() {
       setSaveMessage('Personal information was not saved.')
     } finally {
       setPersonalSaving(false)
+    }
+  }
+
+  function chooseProfilePhoto(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setPhotoError('')
+    setPhotoMessage('')
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setPhotoFile(null)
+      setPhotoPreview('')
+      setPhotoError('Choose a JPEG, PNG, or WebP image.')
+      return
+    }
+    if (file.size === 0 || file.size > 5 * 1024 * 1024) {
+      setPhotoFile(null)
+      setPhotoPreview('')
+      setPhotoError('Profile photos must be smaller than 5 MB.')
+      return
+    }
+
+    setPhotoFile(file)
+    setPhotoPreview(URL.createObjectURL(file))
+  }
+
+  async function uploadProfilePhoto() {
+    if (!supabase || !isSupabaseConfigured || !session?.user?.id || !photoFile) {
+      setPhotoError('Choose a photo and sign in before uploading.')
+      return
+    }
+
+    const extensions = {
+      'image/jpeg': 'jpg',
+      'image/png': 'png',
+      'image/webp': 'webp',
+    }
+    const objectPath = `${session.user.id}/${crypto.randomUUID()}.${extensions[photoFile.type]}`
+    setPhotoBusy(true)
+    setPhotoError('')
+    setPhotoMessage('')
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(PROFILE_PHOTO_BUCKET)
+        .upload(objectPath, photoFile, {
+          cacheControl: '3600',
+          contentType: photoFile.type,
+          upsert: false,
+        })
+      if (uploadError) throw uploadError
+
+      let avatarResult
+      try {
+        const { data, error } = await supabase.rpc('update_current_profile_avatar', {
+          p_object_path: objectPath,
+        })
+        if (error) throw error
+        avatarResult = data
+      } catch (updateError) {
+        const { error: cleanupError } = await supabase.storage
+          .from(PROFILE_PHOTO_BUCKET)
+          .remove([objectPath])
+        if (cleanupError) {
+          throw new Error(`The profile could not be updated and the uploaded photo could not be removed: ${cleanupError.message}`)
+        }
+        throw updateError
+      }
+
+      setProfile((current) => ({ ...current, avatarUrl: avatarResult?.avatar_url ?? objectPath }))
+      setPhotoFile(null)
+      setPhotoPreview('')
+      setPhotoMessage('Profile photo updated.')
+
+      const previousPath = getOwnedProfilePhotoPath(avatarResult?.previous_avatar_url, session.user.id)
+      if (previousPath && previousPath !== objectPath) {
+        const { error: cleanupError } = await supabase.storage.from(PROFILE_PHOTO_BUCKET).remove([previousPath])
+        if (cleanupError) setPhotoMessage(`Profile photo updated. Previous photo cleanup failed: ${cleanupError.message}`)
+      }
+      if (typeof context.refresh === 'function') await context.refresh()
+    } catch (uploadError) {
+      setPhotoError(uploadError instanceof Error ? uploadError.message : 'Unable to update your profile photo.')
+    } finally {
+      setPhotoBusy(false)
+    }
+  }
+
+  async function removeProfilePhoto() {
+    if (!supabase || !isSupabaseConfigured || !session?.user?.id || !profile.avatarUrl) return
+    setPhotoBusy(true)
+    setPhotoError('')
+    setPhotoMessage('')
+    try {
+      const { data, error } = await supabase.rpc('update_current_profile_avatar', {
+        p_object_path: null,
+      })
+      if (error) throw error
+      setProfile((current) => ({ ...current, avatarUrl: '' }))
+      setPhotoFile(null)
+      setPhotoPreview('')
+      setPhotoMessage('Profile photo removed.')
+
+      const previousPath = getOwnedProfilePhotoPath(data?.previous_avatar_url ?? profile.avatarUrl, session.user.id)
+      if (previousPath) {
+        const { error: cleanupError } = await supabase.storage.from(PROFILE_PHOTO_BUCKET).remove([previousPath])
+        if (cleanupError) setPhotoMessage(`Profile photo removed. Previous photo cleanup failed: ${cleanupError.message}`)
+      }
+      if (typeof context.refresh === 'function') await context.refresh()
+    } catch (removeError) {
+      setPhotoError(removeError instanceof Error ? removeError.message : 'Unable to remove your profile photo.')
+    } finally {
+      setPhotoBusy(false)
     }
   }
 
@@ -524,11 +667,44 @@ export default function SettingsPage() {
         {showAccount && (
           <SettingsCard icon={UserRound} title="Personal Information" subtitle="View and update details for your signed-in workspace profile.">
             <form onSubmit={savePersonalInformation}>
+              <div className="mb-4 flex flex-wrap items-center gap-4">
+                <span className="relative grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-teal-50 text-lg font-bold text-teal-700 ring-1 ring-slate-200">
+                  {(profile.fullName || 'A').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
+                  {(photoPreview || getProfileAvatarUrl(profile.avatarUrl)) && (
+                    <img
+                      alt="Profile photo preview"
+                      className="absolute inset-0 h-full w-full object-cover"
+                      onError={(event) => { event.currentTarget.style.display = 'none' }}
+                      src={photoPreview || getProfileAvatarUrl(profile.avatarUrl)}
+                    />
+                  )}
+                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-md border border-slate-200 px-3 text-[9px] font-semibold text-slate-700 hover:bg-slate-50">
+                    <Camera size={12} /> {profile.avatarUrl ? 'Change photo' : 'Choose photo'}
+                    <input accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={photoBusy} onChange={chooseProfilePhoto} type="file" />
+                  </label>
+                  {photoFile && (
+                    <button className="h-8 rounded-md bg-teal-600 px-3 text-[9px] font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={photoBusy} onClick={() => void uploadProfilePhoto()} type="button">
+                      {photoBusy ? 'Uploading…' : 'Upload photo'}
+                    </button>
+                  )}
+                  {profile.avatarUrl && !photoFile && (
+                    <button className="inline-flex h-8 items-center gap-1.5 rounded-md border border-rose-200 px-3 text-[9px] font-semibold text-rose-700 hover:bg-rose-50 disabled:opacity-60" disabled={photoBusy} onClick={() => void removeProfilePhoto()} type="button">
+                      <Trash2 size={12} /> {photoBusy ? 'Removing…' : 'Remove photo'}
+                    </button>
+                  )}
+                  <span className="text-[8px] text-slate-400">JPEG, PNG, or WebP · maximum 5 MB</span>
+                </div>
+              </div>
+              {photoError && <p className="mb-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[9px] text-rose-700" role="alert">{photoError}</p>}
+              {photoMessage && <p className="mb-3 rounded-md border border-teal-200 bg-teal-50 px-3 py-2 text-[9px] text-teal-800" role="status">{photoMessage}</p>}
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <TextSetting label="Full name" onChange={updateProfileName} value={profile.fullName} />
                 <TextSetting label="Email address" readOnly value={profile.email} />
                 <TextSetting label="Employee ID" readOnly value={profile.employeeId || '—'} muted />
                 <TextSetting label="Workspace role" readOnly value={profile.role} muted />
+                <TextSetting label="Phone number" onChange={updateProfilePhone} value={profile.phoneNumber} />
               </div>
               <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
                 <p className="text-[8px] text-slate-400">Email, employee ID, and role are managed by the workspace and cannot be changed here.</p>

@@ -392,7 +392,7 @@ export default function useDashboardData(session) {
 
     const issues = []
     const profileRows = await readQuery(
-      supabase.from('profiles').select('id,full_name,role').eq('auth_user_id', session.user.id).maybeSingle(),
+      supabase.from('profiles').select('id,full_name,role,avatar_url').eq('auth_user_id', session.user.id).maybeSingle(),
       'Profile',
       issues,
     )

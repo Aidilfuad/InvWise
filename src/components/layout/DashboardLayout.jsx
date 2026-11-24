@@ -43,6 +43,7 @@ export default function DashboardLayout({ session }) {
   const profile = useMemo(() => ({
     full_name: dashboard.data.profile?.full_name || 'Alex Mercer',
     role: formatRole(dashboard.data.profile?.role),
+    avatar_url: dashboard.data.profile?.avatar_url || '',
   }), [dashboard.data.profile])
   const visibleAlerts = dashboard.data.alerts.filter((alert) => (
     !searchTerm.trim() ||
@@ -110,6 +111,7 @@ export default function DashboardLayout({ session }) {
             onMenu={() => setMobileSidebarOpen(true)}
             onQuickAdjustment={() => setModal({ type: 'adjustment' })}
             onSearch={setSearchTerm}
+            profile={profile}
             searchTerm={searchTerm}
           />
         )}
