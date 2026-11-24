@@ -6,6 +6,7 @@ import useDashboardData from '../dashboard/useDashboardData'
 import DashboardHeader from './DashboardHeader'
 import WorkspaceSidebar from './WorkspaceSidebar'
 import { supabase } from '../../lib/supabase'
+import { useWorkspaceName } from '../../lib/workspaceName'
 
 const roleLabels = {
   admin: 'Administrator',
@@ -32,6 +33,7 @@ export default function DashboardLayout({ session }) {
   const [modal, setModal] = useState(null)
   const [signOutPending, setSignOutPending] = useState(false)
   const [layoutError, setLayoutError] = useState('')
+  const [workspaceName] = useWorkspaceName()
   const location = useLocation()
   const navigate = useNavigate()
   const currentPath = location.pathname.replace(/\/+$/, '') || '/'
@@ -67,6 +69,7 @@ export default function DashboardLayout({ session }) {
   const outletContext = {
     session,
     data: dashboard.data,
+    workspaceName,
     source: dashboard.source,
     loading: dashboard.loading,
     refresh: dashboard.refresh,

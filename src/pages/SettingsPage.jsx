@@ -19,9 +19,9 @@ import RolePermissionsModal from '../components/users/RolePermissionsModal'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isSuperAdminRole, useWorkspaceAccess } from '../lib/workspaceAccess'
 import { getStoredThemeMode, setThemeMode } from '../lib/theme'
+import { useWorkspaceName } from '../lib/workspaceName'
 
 const initialPreferences = {
-  workspaceName: 'Acme Operations',
   currencyCode: 'MYR',
   timezone: 'Asia/Kuala_Lumpur',
   dateFormat: 'DD/MM/YYYY',
@@ -94,6 +94,7 @@ function Toggle({ checked, label, onChange, disabled = false }) {
 export default function SettingsPage() {
   const context = useOutletContext() ?? {}
   const access = useWorkspaceAccess()
+  const [workspaceName, setWorkspaceName] = useWorkspaceName()
   const session = context.session
   const [preferences, setPreferences] = useState(initialPreferences)
   const [profile, setProfile] = useState({
@@ -309,7 +310,10 @@ export default function SettingsPage() {
     const localPreferences = { ...preferences }
     const issues = []
     try {
-      localStorage.setItem(localStorageKey(profile.id), JSON.stringify(localPreferences))
+      localStorage.setItem(localStorageKey(profile.id), JSON.stringify({
+        ...localPreferences,
+        workspaceName,
+      }))
     } catch (storageError) {
       issues.push(`Local preference storage: ${storageError instanceof Error ? storageError.message : 'unavailable'}`)
     }
@@ -370,6 +374,12 @@ export default function SettingsPage() {
 
   function updateProfileName(value) {
     setProfile((current) => ({ ...current, fullName: value }))
+    setDirty(true)
+    setSaveMessage('Unsaved changes')
+  }
+
+  function updateWorkspaceName(value) {
+    setWorkspaceName(value)
     setDirty(true)
     setSaveMessage('Unsaved changes')
   }
@@ -485,7 +495,7 @@ export default function SettingsPage() {
         {showWorkspace && (
           <SettingsCard icon={Globe2} title="Workspace & Display" subtitle="Regional preferences used throughout your workspace.">
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
-              <TextSetting label="Workspace name" onChange={(value) => updatePreference('workspaceName', value)} value={preferences.workspaceName} />
+              <TextSetting label="Workspace name" onChange={updateWorkspaceName} value={workspaceName} />
               <div className="block text-[9px] font-semibold text-slate-600">
                 Default currency
                 <div aria-label="Default currency" className="mt-1.5 grid h-8 grid-cols-2 rounded-md border border-slate-200 bg-slate-50 p-0.5" role="group">
@@ -617,7 +627,7 @@ export default function SettingsPage() {
 
         <footer className="mt-4 flex flex-wrap items-center justify-between gap-2 text-[8px] text-slate-400">
           <span className="inline-flex items-center gap-1.5"><Check size={11} className={dirty ? 'text-amber-500' : 'text-teal-600'} /> {saveMessage}{savedAt ? ` · Last updated ${showTime(savedAt)} MYT` : ''}</span>
-          <span>Changes apply to {preferences.workspaceName || 'your workspace'}</span>
+          <span>Changes apply to {workspaceName || 'your workspace'}</span>
         </footer>
       </div>
 

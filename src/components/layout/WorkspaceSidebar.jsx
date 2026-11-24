@@ -1,6 +1,6 @@
-import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useWorkspaceAccess } from '../../lib/workspaceAccess'
+import { DEFAULT_WORKSPACE_NAME, useWorkspaceName } from '../../lib/workspaceName'
 import {
   Activity,
   Boxes,
@@ -48,7 +48,7 @@ export default function WorkspaceSidebar({
   signOutPending,
   warehouses,
 }) {
-  const [workspace, setWorkspace] = useState('Acme Operations')
+  const [workspace, setWorkspaceName] = useWorkspaceName()
   const access = useWorkspaceAccess()
   const location = useLocation()
   const currentPath = location.pathname.replace(/\/+$/, '') || '/'
@@ -103,10 +103,13 @@ export default function WorkspaceSidebar({
             <select
               className="h-9 w-full appearance-none rounded-md border border-slate-700/80 bg-[#131c31] pl-8 pr-8 text-[11px] text-slate-100 outline-none focus:border-teal-500"
               id="workspace-selector"
-              onChange={(event) => setWorkspace(event.target.value)}
+              onChange={(event) => setWorkspaceName(event.target.value)}
               value={workspace}
             >
-              <option value="Acme Operations">Acme Operations</option>
+              {workspace !== DEFAULT_WORKSPACE_NAME && !warehouses.some((location) => location.name === workspace) && (
+                <option value={workspace}>{workspace || 'Unnamed workspace'}</option>
+              )}
+              <option value={DEFAULT_WORKSPACE_NAME}>{DEFAULT_WORKSPACE_NAME}</option>
               {warehouses.map((location) => (
                 <option key={location.id} value={location.name}>{location.name}</option>
               ))}
