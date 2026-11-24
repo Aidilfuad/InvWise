@@ -25,8 +25,8 @@ import RolePermissionsModal from '../components/users/RolePermissionsModal'
 import useUserManagementData from '../components/users/useUserManagementData'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isSuperAdminRole } from '../lib/workspaceAccess'
+import { getSupabaseFunctionErrorMessage } from '../lib/supabaseFunctionErrors'
 
-const fallbackUserRoles = ['Super Admin', 'Inventory Administrator', 'Warehouse Supervisor', 'Storekeeper']
 const pageSize = 6
 
 function roleClass(role) {
@@ -48,6 +48,16 @@ function getErrorMessage(error, fallback) {
   return error instanceof Error ? error.message : fallback
 }
 
+function emailRateLimitPasswordGuidance() {
+  return ' After the email limit clears, have them use Forgot password on the sign-in page, or send a password-reset link from Supabase Auth > Users.'
+}
+
+function provisioningNotice(response, name, successMessage) {
+  return response?.email_rate_limited
+    ? `${name} is provisioned in the User directory, but invitation email delivery was rate-limited.${emailRateLimitPasswordGuidance()}`
+    : successMessage
+}
+
 function Toggle({ checked, label, onChange, disabled = false }) {
   return (
     <button
@@ -67,7 +77,7 @@ function Toggle({ checked, label, onChange, disabled = false }) {
 export default function UserManagementPage() {
   const context = useOutletContext() ?? {}
   const data = useUserManagementData()
-  const warehouses = context.data?.warehouses ?? []
+  const warehouses = context.source === 'live' ? context.data?.warehouses ?? [] : []
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -78,7 +88,7 @@ export default function UserManagementPage() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const [userRoles, setUserRoles] = useState(fallbackUserRoles)
+  const userRoles = data.rolesCatalog
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deletePassword, setDeletePassword] = useState('')
   const [deletePasswordVisible, setDeletePasswordVisible] = useState(false)
@@ -87,13 +97,6 @@ export default function UserManagementPage() {
   const [selectedRequestIds, setSelectedRequestIds] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
-
-  useEffect(() => {
-    if (!supabase) return
-    void supabase.from('custom_roles').select('name').eq('is_active', true).order('name').then(({ data, error }) => {
-      if (!error && data?.length) setUserRoles(data.map((role) => role.name))
-    })
-  }, [])
 
   const directoryRows = useMemo(() => [
     ...data.users.map((user) => ({ ...user, key: `user-${user.id}`, pending: false })),
@@ -138,7 +141,8 @@ export default function UserManagementPage() {
 
   useEffect(() => {
     if (!notice) return undefined
-    const timer = window.setTimeout(() => setNotice(''), 3500)
+    const duration = notice.includes('invitation email delivery was rate-limited') ? 10000 : 3500
+    const timer = window.setTimeout(() => setNotice(''), duration)
     return () => window.clearTimeout(timer)
   }, [notice])
 
@@ -158,12 +162,22 @@ export default function UserManagementPage() {
 
   async function provisionRequest(requestId) {
     const { data: response, error: invokeError } = await supabase.functions.invoke('provision-approved-registration', { body: { request_id: requestId } })
-    if (invokeError) throw new Error(getErrorMessage(invokeError, 'The invitation could not be sent.'))
-    if (response?.error) throw new Error(response.error)
+    if (invokeError) {
+      throw new Error(await getSupabaseFunctionErrorMessage(invokeError, 'The invitation could not be sent.'))
+    }
+    if (response?.error) {
+      throw new Error(await getSupabaseFunctionErrorMessage({ context: { body: response } }, 'The invitation could not be sent.'))
+    }
+    if (!response?.profile_id || !response?.auth_user_id || !['invited', 'completed'].includes(response?.status)) {
+      throw new Error('verify-provisioned-profile: The provisioning service did not confirm both the Auth account and workspace profile.')
+    }
+    return response
   }
 
   async function submitInvitation(values) {
     if (!supabase || !isSupabaseConfigured) throw new Error('Connect Supabase before inviting users.')
+    let provisioningSucceeded = false
+    const requestEmail = values.email.trim().toLowerCase()
     const insertResult = await supabase.from('registration_requests').insert({
       full_name: values.fullName.trim(),
       employee_id: values.employeeId.trim(),
@@ -184,12 +198,20 @@ export default function UserManagementPage() {
       }).eq('id', insertResult.data.id).eq('status', 'pending').select('id').maybeSingle()
       if (updateResult.error) throw new Error(updateResult.error.message)
       if (!updateResult.data) throw new Error('The invitation request was created but could not be approved. Review it in Pending registration requests.')
-      await provisionRequest(insertResult.data.id)
-      setNotice(`Invitation sent to ${values.email.trim()}.`)
+      const provisionResult = await provisionRequest(insertResult.data.id)
+      provisioningSucceeded = true
+      const invitationMessage = provisionResult.email_invitation_sent
+        ? `Invitation email sent to ${values.email.trim()}.`
+        : `The account for ${requestEmail} is provisioned, but no invitation email was sent.`
+      setNotice(provisioningNotice(provisionResult, requestEmail, invitationMessage))
     } catch (inviteError) {
-      setNotice(`Request saved, but invitation setup needs attention: ${getErrorMessage(inviteError, 'Provisioning failed.')}`)
+      setError(`Invitation setup failed: ${getErrorMessage(inviteError, 'Provisioning failed.')}`)
+      setNotice('Invitation provisioning needs attention. Review the error details.')
     } finally {
-      await data.reload()
+      const refreshedUsers = await data.reload()
+      if (provisioningSucceeded && !refreshedUsers.some((user) => user.email.toLowerCase() === requestEmail)) {
+        setError(`Provisioning completed, but ${requestEmail} was not returned in the refreshed User directory.`)
+      }
     }
   }
 
@@ -200,6 +222,7 @@ export default function UserManagementPage() {
     }
     setBusyId(request.id)
     setError('')
+    let provisioningSucceeded = false
     try {
       const approverId = await currentProfileId()
       const { data: updated, error: updateError } = await supabase.from('registration_requests').update({
@@ -211,15 +234,25 @@ export default function UserManagementPage() {
       if (!updated) throw new Error('This request is no longer pending. Refresh the list and try again.')
       if (status === 'approved') {
         try {
-          await provisionRequest(request.id)
-          setNotice(`Approved and invited ${request.full_name}.`)
+          const provisionResult = await provisionRequest(request.id)
+          provisioningSucceeded = true
+          const approvalMessage = provisionResult.account_activated_without_email
+            ? `Approved and activated ${request.full_name}. They can sign in using the password from their access request.`
+            : provisionResult.email_invitation_sent
+              ? `Approved and invited ${request.full_name}.`
+              : `Approved and provisioned ${request.full_name}.`
+          setNotice(provisioningNotice(provisionResult, request.full_name, approvalMessage))
         } catch (provisionError) {
-          setNotice(`Request approved, but the invitation could not be sent: ${getErrorMessage(provisionError, 'Provisioning failed.')}`)
+          setError(`Request approved, but user provisioning failed: ${getErrorMessage(provisionError, 'Provisioning failed.')}`)
+          setNotice('The request is approved, but account setup needs attention. See the error details.')
         }
       } else {
         setNotice(`Rejected the request from ${request.full_name}.`)
       }
-      await data.reload()
+      const refreshedUsers = await data.reload()
+      if (status === 'approved' && provisioningSucceeded && !refreshedUsers.some((user) => user.email.toLowerCase() === request.email.toLowerCase())) {
+        setError(`Provisioning completed, but ${request.email} was not returned in the refreshed User directory. Refresh the directory or retry provisioning from the failed requests list.`)
+      }
     } catch (actionError) {
       setError(getErrorMessage(actionError, 'Unable to update the registration request.'))
     } finally {
@@ -236,8 +269,9 @@ export default function UserManagementPage() {
       setNotice(patch.action === 'change_role' ? `Role updated for ${user.full_name}.` : `${user.full_name} ${patch.is_active ? 'activated' : 'deactivated'}.`)
       return true
     } catch (actionError) {
-      setError(getErrorMessage(actionError, 'Unable to update this user.'))
-      return false
+      const message = getErrorMessage(actionError, 'Unable to update this user.')
+      setError(message)
+      throw new Error(message)
     } finally {
       setBusyId('')
     }
@@ -285,13 +319,43 @@ export default function UserManagementPage() {
     })
   }
 
+  async function retryProvisioning(request) {
+    if (!supabase || !isSupabaseConfigured || busyId) return
+    setBusyId(request.id)
+    setError('')
+    try {
+      const provisionResult = await provisionRequest(request.id)
+      const refreshedUsers = await data.reload()
+      if (!refreshedUsers.some((user) => user.email.toLowerCase() === request.email.toLowerCase())) {
+        throw new Error(`verify-provisioned-profile: ${request.email} is still missing from the refreshed User directory.`)
+      }
+      const retryMessage = provisionResult.account_activated_without_email
+        ? `${request.full_name} is activated and can sign in using the password from their access request.`
+        : `Provisioning completed and ${request.full_name} is now in the User directory.`
+      setNotice(provisioningNotice(
+        provisionResult,
+        request.full_name,
+        retryMessage,
+      ))
+    } catch (provisionError) {
+      setError(`Provisioning retry failed: ${getErrorMessage(provisionError, 'Provisioning failed.')}`)
+      await data.reload()
+    } finally {
+      setBusyId('')
+    }
+  }
+
   async function acceptSelectedRequests() {
     if (!isCurrentSuperAdmin || bulkBusy || selectedRequestIds.size === 0) return
     setBulkBusy(true)
     setError('')
     let approvedCount = 0
     let provisionedCount = 0
+    let activatedCount = 0
+    let invitationSentCount = 0
     const failures = []
+    const provisionedEmails = []
+    const emailRateLimitedEmails = []
     try {
       const approverId = await currentProfileId()
       for (const requestId of selectedRequestIds) {
@@ -312,23 +376,39 @@ export default function UserManagementPage() {
           if (updateError) throw updateError
           if (!updated) throw new Error('The request is no longer pending.')
           approvedCount += 1
-          const { data: provisionResult, error: provisionError } = await supabase.functions.invoke(
-            'provision-approved-registration',
-            { body: { request_id: requestId } },
-          )
-          if (provisionError) throw provisionError
-          if (provisionResult?.error) throw new Error(provisionResult.error)
+          const provisionResult = await provisionRequest(requestId)
           provisionedCount += 1
+          if (provisionResult.account_activated_without_email) activatedCount += 1
+          if (provisionResult.email_invitation_sent) invitationSentCount += 1
+          provisionedEmails.push(request.email.toLowerCase())
+          if (provisionResult.email_rate_limited) emailRateLimitedEmails.push(request.email)
         } catch (requestError) {
           failures.push(`${request.full_name}: ${getErrorMessage(requestError, 'Unable to approve or provision.')}`)
         }
       }
-      await data.reload()
+      const refreshedUsers = await data.reload()
+      const missingUsers = provisionedEmails.filter((email) => !refreshedUsers.some((user) => user.email.toLowerCase() === email))
+      if (missingUsers.length) failures.push(`Provisioning reported success, but these users are missing from the refreshed directory: ${missingUsers.join(', ')}.`)
       setSelectedRequestIds(new Set())
+      if (failures.length) setError(failures.join(' '))
+      const rateLimitNotice = emailRateLimitedEmails.length
+        ? ` Users are provisioned in the User directory, but invitation email delivery was rate-limited for: ${emailRateLimitedEmails.join(', ')}.${emailRateLimitPasswordGuidance()}`
+        : ''
+      const activationNote = activatedCount > 0
+        ? ` ${activatedCount} requester${activatedCount === 1 ? '' : 's'} can sign in using their access-request passwords.`
+        : ''
+      const invitationNote = invitationSentCount > 0
+        ? ` Invitation emails were sent to ${invitationSentCount}.`
+        : ''
+      const provisionedSummary = activatedCount === provisionedCount && activatedCount > 0
+        ? `Accepted and activated ${activatedCount} registration request${activatedCount === 1 ? '' : 's'}. They can sign in using the passwords supplied with their access requests.`
+        : `Accepted and provisioned ${provisionedCount} registration request${provisionedCount === 1 ? '' : 's'}.${activationNote}${invitationNote}`
       setNotice(
         failures.length
-          ? `Accepted ${approvedCount}; invited ${provisionedCount}. ${failures.join(' ')}`
-          : `Accepted and invited ${provisionedCount} registration request${provisionedCount === 1 ? '' : 's'}.`,
+          ? `Accepted ${approvedCount}; provisioned ${provisionedCount}. ${failures.join(' ')}${rateLimitNotice}`
+          : emailRateLimitedEmails.length
+            ? `Accepted and provisioned ${provisionedCount} registration request${provisionedCount === 1 ? '' : 's'}.${rateLimitNotice}`
+            : provisionedSummary,
       )
     } catch (actionError) {
       setError(getErrorMessage(actionError, 'Unable to accept selected requests.'))
@@ -360,7 +440,7 @@ export default function UserManagementPage() {
   }
 
   function runUserUpdate(user, patch) {
-    void updateUser(user, patch)
+    void updateUser(user, patch).catch(() => {})
   }
 
   function setFilters(field, value) {
@@ -384,7 +464,7 @@ export default function UserManagementPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">User Management</h1>
-                  <span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${data.source === 'live' ? 'bg-teal-50 text-teal-700' : data.source === 'partial' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{data.source === 'live' ? 'LIVE DIRECTORY' : data.source === 'partial' ? 'PARTIAL DATA' : 'SAMPLE DIRECTORY'}</span>
+                  <span className={`rounded-full px-2 py-1 text-[8px] font-semibold ${data.source === 'live' ? 'bg-teal-50 text-teal-700' : data.source === 'partial' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{data.source === 'live' ? 'LIVE DIRECTORY' : data.source === 'partial' ? 'PARTIAL DATA' : 'UNAVAILABLE'}</span>
                 </div>
                 <p className="mt-1 text-[10px] text-slate-500 sm:text-xs">Manage your people, permissions, and warehouse access.</p>
               </div>
@@ -414,7 +494,7 @@ export default function UserManagementPage() {
         {(error || data.error) && <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[9px] leading-4 text-amber-800" role="status">{error || data.error}</div>}
 
         <section aria-label="User summary" className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <SummaryCard icon={UsersRound} label="Total users" value={totalCount.toLocaleString()} detail={`Across ${warehouses.length || 4} warehouses`} tone="teal" />
+          <SummaryCard icon={UsersRound} label="Total users" value={totalCount.toLocaleString()} detail={`${warehouses.length} warehouses`} tone="teal" />
           <SummaryCard icon={CheckCircle2} label="Active accounts" value={activeCount.toLocaleString()} detail={`${totalCount ? ((activeCount / totalCount) * 100).toFixed(1) : '0.0'}% of all accounts`} tone="teal" />
           <SummaryCard icon={Clock3} label="Pending approvals" value={pendingCount.toLocaleString()} detail={pendingCount ? 'Awaiting your review' : 'All requests reviewed'} tone="amber" />
           <SummaryCard icon={ShieldCheck} label="Roles & admins" value={`${userRoles.length} roles`} detail={`${adminCount} administrators`} tone="teal" />
@@ -536,6 +616,30 @@ export default function UserManagementPage() {
           </footer>
         </section>
 
+        {data.provisioningFailures.length > 0 && (
+          <section aria-label="Registration requests with provisioning failures" className="mb-4 overflow-hidden rounded-xl border border-rose-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5">
+            <header className="mb-3">
+              <h2 className="text-sm font-bold text-rose-800">Account provisioning needs attention</h2>
+              <p className="mt-1 text-[9px] text-slate-500">These requests were approved, but account setup did not finish. Retry verifies or creates the Auth user and profile row.</p>
+            </header>
+            <div className="space-y-2">
+              {data.provisioningFailures.map((request) => (
+                <article className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-rose-100 bg-rose-50/60 p-3" key={request.id}>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] font-semibold text-slate-800">{request.full_name} · {request.email}</p>
+                    <p className="mt-1 break-words text-[9px] leading-4 text-rose-800">{request.provisioning_error || 'The provisioning function did not return an error detail.'}</p>
+                  </div>
+                  {isCurrentSuperAdmin && (
+                    <button className="h-8 shrink-0 rounded-md bg-rose-700 px-3 text-[9px] font-semibold text-white hover:bg-rose-800 disabled:opacity-50" disabled={Boolean(busyId)} onClick={() => void retryProvisioning(request)} type="button">
+                      {busyId === request.id ? 'Retrying…' : 'Retry provisioning'}
+                    </button>
+                  )}
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section aria-label="Pending registration requests" className="overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] sm:p-5" id="pending-requests">
           <header className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -605,11 +709,10 @@ export default function UserManagementPage() {
         </footer>
       </div>
 
-      {modal?.type === 'invite' && <InviteUserModal onClose={() => setModal(null)} onInvite={submitInvitation} />}
-      {modal?.type === 'edit' && <EditUserModal onClose={() => setModal(null)} onSave={async (role) => {
-        const saved = await updateUser(modal.user, { action: 'change_role', role })
-        if (!saved) throw new Error('The role could not be updated. Review the error message and try again.')
-      }} roles={userRoles} user={modal.user} />}
+      {modal?.type === 'invite' && <InviteUserModal departments={data.departmentsCatalog} onClose={() => setModal(null)} onInvite={submitInvitation} roles={userRoles.filter((role) => !isSuperAdminRole(role))} />}
+      {modal?.type === 'edit' && <EditUserModal onClose={() => setModal(null)} onSave={(role) => (
+        updateUser(modal.user, { action: 'change_role', role })
+      )} roles={userRoles} user={modal.user} />}
       {modal?.type === 'permissions' && <RolePermissionsModal initialTab={modal.initialTab || 'permissions'} onClose={() => setModal(null)} />}
       {deleteTarget && (
         <div className="fixed inset-0 z-[120] grid place-items-center bg-slate-950/45 p-4">

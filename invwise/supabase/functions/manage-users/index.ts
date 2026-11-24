@@ -7,14 +7,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const roles = [
-  "Super Admin",
-  "Inventory Administrator",
-  "Warehouse Supervisor",
-  "Storekeeper",
-] as const;
-
-type UserRole = typeof roles[number];
 type UserProfile = {
   id: string;
   auth_user_id: string | null;
@@ -22,7 +14,7 @@ type UserProfile = {
   full_name: string | null;
   email: string | null;
   avatar_url: string | null;
-  role: UserRole;
+  role: string;
   is_active: boolean;
   is_deletion_pending: boolean;
   deletion_operation_id: string | null;
@@ -35,8 +27,25 @@ const jsonResponse = (body: Record<string, unknown>, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
-const messageOf = (error: unknown) =>
-  error instanceof Error ? error.message : "Unexpected user management failure.";
+const messageOf = (error: unknown) => {
+  const details = typeof error === "object" && error !== null
+    ? error as Record<string, unknown>
+    : null;
+  const message = error instanceof Error
+    ? error.message
+    : typeof details?.message === "string"
+    ? details.message
+    : "";
+  if (!message) return "Unexpected user management failure.";
+  const diagnosticDetails = [
+    typeof details?.code === "string" ? `code ${details.code}` : "",
+    typeof details?.details === "string" ? `details: ${details.details}` : "",
+    typeof details?.hint === "string" ? `hint: ${details.hint}` : "",
+  ].filter(Boolean);
+  return diagnosticDetails.length
+    ? `${message} (${diagnosticDetails.join("; ")})`
+    : message;
+};
 
 const isUuid = (value: unknown): value is string =>
   typeof value === "string" &&
