@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Bell, Menu, Plus, Search, X } from 'lucide-react'
+import { getProfileAvatarUrl } from '../../lib/profileAvatar'
 
 const pageTitles = {
   '/dashboard': ['Operations Dashboard', 'Real-time inventory health & warehouse telemetry'],
@@ -20,6 +21,7 @@ export default function DashboardHeader({
   onMenu,
   onQuickAdjustment,
   onSearch,
+  profile,
   searchTerm,
 }) {
   const [alertsOpen, setAlertsOpen] = useState(false)
@@ -102,6 +104,10 @@ export default function DashboardHeader({
           <span className="hidden sm:inline">Quick Adjustment</span>
           <span className="sm:hidden">Adjust</span>
         </button>
+        <span aria-label={profile?.full_name || 'Your profile'} className="relative grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-teal-50 text-[10px] font-bold text-teal-700" title={profile?.full_name || 'Your profile'}>
+          {(profile?.full_name || 'A').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
+          {profile?.avatar_url && <img alt="" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none' }} src={getProfileAvatarUrl(profile.avatar_url)} />}
+        </span>
       </div>
     </header>
   )
