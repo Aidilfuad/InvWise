@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 const metrics = {
   temperature: { label: 'Temperature', unit: '°C', range: [18, 26], domain: [0, 35], color: '#0d9488' },
@@ -30,6 +30,9 @@ export default function TelemetryTrendCard({
   const matchingSensors = sensors.filter((sensor) => (
     sensor.metric === metric && (warehouse === 'all' || sensor.warehouse === warehouse)
   ))
+  const latestSensor = matchingSensors
+    .filter((sensor) => Number.isFinite(sensor.reading))
+    .sort((left, right) => (right.lastSeen?.getTime() ?? 0) - (left.lastSeen?.getTime() ?? 0))[0]
   const values = useMemo(() => {
     const available = matchingSensors.filter((sensor) => sensor.trend.length > 0)
     if (!available.length) return []
@@ -84,19 +87,16 @@ export default function TelemetryTrendCard({
           <h2 className="text-sm font-bold text-slate-900">Sensor trends</h2>
           <p className="mt-1 text-[10px] text-slate-500">Average readings across connected sensors</p>
         </div>
-        <label className="relative">
-          <span className="sr-only">Filter trends by warehouse</span>
-          <select
-            aria-label="Trend warehouse"
-            className="h-8 min-w-[142px] appearance-none rounded-md border border-slate-200 bg-white pl-3 pr-8 text-[10px] text-slate-700 outline-none focus:border-teal-500"
-            onChange={(event) => onWarehouseChange(event.target.value)}
-            value={warehouse}
-          >
-            <option value="all">All warehouses</option>
-            {warehouses.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={13} />
-        </label>
+        <SearchableSelect
+          aria-label="Trend warehouse"
+          className="h-8 min-w-[142px] text-[10px] text-slate-700"
+          onChange={onWarehouseChange}
+          options={[
+            { value: 'all', label: 'All warehouses' },
+            ...warehouses.map((name) => ({ value: name, label: name })),
+          ]}
+          value={warehouse}
+        />
       </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
@@ -158,7 +158,17 @@ export default function TelemetryTrendCard({
             <text fill="#94a3b8" fontSize="9" textAnchor="end" x="618" y="196">Now</text>
           </svg>
         ) : (
-          <div className="grid h-[184px] place-items-center text-[11px] text-slate-400">No {selectedMetric.label.toLowerCase()} readings for this selection.</div>
+          latestSensor ? (
+            <div className="flex min-h-[184px] flex-col justify-center rounded-lg border border-slate-100 bg-slate-50/70 px-5 py-4">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Most recent {selectedMetric.label.toLowerCase()} reading</p>
+              <p className="mt-2 text-2xl font-bold text-slate-900">{formatValue(latestSensor.reading, latestSensor.unit || selectedMetric.unit)}</p>
+              <p className="mt-2 text-[10px] font-semibold text-slate-700">{latestSensor.name} <span className="font-normal text-slate-400">· {latestSensor.code}</span></p>
+              <p className="mt-1 text-[9px] text-slate-500">{latestSensor.warehouse}{latestSensor.zone ? ` · ${latestSensor.zone}` : ''}</p>
+              <p className="mt-1 text-[9px] text-slate-400">{latestSensor.lastSeen ? new Date(latestSensor.lastSeen).toLocaleString() : 'Timestamp unavailable'}</p>
+            </div>
+          ) : (
+            <div className="grid h-[184px] place-items-center text-[11px] text-slate-400">No {selectedMetric.label.toLowerCase()} readings for this selection.</div>
+          )
         )}
       </div>
 

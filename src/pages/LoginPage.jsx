@@ -36,7 +36,9 @@ function ResetPasswordModal({ onClose, initialEmail }) {
     }
 
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim())
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: window.location.origin,
+      })
       if (resetError) {
         setError(resetError.message)
         return

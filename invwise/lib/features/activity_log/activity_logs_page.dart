@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../services/system_activity_log_service.dart';
+import '../../widgets/searchable_dropdown_form_field.dart';
 
 class ActivityLogsPage extends StatefulWidget {
   const ActivityLogsPage({super.key, this.service});
@@ -134,22 +135,15 @@ class _ActivityLogsPageState extends State<ActivityLogsPage> {
         Row(
           children: [
             Expanded(
-              child: DropdownButtonFormField<String>(
+              child: SearchableDropdownFormField(
                 initialValue: _category,
-                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(),
                   isDense: true,
                 ),
-                items: [
-                  const DropdownMenuItem(
-                    value: '',
-                    child: Text('All categories'),
-                  ),
-                  for (final category in _categories)
-                    DropdownMenuItem(value: category, child: Text(category)),
-                ],
+                options: ['', ..._categories],
+                optionLabels: {'': 'All categories'},
                 onChanged: (value) {
                   setState(() => _category = value ?? '');
                   _load();

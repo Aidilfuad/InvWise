@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
+import '../../services/workspace_support_service.dart';
 import 'data/support_articles.dart';
 import 'widgets/contact_support_sheet.dart';
 import 'widgets/quick_help_card.dart';
@@ -18,14 +22,42 @@ class SupportCenterPage extends StatefulWidget {
 }
 
 class _SupportCenterPageState extends State<SupportCenterPage> {
-  static const String _supportEmail = 'aidrusaidil@gmail.com';
+  final WorkspaceSupportService _supportService = WorkspaceSupportService();
   final TextEditingController _searchController = TextEditingController();
+  String _supportEmail = WorkspaceSupportService.defaultSupportEmail;
+  String? _supportEmailError;
+  RealtimeChannel? _supportEmailChannel;
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadSupportEmail());
+    _supportEmailChannel = _supportService.subscribeToChanges((email) {
+      if (mounted) setState(() => _supportEmail = email);
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    final channel = _supportEmailChannel;
+    if (channel != null) unawaited(_supportService.removeChannel(channel));
     super.dispose();
+  }
+
+  Future<void> _loadSupportEmail() async {
+    try {
+      final email = await _supportService.getSupportEmail();
+      if (!mounted) return;
+      setState(() {
+        _supportEmail = email;
+        _supportEmailError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _supportEmailError = 'Unable to load the workspace support email: $error');
+    }
   }
 
   void _onBack() {
@@ -168,7 +200,7 @@ class _SupportCenterPageState extends State<SupportCenterPage> {
                     SupportContactCard(
                       icon: Icons.mail_outline,
                       title: 'IT Support',
-                      subtitle: _supportEmail,
+                      subtitle: _supportEmailError ?? _supportEmail,
                       buttonLabel: 'Email Support',
                       onPressed: _onEmailSupportTap,
                     ),

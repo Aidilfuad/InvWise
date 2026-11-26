@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { UserRoundCog, X } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
-export default function EditUserModal({ onClose, onSave, user, roles = ['Super Admin', 'Inventory Administrator', 'Warehouse Supervisor', 'Storekeeper'] }) {
+export default function EditUserModal({ onClose, onSave, user, roles = [] }) {
   const [role, setRole] = useState(user.role)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
+  const availableRoles = roles.includes(user.role) || !user.role ? roles : [user.role, ...roles]
 
   async function submit(event) {
     event.preventDefault()
@@ -36,15 +38,22 @@ export default function EditUserModal({ onClose, onSave, user, roles = ['Super A
         <form className="space-y-4 p-5" onSubmit={submit}>
           <label className="block text-[10px] font-semibold text-slate-700">
             Workspace role
-            <select className="modal-input mt-1.5" onChange={(event) => setRole(event.target.value)} value={role}>
-              {roles.map((value) => <option key={value} value={value}>{value}</option>)}
-            </select>
+            <span className="mt-1.5 block">
+              <SearchableSelect
+                aria-label="Workspace role"
+                className="modal-input"
+                onChange={setRole}
+                options={availableRoles.map((value) => ({ value, label: value }))}
+                value={role}
+              />
+            </span>
+            {roles.length === 0 && <span className="mt-1 block text-[8px] font-normal text-amber-700">No active workspace roles are available.</span>}
           </label>
           <p className="text-[9px] leading-4 text-slate-500">Role changes are applied through the protected Supabase user-management function. Names, employee IDs, and email addresses are managed by the account provisioning flow.</p>
           {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] text-rose-700" role="alert">{error}</p>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button className="h-9 rounded-md border border-slate-200 px-3 text-[10px] font-semibold text-slate-600 hover:bg-slate-50" onClick={onClose} type="button">Cancel</button>
-            <button className="h-9 rounded-md bg-teal-600 px-4 text-[10px] font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={pending || role === user.role} type="submit">{pending ? 'Saving…' : 'Save role'}</button>
+            <button className="h-9 rounded-md bg-teal-600 px-4 text-[10px] font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={pending || role === user.role || roles.length === 0} type="submit">{pending ? 'Saving…' : 'Save role'}</button>
           </div>
         </form>
       </section>

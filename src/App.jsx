@@ -1,7 +1,9 @@
 import { Component, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
+import { clearAuthCallbackUrl, establishAuthCallbackSession, hasAuthCallbackUrl } from './lib/authCallback'
 import LoginPage from './pages/LoginPage'
+import SetPasswordPage from './pages/SetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
 import InventoryPage from './pages/InventoryPage'
 import ActivityReportsPage from './pages/ActivityReportsPage'
@@ -9,7 +11,7 @@ import TelemetryPage from './pages/TelemetryPage'
 import UserManagementPage from './pages/UserManagementPage'
 import SettingsPage from './pages/SettingsPage'
 import DashboardLayout from './components/layout/DashboardLayout'
-import { isSuperAdminRole, WORKSPACE_PERMISSION_KEYS, WorkspaceAccessContext, useWorkspaceAccess } from './lib/workspaceAccess'
+import { isSuperAdminRole, MANDATORY_WORKSPACE_PERMISSION_KEYS, WORKSPACE_PERMISSION_KEYS, WorkspaceAccessContext, useWorkspaceAccess } from './lib/workspaceAccess'
 
 class AppErrorBoundary extends Component {
   state = { hasError: false, error: null }
@@ -129,7 +131,7 @@ function ProtectedDashboard({ session }) {
         return
       }
 
-      let permissions = []
+      let permissions = [...MANDATORY_WORKSPACE_PERMISSION_KEYS]
       if (isSuperAdminRole(profile.role)) {
         permissions = [...WORKSPACE_PERMISSION_KEYS]
       } else if (supabase) {
@@ -139,9 +141,12 @@ function ProtectedDashboard({ session }) {
           .eq('role_name', profile.role)
           .eq('granted', true)
         if (!permissionResult.error) {
-          permissions = (permissionResult.data ?? [])
-            .map((item) => item.permission_key)
-            .filter((key) => WORKSPACE_PERMISSION_KEYS.includes(key))
+          permissions = [...new Set([
+            ...MANDATORY_WORKSPACE_PERMISSION_KEYS,
+            ...(permissionResult.data ?? [])
+              .map((item) => item.permission_key)
+              .filter((key) => WORKSPACE_PERMISSION_KEYS.includes(key)),
+          ])]
         }
       }
       setAccess({
@@ -182,7 +187,9 @@ function ProtectedDashboard({ session }) {
     permissions: access.permissions,
     loaded: access.loaded,
     allows: (permissionKey) =>
-      isSuperAdminRole(access.role) || access.permissions.includes(permissionKey),
+      isSuperAdminRole(access.role) ||
+      MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(permissionKey) ||
+      access.permissions.includes(permissionKey),
   }
   return (
     <WorkspaceAccessContext.Provider value={accessValue}>
@@ -209,11 +216,40 @@ function PermissionRoute({ permission, children }) {
   return children
 }
 
-function AppRoutes({ session, loading }) {
+function AppRoutes({ session, loading, authFlow, setAuthFlow, setSession }) {
   const location = useLocation()
+  const navigate = useNavigate()
 
   if (loading) {
     return <div className="grid min-h-screen place-items-center text-sm text-slate-500">Loading workspace...</div>
+  }
+
+  if (authFlow.error) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-slate-50 p-4">
+        <section className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-7 text-center shadow-lg" role="alert">
+          <h1 className="text-lg font-bold text-slate-900">This authentication link could not be used</h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">{authFlow.error}</p>
+          <button className="mt-6 rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-semibold text-white" onClick={() => { setAuthFlow({ type: null, error: '' }); navigate('/login', { replace: true }) }} type="button">Return to sign in</button>
+        </section>
+      </main>
+    )
+  }
+
+  if (authFlow.type) {
+    return (
+      <SetPasswordPage
+        session={session}
+        type={authFlow.type}
+        onComplete={async () => {
+          const { data, error } = await supabase.auth.getSession()
+          if (error) throw error
+          setSession(data.session)
+          setAuthFlow({ type: null, error: '' })
+          navigate(data.session ? '/dashboard' : '/login', { replace: true })
+        }}
+      />
+    )
   }
 
   return (
@@ -250,25 +286,51 @@ function AppRoutes({ session, loading }) {
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(Boolean(supabase))
+  const [authFlow, setAuthFlow] = useState({ type: null, error: '' })
 
   useEffect(() => {
     if (!supabase) return undefined
 
     let active = true
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (active) setSession(nextSession)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!active) return
+      setSession(nextSession)
+      if (event === 'PASSWORD_RECOVERY') {
+        setAuthFlow({ type: 'recovery', error: '' })
+      } else if (nextSession?.user?.user_metadata?.registration_request_id) {
+        setAuthFlow({ type: 'invite', error: '' })
+      }
     })
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!active) return
-      if (error) console.error('Unable to restore the Supabase session:', error.message)
-      setSession(data.session)
-      setLoading(false)
-    }).catch((error) => {
-      if (!active) return
-      console.error('Unable to restore the Supabase session:', error)
-      setLoading(false)
-    })
+    async function initializeAuth() {
+      try {
+        const callback = await establishAuthCallbackSession(supabase, new URL(window.location.href))
+        if (callback.hasCallback) clearAuthCallbackUrl()
+        if (!active) return
+        setSession(callback.session)
+        const flowType = callback.type === 'invite' || callback.type === 'recovery'
+          ? callback.type
+          : callback.session?.user?.user_metadata?.registration_request_id
+            ? 'invite'
+            : null
+        setAuthFlow({ type: flowType, error: '' })
+      } catch (error) {
+        if (!active) return
+        if (hasAuthCallbackUrl(new URL(window.location.href))) {
+          clearAuthCallbackUrl()
+        }
+        setAuthFlow({
+          type: null,
+          error: error instanceof Error
+            ? error.message
+            : 'This authentication link is invalid or expired. Request a new link and try again.',
+        })
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    void initializeAuth()
 
     return () => {
       active = false
@@ -279,7 +341,13 @@ export default function App() {
   return (
     <AppErrorBoundary>
       <BrowserRouter>
-        <AppRoutes session={session} loading={loading} />
+        <AppRoutes
+          authFlow={authFlow}
+          loading={loading}
+          session={session}
+          setAuthFlow={setAuthFlow}
+          setSession={setSession}
+        />
       </BrowserRouter>
     </AppErrorBoundary>
   )

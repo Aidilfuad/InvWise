@@ -1,19 +1,22 @@
-import { ChevronDown, Search, X } from 'lucide-react'
+import { Children } from 'react'
+import { Search, X } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 function FilterSelect({ label, value, onChange, children }) {
+  const options = Children.toArray(children).map((child) => ({
+    value: String(child.props.value),
+    label: child.props.children,
+  }))
   return (
-    <label className="relative min-w-0 flex-1">
-      <span className="sr-only">{label}</span>
-      <select
+    <div className="min-w-0 flex-1">
+      <SearchableSelect
         aria-label={label}
-        className="h-9 w-full appearance-none rounded-lg border border-slate-200 bg-white pl-3 pr-8 text-xs text-slate-600 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100"
-        onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-full rounded-lg text-xs text-slate-600 focus-within:ring-2 focus-within:ring-teal-100"
+        onChange={onChange}
+        options={options}
         value={value}
-      >
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-    </label>
+      />
+    </div>
   )
 }
 
@@ -31,6 +34,7 @@ export default function InventoryFilters({
   status,
   drawerOpen,
   warehouses,
+  showAdjustmentControl = true,
 }) {
   return (
     <section aria-label="Inventory filters" className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
@@ -50,7 +54,7 @@ export default function InventoryFilters({
             </button>
           )}
         </div>
-        <button
+        {showAdjustmentControl && <button
           aria-checked={drawerOpen}
           className="flex h-10 shrink-0 items-center justify-between gap-3 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 transition hover:border-teal-200 hover:bg-teal-50/50"
           onClick={onToggleDrawer}
@@ -61,7 +65,7 @@ export default function InventoryFilters({
           <span className={`relative h-5 w-9 rounded-full transition ${drawerOpen ? 'bg-teal-600' : 'bg-slate-300'}`}>
             <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition ${drawerOpen ? 'left-[18px]' : 'left-0.5'}`} />
           </span>
-        </button>
+        </button>}
       </div>
 
       <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3 sm:flex-row sm:items-center">

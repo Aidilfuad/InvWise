@@ -1,4 +1,4 @@
-import { ChevronDown, Warehouse } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 export default function WorkspaceOverview({
   dateRange,
@@ -20,32 +20,31 @@ export default function WorkspaceOverview({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <label className="relative">
-          <Warehouse className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={12} />
-          <select
+        <div className="w-[160px]">
+          <SearchableSelect
             aria-label="Filter by warehouse"
-            className="h-8 w-[160px] appearance-none rounded-md border border-slate-200 bg-white pl-7 pr-7 text-[10px] text-slate-600 outline-none hover:border-slate-300 focus:border-teal-500"
-            onChange={(event) => onWarehouseChange(event.target.value)}
+            className="h-8 text-[10px] text-slate-600"
+            onChange={onWarehouseChange}
+            options={[
+              { value: 'all', label: 'All warehouses' },
+              ...warehouses.map((location) => ({ value: location.id, label: location.name })),
+            ]}
             value={warehouseId}
-          >
-            <option value="all">All warehouses</option>
-            {warehouses.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={11} />
-        </label>
-        <label className="relative">
-          <select
+          />
+        </div>
+        <div className="w-[160px]">
+          <SearchableSelect
             aria-label="Select date range"
-            className="h-8 w-[160px] appearance-none rounded-md border border-slate-200 bg-white px-2.5 pr-7 text-[10px] text-slate-600 outline-none hover:border-slate-300 focus:border-teal-500"
-            onChange={(event) => onDateRangeChange(event.target.value)}
+            className="h-8 text-[10px] text-slate-600"
+            onChange={onDateRangeChange}
+            options={[
+              { value: 'Today, Oct 24, 2026', label: 'Today, Oct 24, 2026' },
+              { value: 'Last 7 days', label: 'Last 7 days' },
+              { value: 'Last 30 days', label: 'Last 30 days' },
+            ]}
             value={dateRange}
-          >
-            <option>Today, Oct 24, 2026</option>
-            <option>Last 7 days</option>
-            <option>Last 30 days</option>
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={11} />
-        </label>
+          />
+        </div>
       </div>
     </div>
   )

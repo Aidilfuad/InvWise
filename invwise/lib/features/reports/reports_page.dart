@@ -8,6 +8,7 @@ import '../../app/constants/app_spacing.dart';
 import '../../services/report_export_service.dart';
 import '../../services/reports_service.dart';
 import '../../services/role_access_service.dart';
+import '../../widgets/searchable_dropdown_form_field.dart';
 import 'widgets/export_report_actions.dart';
 import 'widgets/report_card.dart';
 import 'widgets/report_section_header.dart';
@@ -190,24 +191,25 @@ class _ReportsPageState extends State<ReportsPage> {
                             ?.copyWith(color: AppColors.textSecondary),
                       ),
                       AppSpacing.gapMd,
-                      DropdownButtonFormField<ReportType>(
-                        initialValue: _selectedReport,
+                      SearchableDropdownFormField(
+                        initialValue: _selectedReport.name,
                         decoration: const InputDecoration(
                           labelText: 'Report',
                           border: OutlineInputBorder(),
                         ),
-                        items: ReportType.values
-                            .map(
-                              (report) => DropdownMenuItem(
-                                value: report,
-                                child: Text(report.title),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (report) {
-                          if (report != null) {
-                            setState(() => _selectedReport = report);
-                          }
+                        options: ReportType.values
+                            .map((report) => report.name)
+                            .toList(),
+                        optionLabels: {
+                          for (final report in ReportType.values)
+                            report.name: report.title,
+                        },
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(
+                            () => _selectedReport = ReportType.values
+                                .firstWhere((report) => report.name == value),
+                          );
                         },
                       ),
                       AppSpacing.gapMd,

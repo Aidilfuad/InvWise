@@ -1,8 +1,7 @@
-import { useEffect, useState } from 'react'
+import { Children, useEffect, useState } from 'react'
 import {
   Bell,
   Check,
-  ChevronDown,
   Camera,
   Globe2,
   History,
@@ -18,10 +17,13 @@ import { useOutletContext } from 'react-router-dom'
 import ChangePasswordModal from '../components/settings/ChangePasswordModal'
 import TwoFactorModal from '../components/settings/TwoFactorModal'
 import RolePermissionsModal from '../components/users/RolePermissionsModal'
+import ProfileChangeRequests from '../components/settings/ProfileChangeRequests'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { isSuperAdminRole, useWorkspaceAccess } from '../lib/workspaceAccess'
 import { getStoredThemeMode, setThemeMode } from '../lib/theme'
 import { useWorkspaceName } from '../lib/workspaceName'
+import { useWorkspaceSupportEmail } from '../lib/workspaceSupportEmail'
+import SearchableSelect from '../components/common/SearchableSelect'
 import { getOwnedProfilePhotoPath, getProfileAvatarUrl, PROFILE_PHOTO_BUCKET } from '../lib/profileAvatar'
 
 const initialPreferences = {
@@ -97,7 +99,16 @@ function Toggle({ checked, label, onChange, disabled = false }) {
 export default function SettingsPage() {
   const context = useOutletContext() ?? {}
   const access = useWorkspaceAccess()
-  const [workspaceName, setWorkspaceName] = useWorkspaceName()
+  const canManageTelemetrySettings = access.allows('manage_telemetry_thresholds')
+  const canEditWorkspaceName = isSuperAdminRole(access.role)
+  const [workspaceName, saveWorkspaceName, workspaceNameSyncError] = useWorkspaceName()
+  const [workspaceSupportEmail, saveWorkspaceSupportEmail, supportEmailSyncError] = useWorkspaceSupportEmail()
+  const [workspaceNameOverride, setWorkspaceNameOverride] = useState(null)
+  const workspaceNameDraft = workspaceNameOverride ?? workspaceName
+  const [supportEmailDraft, setSupportEmailDraft] = useState(workspaceSupportEmail)
+  const [supportEmailSaving, setSupportEmailSaving] = useState(false)
+  const [supportEmailError, setSupportEmailError] = useState('')
+  const [supportEmailMessage, setSupportEmailMessage] = useState('')
   const session = context.session
   const [preferences, setPreferences] = useState(initialPreferences)
   const [profile, setProfile] = useState({
@@ -107,6 +118,7 @@ export default function SettingsPage() {
     employeeId: '',
     phoneNumber: '',
     role: context.data?.profile?.role ?? 'Staff',
+    department: context.data?.profile?.department ?? '',
     avatarUrl: context.data?.profile?.avatar_url ?? '',
   })
   const [photoFile, setPhotoFile] = useState(null)
@@ -148,6 +160,10 @@ export default function SettingsPage() {
   }, [preferences.appearance])
 
   useEffect(() => {
+    setSupportEmailDraft(workspaceSupportEmail)
+  }, [workspaceSupportEmail])
+
+  useEffect(() => {
     if (!supabase || !session?.user?.id) {
       setOwnActivity([])
       setOwnActivityError('Sign in to view your activity logs.')
@@ -186,6 +202,7 @@ export default function SettingsPage() {
         employeeId: '',
         phoneNumber: '',
         role: globalProfile?.role ?? 'Staff',
+        department: globalProfile?.department ?? '',
         avatarUrl: globalProfile?.avatar_url ?? '',
       }
       let nextPreferences = { ...initialPreferences, ...safeLocalPreferences(currentProfileId) }
@@ -194,7 +211,7 @@ export default function SettingsPage() {
       if (supabase && isSupabaseConfigured && session?.user?.id) {
         const [profileResult, userSettingsResult, telemetryResult] = await Promise.allSettled([
           supabase.from('profiles')
-            .select('id,full_name,email,employee_id,phone,role,avatar_url,is_active')
+            .select('id,full_name,email,employee_id,phone,role,department,avatar_url,is_active')
             .eq('auth_user_id', session.user.id)
             .maybeSingle(),
           currentProfileId
@@ -215,6 +232,7 @@ export default function SettingsPage() {
             employeeId: row.employee_id ?? '',
             phoneNumber: row.phone ?? '',
             role: row.role ?? nextProfile.role,
+            department: row.department ?? '',
             avatarUrl: row.avatar_url ?? '',
           }
           nextPreferences = { ...nextPreferences, ...safeLocalPreferences(row.id) }
@@ -275,7 +293,7 @@ export default function SettingsPage() {
       setLoading(false)
     })
     return () => { active = false }
-  }, [globalProfile?.avatar_url, globalProfile?.id, globalProfile?.full_name, globalProfile?.role, session?.user?.email, session?.user?.id])
+  }, [globalProfile?.avatar_url, globalProfile?.department, globalProfile?.id, globalProfile?.full_name, globalProfile?.role, session?.user?.email, session?.user?.id])
 
   useEffect(() => {
     if (!notice) return undefined
@@ -284,7 +302,7 @@ export default function SettingsPage() {
   }, [notice])
 
   const query = search.trim().toLowerCase()
-  const showWorkspace = !query || ['workspace', 'display', 'currency', 'timezone', 'date format', 'language', 'appearance'].some((term) => term.includes(query) || query.includes(term))
+  const showWorkspace = !query || ['workspace', 'display', 'currency', 'timezone', 'date format', 'language', 'appearance', 'support', 'administrator email'].some((term) => term.includes(query) || query.includes(term))
   const showTelemetry = !query || ['telemetry', 'alert', 'temperature', 'humidity', 'power', 'offline', 'email', 'notification', 'digest'].some((term) => term.includes(query) || query.includes(term))
   const showAccount = !query || ['account', 'security', 'name', 'email', 'employee', 'role', 'two-factor', 'password', 'session'].some((term) => term.includes(query) || query.includes(term))
 
@@ -329,16 +347,15 @@ export default function SettingsPage() {
     const localPreferences = { ...preferences }
     const issues = []
     try {
-      localStorage.setItem(localStorageKey(profile.id), JSON.stringify({
-        ...localPreferences,
-        workspaceName,
-      }))
+      localStorage.setItem(localStorageKey(profile.id), JSON.stringify(localPreferences))
     } catch (storageError) {
       issues.push(`Local preference storage: ${storageError instanceof Error ? storageError.message : 'unavailable'}`)
     }
 
     if (supabase && isSupabaseConfigured && profile.id && session?.user?.id) {
-      const [userSettingsResult, telemetryResult, profileResult] = await Promise.allSettled([
+      const shouldUpdateWorkspaceName = canEditWorkspaceName &&
+        workspaceNameDraft.trim() !== workspaceName
+      const [userSettingsResult, telemetryResult, profileResult, workspaceNameResult] = await Promise.allSettled([
         supabase.from('user_settings').upsert({
           profile_id: profile.id,
           currency_code: preferences.currencyCode,
@@ -346,29 +363,41 @@ export default function SettingsPage() {
           language_code: preferences.language,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'profile_id' }),
-        supabase.from('telemetry_settings')
-          .update({ offline_timeout_minutes: offlineTimeout })
-          .eq('id', 'default')
-          .select('id')
-          .maybeSingle(),
+        canManageTelemetrySettings
+          ? supabase.from('telemetry_settings')
+            .update({ offline_timeout_minutes: offlineTimeout })
+            .eq('id', 'default')
+            .select('id')
+            .maybeSingle()
+          : Promise.resolve({ data: null, error: null }),
         supabase.from('profiles')
           .update({ full_name: profile.fullName.trim() })
           .eq('id', profile.id)
           .eq('auth_user_id', session.user.id)
           .select('id')
           .maybeSingle(),
+        shouldUpdateWorkspaceName
+          ? saveWorkspaceName(workspaceNameDraft)
+          : Promise.resolve(workspaceName),
       ])
       if (userSettingsResult.status === 'rejected' || userSettingsResult.value.error) {
         const issue = userSettingsResult.status === 'rejected' ? userSettingsResult.reason : userSettingsResult.value.error
         issues.push(`Currency, language, or appearance could not be synced: ${issue?.message ?? 'permission denied'}`)
       }
-      if (telemetryResult.status === 'rejected' || telemetryResult.value.error || !telemetryResult.value.data) {
+      if (canManageTelemetrySettings && (telemetryResult.status === 'rejected' || telemetryResult.value.error || !telemetryResult.value.data)) {
         const issue = telemetryResult.status === 'rejected' ? telemetryResult.reason : telemetryResult.value.error
         issues.push(`Offline timeout could not be synced to telemetry settings: ${issue?.message ?? 'the default settings row is unavailable'}`)
       }
       if (profileResult.status === 'rejected' || profileResult.value.error || !profileResult.value.data) {
         const issue = profileResult.status === 'rejected' ? profileResult.reason : profileResult.value.error
         issues.push(`Profile name could not be synced: ${issue?.message ?? 'profile not updated'}`)
+      }
+      if (shouldUpdateWorkspaceName) {
+        if (workspaceNameResult.status === 'rejected') {
+          issues.push(`Workspace name could not be synced: ${workspaceNameResult.reason?.message ?? 'permission denied'}`)
+        } else {
+          setWorkspaceNameOverride(null)
+        }
       }
     } else {
       issues.push('Supabase is unavailable; these changes are stored on this device only.')
@@ -403,10 +432,25 @@ export default function SettingsPage() {
     setSaveMessage('Unsaved changes')
   }
 
-  function updateWorkspaceName(value) {
-    setWorkspaceName(value)
+  function updateWorkspaceNameDraft(value) {
+    setWorkspaceNameOverride(value)
     setDirty(true)
     setSaveMessage('Unsaved changes')
+  }
+
+  async function saveWorkspaceSupportAddress(event) {
+    event.preventDefault()
+    setSupportEmailSaving(true)
+    setSupportEmailError('')
+    setSupportEmailMessage('')
+    try {
+      await saveWorkspaceSupportEmail(supportEmailDraft)
+      setSupportEmailMessage('Workspace support email updated for all users.')
+    } catch (saveError) {
+      setSupportEmailError(saveError instanceof Error ? saveError.message : 'Unable to update the workspace support email.')
+    } finally {
+      setSupportEmailSaving(false)
+    }
   }
 
   async function savePersonalInformation(event) {
@@ -638,7 +682,16 @@ export default function SettingsPage() {
         {showWorkspace && (
           <SettingsCard icon={Globe2} title="Workspace & Display" subtitle="Regional preferences used throughout your workspace.">
             <div className="grid gap-x-4 gap-y-3 sm:grid-cols-2 xl:grid-cols-3">
-              <TextSetting label="Workspace name" onChange={updateWorkspaceName} value={workspaceName} />
+              <div>
+                <TextSetting
+                  label="Workspace name"
+                  muted={!canEditWorkspaceName}
+                  onChange={updateWorkspaceNameDraft}
+                  readOnly={!canEditWorkspaceName}
+                  value={workspaceNameDraft}
+                />
+                <p className="mt-1.5 text-[8px] text-slate-400">Only a Super Admin can change the shared workspace name.</p>
+              </div>
               <div className="block text-[9px] font-semibold text-slate-600">
                 Default currency
                 <div aria-label="Default currency" className="mt-1.5 grid h-8 grid-cols-2 rounded-md border border-slate-200 bg-slate-50 p-0.5" role="group">
@@ -660,7 +713,30 @@ export default function SettingsPage() {
                 <option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option>
               </SelectSetting>
             </div>
-            <p className="mt-3 text-[8px] text-slate-400">Currency, language, and appearance sync with your Supabase user settings. Workspace name, timezone, and date format are saved on this device because those fields are not in the current schema.</p>
+            <p className="mt-3 text-[8px] text-slate-400">Workspace name is shared across all users and can be changed only by a Super Admin. Currency, language, and appearance sync to your personal Supabase settings; timezone and date format are saved on this device.</p>
+            {workspaceNameSyncError && <p className="mt-2 text-[8px] text-amber-700" role="status">{workspaceNameSyncError}</p>}
+          </SettingsCard>
+        )}
+
+        {showWorkspace && (
+          <SettingsCard icon={Globe2} title="Workspace Support" subtitle="The shared administrator address used by support and contact flows.">
+            <form className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end" onSubmit={saveWorkspaceSupportAddress}>
+              <TextSetting
+                label="Support / workspace administrator email"
+                muted={!canEditWorkspaceName}
+                onChange={setSupportEmailDraft}
+                readOnly={!canEditWorkspaceName}
+                value={supportEmailDraft}
+              />
+              {canEditWorkspaceName && (
+                <button className="h-8 rounded-md bg-teal-600 px-3 text-[9px] font-semibold text-white disabled:opacity-60" disabled={supportEmailSaving} type="submit">
+                  {supportEmailSaving ? 'Saving…' : 'Save support email'}
+                </button>
+              )}
+            </form>
+            <p className="mt-2 text-[8px] text-slate-400">Only a Super Admin can change this address. Updates are synchronized through Supabase.</p>
+            {(supportEmailError || supportEmailSyncError) && <p className="mt-2 text-[8px] text-rose-700" role="alert">{supportEmailError || supportEmailSyncError}</p>}
+            {supportEmailMessage && <p className="mt-2 text-[8px] text-teal-700" role="status">{supportEmailMessage}</p>}
           </SettingsCard>
         )}
 
@@ -716,6 +792,8 @@ export default function SettingsPage() {
           </SettingsCard>
         )}
 
+        {showAccount && <ProfileChangeRequests profile={profile} role={profile.role} />}
+
         {showTelemetry && (
           <SettingsCard icon={Bell} title="Telemetry & Alert Defaults" subtitle="Starting thresholds for new sensors. Individual sensor settings take priority.">
             <div className="grid gap-4 xl:grid-cols-[1.25fr_0.95fr]">
@@ -723,7 +801,7 @@ export default function SettingsPage() {
                 <RangeSetting label="Temperature range (°C)" minValue={preferences.temperatureMin} maxValue={preferences.temperatureMax} onMin={(value) => updatePreference('temperatureMin', value)} onMax={(value) => updatePreference('temperatureMax', value)} />
                 <RangeSetting label="Humidity range (%)" minValue={preferences.humidityMin} maxValue={preferences.humidityMax} onMin={(value) => updatePreference('humidityMin', value)} onMax={(value) => updatePreference('humidityMax', value)} />
                 <NumberSetting label="Power warning (kW)" min="0.1" onChange={(value) => updatePreference('powerWarning', value)} step="0.1" value={preferences.powerWarning} />
-                <SelectSetting label="Offline after" onChange={(value) => updatePreference('offlineTimeout', value)} value={preferences.offlineTimeout}>
+                <SelectSetting disabled={!canManageTelemetrySettings} label="Offline after" onChange={(value) => updatePreference('offlineTimeout', value)} value={preferences.offlineTimeout}>
                   <option value="2">2 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option>
                 </SelectSetting>
               </div>
@@ -845,13 +923,22 @@ function NumberSetting({ label, min, onChange, step, value }) {
   )
 }
 
-function SelectSetting({ children, label, onChange, value }) {
+function SelectSetting({ children, disabled = false, label, onChange, value }) {
+  const options = Children.toArray(children).map((child) => ({
+    value: String(child.props.value),
+    label: child.props.children,
+  }))
   return (
     <label className="block text-[8px] font-medium text-slate-500">
       {label}
-      <span className="relative mt-1.5 block">
-        <select className="h-8 w-full appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[9px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => onChange(event.target.value)} value={value}>{children}</select>
-        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
+      <span className="mt-1.5 block">
+        <SearchableSelect
+          className="h-8 w-full text-[9px] text-slate-700"
+          disabled={disabled}
+          onChange={onChange}
+          options={options}
+          value={value}
+        />
       </span>
     </label>
   )

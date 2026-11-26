@@ -5,9 +5,20 @@ import 'profile_service.dart';
 
 enum AppRole {
   superAdmin,
+  director,
+  factory1Manager,
+  factory2Manager,
+  warehouseManager,
+  manager,
+  supervisor,
+  productionSupervisor,
+  qualityAssuranceQcSupervisor,
+  maintenanceAutomationLead,
+  inventoryController,
   inventoryAdministrator,
   warehouseSupervisor,
   storekeeper,
+  viewer,
   unknown,
 }
 
@@ -147,6 +158,7 @@ class RoleAccessService extends ChangeNotifier {
   }
 
   bool allows(AppPermission permission) {
+    if (_mandatoryPermissions.contains(permission)) return true;
     if (_role == AppRole.superAdmin ||
         _normalizeRoleName(_roleName) == 'superadmin') {
       return true;
@@ -170,9 +182,20 @@ class RoleAccessService extends ChangeNotifier {
     final normalized = _normalizeRoleName(value);
     return switch (normalized) {
       'superadmin' => AppRole.superAdmin,
+      'director' => AppRole.director,
+      'factory1manager' => AppRole.factory1Manager,
+      'factory2manager' => AppRole.factory2Manager,
+      'warehousemanager' => AppRole.warehouseManager,
+      'manager' => AppRole.manager,
+      'supervisor' => AppRole.supervisor,
+      'productionsupervisor' => AppRole.productionSupervisor,
+      'qualityassuranceqcsupervisor' => AppRole.qualityAssuranceQcSupervisor,
+      'maintenanceautomationlead' => AppRole.maintenanceAutomationLead,
+      'inventorycontroller' => AppRole.inventoryController,
       'inventoryadministrator' => AppRole.inventoryAdministrator,
       'warehousesupervisor' => AppRole.warehouseSupervisor,
       'storekeeper' => AppRole.storekeeper,
+      'viewer' => AppRole.viewer,
       _ => AppRole.unknown,
     };
   }
@@ -206,6 +229,15 @@ class RoleAccessService extends ChangeNotifier {
     _ => null,
   };
 }
+
+const Set<AppPermission> _mandatoryPermissions = {
+  AppPermission.viewSettings,
+  AppPermission.viewInventory,
+  AppPermission.viewReports,
+  AppPermission.viewActivityLog,
+  AppPermission.viewAlerts,
+  AppPermission.viewTelemetry,
+};
 
 const Set<AppPermission> _inventoryAdministratorPermissions = {
   AppPermission.viewDashboard,

@@ -12,6 +12,7 @@ import {
   ShieldAlert,
   WifiOff,
 } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 import HubSummaryCards from './HubSummaryCards'
 import { relativeTime } from './exportUtils'
 
@@ -40,6 +41,7 @@ function severityStyle(severity) {
 
 export default function AlertsTab({
   alerts,
+  canManage = false,
   globalSearch,
   onAcknowledge,
   onManageRules,
@@ -100,9 +102,9 @@ export default function AlertsTab({
           <h2 className="text-[17px] font-bold tracking-[-0.02em] text-slate-900">Alerts</h2>
           <p className="mt-0.5 text-[10px] text-slate-500">Prioritize stock risks and keep every connected device healthy.</p>
         </div>
-        <button className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[10px] font-medium text-slate-600 transition hover:border-teal-200 hover:text-teal-700" onClick={onManageRules} type="button">
+        {canManage && <button className="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[10px] font-medium text-slate-600 transition hover:border-teal-200 hover:text-teal-700" onClick={onManageRules} type="button">
           <Settings2 size={13} /> Manage rules
-        </button>
+        </button>}
       </div>
 
       <HubSummaryCards cards={[
@@ -119,21 +121,31 @@ export default function AlertsTab({
             <input aria-label="Search alerts" className="h-8 w-full rounded-md border border-slate-200 pl-8 pr-3 text-[10px] outline-none placeholder:text-slate-400 focus:border-teal-500" onChange={(event) => { setSearch(event.target.value); setPage(0) }} placeholder="Search alerts, items, or devices..." value={search} />
           </label>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="relative">
-              <select aria-label="Filter alerts by warehouse" className="h-8 min-w-[130px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[10px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => { setWarehouse(event.target.value); setPage(0) }} value={warehouse}>
-                <option value="all">All warehouses</option>
-                {warehouseOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
-              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-            </label>
-            <label className="relative">
-              <select aria-label="Filter alerts by type" className="h-8 min-w-[120px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[10px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => { setType(event.target.value); setPage(0) }} value={type}>
-                <option value="all">Stock & devices</option>
-                <option value="Inventory">Inventory</option>
-                <option value="Telemetry">Telemetry</option>
-              </select>
-              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-            </label>
+            <div className="min-w-[130px]">
+              <SearchableSelect
+                aria-label="Filter alerts by warehouse"
+                className="h-8 text-[10px] text-slate-700"
+                onChange={(value) => { setWarehouse(value); setPage(0) }}
+                options={[
+                  { value: 'all', label: 'All warehouses' },
+                  ...warehouseOptions.map((name) => ({ value: name, label: name })),
+                ]}
+                value={warehouse}
+              />
+            </div>
+            <div className="min-w-[120px]">
+              <SearchableSelect
+                aria-label="Filter alerts by type"
+                className="h-8 text-[10px] text-slate-700"
+                onChange={(value) => { setType(value); setPage(0) }}
+                options={[
+                  { value: 'all', label: 'Stock & devices' },
+                  { value: 'Inventory', label: 'Inventory' },
+                  { value: 'Telemetry', label: 'Telemetry' },
+                ]}
+                value={type}
+              />
+            </div>
           </div>
         </div>
 
@@ -172,7 +184,7 @@ export default function AlertsTab({
                 </div>
                 <p className="w-[55px] text-[8px] text-slate-400">{relativeTime(alert.detectedAt)}</p>
                 <div className="ml-auto flex items-center gap-1.5">
-                  {canUpdate ? (
+                  {canUpdate && canManage ? (
                     <>
                       {alert.status === 'active' && (
                         <button className="h-7 rounded-md border border-slate-200 px-2.5 text-[9px] font-medium text-teal-700 hover:border-teal-300 hover:bg-teal-50" onClick={() => onAcknowledge(alert)} type="button">Acknowledge</button>
@@ -181,9 +193,9 @@ export default function AlertsTab({
                         <button className="h-7 rounded-md bg-teal-600 px-2.5 text-[9px] font-semibold text-white hover:bg-teal-700" onClick={() => onResolve(alert)} type="button">Resolve</button>
                       )}
                     </>
-                  ) : (
+                  ) : alert.sourceTable === 'inventory_alerts' ? (
                     <button className="h-7 rounded-md border border-slate-200 px-2.5 text-[9px] font-medium text-teal-700 hover:border-teal-300 hover:bg-teal-50" onClick={onViewInventory} type="button">View stock</button>
-                  )}
+                  ) : null}
                 </div>
               </article>
             )

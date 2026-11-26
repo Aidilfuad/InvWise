@@ -5,14 +5,13 @@ import {
   ArrowRight,
   ArrowRightLeft,
   Boxes,
-  CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ClipboardList,
   Search,
   ShieldCheck,
   UserRound,
 } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 import HubSummaryCards from './HubSummaryCards'
 import { formatLocalDate, formatLocalTime, relativeTime } from './exportUtils'
 
@@ -130,23 +129,32 @@ export default function ActivityLogsTab({ activities, alertCount, globalSearch, 
           </label>
           <div className="flex flex-wrap items-center gap-2">
             {globalSearch.trim() && <span className="hidden text-[9px] text-slate-400 sm:inline">Global: “{globalSearch}”</span>}
-            <label className="relative">
-              <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={13} />
-              <select aria-label="Activity date range" className="h-8 appearance-none rounded-md border border-slate-200 bg-white pl-7 pr-7 text-[10px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => setFilter(setDateRange, event.target.value)} value={dateRange}>
-                <option value="today">{rangeLabel}</option>
-                <option value="7d">Last 7 days</option>
-                <option value="30d">Last 30 days</option>
-                <option value="all">All dates</option>
-              </select>
-              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-            </label>
-            <label className="relative">
-              <select aria-label="Filter by warehouse" className="h-8 min-w-[130px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[10px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => setFilter(setWarehouse, event.target.value)} value={warehouse}>
-                <option value="all">All warehouses</option>
-                {warehouses.map((row) => <option key={row.id} value={row.name}>{row.name}</option>)}
-              </select>
-              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-            </label>
+            <div className="w-[140px]">
+              <SearchableSelect
+                aria-label="Activity date range"
+                className="h-8 text-[10px] text-slate-700"
+                onChange={(value) => setFilter(setDateRange, value)}
+                options={[
+                  { value: 'today', label: rangeLabel },
+                  { value: '7d', label: 'Last 7 days' },
+                  { value: '30d', label: 'Last 30 days' },
+                  { value: 'all', label: 'All dates' },
+                ]}
+                value={dateRange}
+              />
+            </div>
+            <div className="min-w-[130px]">
+              <SearchableSelect
+                aria-label="Filter by warehouse"
+                className="h-8 text-[10px] text-slate-700"
+                onChange={(value) => setFilter(setWarehouse, value)}
+                options={[
+                  { value: 'all', label: 'All warehouses' },
+                  ...warehouses.map((row) => ({ value: row.name, label: row.name })),
+                ]}
+                value={warehouse}
+              />
+            </div>
           </div>
         </div>
 

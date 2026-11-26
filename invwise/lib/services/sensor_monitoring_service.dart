@@ -182,6 +182,7 @@ class SensorReading {
     required this.valueNumeric,
     required this.valueText,
     required this.lastSeen,
+    this.warehouseName,
   });
 
   final String sensorId;
@@ -191,6 +192,7 @@ class SensorReading {
   final double? valueNumeric;
   final String? valueText;
   final DateTime? lastSeen;
+  final String? warehouseName;
 
   double? get voltage => _measurement('V');
   double? get current => _measurement('I');
@@ -259,10 +261,16 @@ class SensorMonitoringService {
         .from('sensor_status')
         .select(
           'sensor_id,value_numeric,value_text,last_seen,'
-          'sensors(sensor_code,sensor_name,sensor_type)',
+          'sensors(*)',
         )
         .order('last_seen', ascending: false);
 
+    final warehouseRows = await _client
+        .from('warehouse_locations')
+        .select('id,name');
+    final warehouseNames = {
+      for (final row in warehouseRows) row['id'].toString(): row['name'] as String,
+    };
     final readingsBySensorId = <String, SensorReading>{};
     for (final row in rows) {
       final sensor = row['sensors'];
@@ -276,6 +284,9 @@ class SensorMonitoringService {
       final sensorCode = sensor['sensor_code'];
       final sensorName = sensor['sensor_name'];
       final sensorType = sensor['sensor_type'];
+      final warehouseId = sensor['warehouse_location_id'] ?? sensor['location_id'];
+      final explicitWarehouseName =
+          sensor['warehouse_name'] ?? sensor['location_name'];
       if (sensorId is! String ||
           sensorCode is! String ||
           sensorName is! String ||
@@ -298,6 +309,10 @@ class SensorMonitoringService {
         lastSeen: lastSeenValue == null
             ? null
             : DateTime.tryParse(lastSeenValue as String)?.toLocal(),
+        warehouseName: explicitWarehouseName is String &&
+                explicitWarehouseName.trim().isNotEmpty
+            ? explicitWarehouseName.trim()
+            : warehouseNames[warehouseId?.toString()],
       );
     }
 

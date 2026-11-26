@@ -110,8 +110,8 @@ class _RegistrationApprovalsViewState
     if (!mounted) return;
     _showMessage(
       failures.isEmpty
-          ? 'Accepted and invited $provisionedCount registration request(s).'
-          : 'Accepted $approvedCount; invited $provisionedCount. ${failures.join(' ')}',
+          ? 'Approved and provisioned $provisionedCount registration request(s). The initial password is each user’s Employee ID; they should change it after signing in.'
+          : 'Approved $approvedCount; provisioned $provisionedCount. ${failures.join(' ')}',
     );
   }
 
@@ -183,7 +183,7 @@ class _RegistrationApprovalsViewState
       if (!mounted) return;
       _showMessage(
         approved
-            ? 'Request approved. The invitation email has been sent.'
+            ? 'Request approved. The initial password is the user’s Employee ID; they should change it after signing in.'
             : 'Registration request rejected.',
       );
     } on RegistrationApprovalServiceException catch (error) {
@@ -217,7 +217,9 @@ class _RegistrationApprovalsViewState
       await _service.provisionApprovedRequest(request.id);
       if (!mounted) return;
       setState(() => _updatingRequestId = null);
-      _showMessage('The invitation email has been sent.');
+      _showMessage(
+        'The user is provisioned. The initial password is their Employee ID.',
+      );
       await _loadRequests();
     } on RegistrationApprovalServiceException catch (error) {
       if (!mounted) return;

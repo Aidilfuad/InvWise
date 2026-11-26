@@ -11,6 +11,7 @@ import '../../services/app_update_service.dart';
 import '../../services/login_preferences_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/role_access_service.dart';
+import '../../services/workspace_support_service.dart';
 import '../../widgets/offline_sync_indicator.dart';
 import 'widgets/edit_profile_sheet.dart';
 import 'widgets/settings_header.dart';
@@ -26,6 +27,7 @@ import '../warehouse_location/warehouse_locations_page.dart';
 import '../security/security_page.dart';
 import '../user_management/user_management_page.dart';
 import '../../widgets/role_permission_manager.dart';
+import 'profile_change_requests_page.dart';
 
 /// Settings screen with live profile data and app configuration links.
 class SettingsPage extends StatefulWidget {
@@ -153,6 +155,67 @@ class _SettingsPageState extends State<SettingsPage>
       context,
     ).push(MaterialPageRoute(builder: (_) => const PersonalInformationPage()));
     if (mounted) await _loadProfile();
+  }
+
+  Future<void> _onProfileChangeRequestsTap() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const ProfileChangeRequestsPage(),
+      ),
+    );
+    if (mounted) await _loadProfile();
+  }
+
+  Future<void> _onWorkspaceSupportEmailTap() async {
+    final service = WorkspaceSupportService();
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final currentEmail = await service.getSupportEmail();
+      if (!mounted) return;
+      final controller = TextEditingController(text: currentEmail);
+      final requestedEmail = await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Workspace support email'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(
+              labelText: 'Support / administrator email',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      );
+      controller.dispose();
+      if (requestedEmail == null) return;
+      final saved = await service.updateSupportEmail(requestedEmail);
+      if (!mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Workspace support email updated to $saved.')),
+        );
+    } catch (error) {
+      if (!mounted) return;
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Unable to update support email: $error')),
+        );
+    }
   }
 
   void _onCurrencyTap() {
@@ -373,6 +436,22 @@ class _SettingsPageState extends State<SettingsPage>
                               subtitle: 'Manage your profile details',
                               onTap: _onPersonalInformationTap,
                             ),
+                            SettingsTile(
+                              icon: Icons.manage_accounts_outlined,
+                              title: 'Role & Department Requests',
+                              subtitle: _roleAccess.role == AppRole.superAdmin ||
+                                      _roleAccess.role == AppRole.manager ||
+                                      _roleAccess.role ==
+                                          AppRole.factory1Manager ||
+                                      _roleAccess.role ==
+                                          AppRole.factory2Manager ||
+                                      _roleAccess.role ==
+                                          AppRole.warehouseManager ||
+                                      _roleAccess.role == AppRole.director
+                                  ? 'Submit requests or review pending changes'
+                                  : 'Request a role or department change',
+                              onTap: _onProfileChangeRequestsTap,
+                            ),
                             if (_roleAccess.allows(
                               AppPermission.accessPersonalSecurity,
                             ))
@@ -510,6 +589,14 @@ class _SettingsPageState extends State<SettingsPage>
                         SettingsSection(
                           title: 'System',
                           children: [
+                            if (_roleAccess.role == AppRole.superAdmin)
+                              SettingsTile(
+                                icon: Icons.support_agent_outlined,
+                                title: 'Workspace Support Email',
+                                subtitle:
+                                    'Configure the shared administrator contact',
+                                onTap: _onWorkspaceSupportEmailTap,
+                              ),
                             if (_roleAccess.role == AppRole.superAdmin)
                               SettingsTile(
                                 icon: Icons.admin_panel_settings_outlined,

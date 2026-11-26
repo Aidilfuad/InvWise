@@ -4,6 +4,7 @@ import '../../app/constants/app_spacing.dart';
 import '../../services/role_access_service.dart';
 import '../../services/password_confirmation_service.dart';
 import '../../services/user_management_service.dart';
+import '../../widgets/searchable_dropdown_form_field.dart';
 import '../../services/workspace_access_service.dart';
 import '../../widgets/profile_avatar.dart';
 import '../../widgets/role_permission_manager.dart';
@@ -109,13 +110,10 @@ class _UserManagementContentState extends State<_UserManagementContent> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Change user role'),
-          content: DropdownButtonFormField<String>(
+          content: SearchableDropdownFormField(
             initialValue: selectedRole,
             decoration: const InputDecoration(labelText: 'Role'),
-            items: [
-              for (final role in _roles)
-                DropdownMenuItem(value: role, child: Text(role)),
-            ],
+            options: {..._roles, user.role}.toList(growable: false),
             onChanged: (value) {
               if (value != null) {
                 setDialogState(() => selectedRole = value);
@@ -409,49 +407,44 @@ class _UserManagementContentState extends State<_UserManagementContent> {
                         children: [
                           SizedBox(
                             width: 260,
-                            child: DropdownButtonFormField<String?>(
-                              initialValue: _selectedRole,
+                            child: SearchableDropdownFormField(
+                              initialValue: _selectedRole ?? 'All roles',
                               decoration: const InputDecoration(
                                 labelText: 'Filter by role',
                                 border: OutlineInputBorder(),
                               ),
-                              items: [
-                                const DropdownMenuItem<String?>(
-                                  child: Text('All roles'),
-                                ),
-                                for (final role in _roles)
-                                  DropdownMenuItem<String?>(
-                                    value: role,
-                                    child: Text(role),
-                                  ),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _selectedRole = value),
+                              options: ['All roles', ..._roles],
+                              onChanged: (value) => setState(
+                                () => _selectedRole =
+                                    value == 'All roles' ? null : value,
+                              ),
                             ),
                           ),
                           SizedBox(
                             width: 220,
-                            child: DropdownButtonFormField<bool?>(
-                              initialValue: _selectedStatus,
+                            child: SearchableDropdownFormField(
+                              initialValue: _selectedStatus == null
+                                  ? 'all'
+                                  : _selectedStatus!
+                                  ? 'active'
+                                  : 'inactive',
                               decoration: const InputDecoration(
                                 labelText: 'Filter by status',
                                 border: OutlineInputBorder(),
                               ),
-                              items: const [
-                                DropdownMenuItem<bool?>(
-                                  child: Text('All statuses'),
-                                ),
-                                DropdownMenuItem<bool?>(
-                                  value: true,
-                                  child: Text('Active'),
-                                ),
-                                DropdownMenuItem<bool?>(
-                                  value: false,
-                                  child: Text('Inactive'),
-                                ),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _selectedStatus = value),
+                              options: const ['all', 'active', 'inactive'],
+                              optionLabels: const {
+                                'all': 'All statuses',
+                                'active': 'Active',
+                                'inactive': 'Inactive',
+                              },
+                              onChanged: (value) => setState(
+                                () => _selectedStatus = switch (value) {
+                                  'active' => true,
+                                  'inactive' => false,
+                                  _ => null,
+                                },
+                              ),
                             ),
                           ),
                         ],

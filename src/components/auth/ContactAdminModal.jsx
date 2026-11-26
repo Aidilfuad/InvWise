@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { CheckCircle2, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { useWorkspaceSupportEmail } from '../../lib/workspaceSupportEmail'
 
 const emptyForm = { name: '', email: '', subject: '', message: '' }
 
 export default function ContactAdminModal({ onClose }) {
+  const [supportEmail] = useWorkspaceSupportEmail()
   const [form, setForm] = useState(emptyForm)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -104,7 +106,8 @@ export default function ContactAdminModal({ onClose }) {
             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs font-semibold text-slate-700">IT support contact</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Workspace administrator · follow-up to the email address you provide
+                <a className="font-semibold text-teal-700 hover:underline" href={`mailto:${supportEmail}`}>{supportEmail}</a>
+                {' · '}Your request is also recorded in the workspace.
               </p>
             </div>
             <form className="mt-5 space-y-4" onSubmit={submitRequest}>

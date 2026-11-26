@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { CheckCircle2, Eye, EyeOff, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { getSupabaseFunctionErrorMessage } from '../../lib/supabaseFunctionErrors'
+import { sortWorkspaceRoles, WORKSPACE_ROLE_ORDER } from '../../lib/workspaceAccess'
+import SearchableSelect from '../common/SearchableSelect'
 
-const fallbackRoles = ['Warehouse Supervisor', 'Storekeeper']
+const fallbackRoles = WORKSPACE_ROLE_ORDER.filter((role) => role !== 'Super Admin')
 const fallbackDepartments = [
   'Warehouse Operations',
   'Inventory Control',
@@ -28,7 +31,7 @@ export default function RequestAccessModal({ onClose }) {
     work_email: '',
     employee_id: '',
     department: '',
-    requested_role: fallbackRoles[0],
+    requested_role: 'Viewer',
     reason: '',
     password: '',
     confirm_password: '',
@@ -54,8 +57,16 @@ export default function RequestAccessModal({ onClose }) {
         setDepartments(departmentResult.data.map((item) => item.name))
       }
       if (!roleResult.error && roleResult.data?.length) {
-        setRoles(roleResult.data.map((item) => item.name))
-        setForm((current) => ({ ...current, requested_role: current.requested_role || roleResult.data[0].name }))
+        const availableRoles = sortWorkspaceRoles(roleResult.data.map((item) => item.name).filter((role) => role !== 'Super Admin'))
+        setRoles(availableRoles)
+        setForm((current) => ({
+          ...current,
+          requested_role: availableRoles.includes(current.requested_role)
+            ? current.requested_role
+            : availableRoles.includes('Viewer')
+              ? 'Viewer'
+              : availableRoles[0] ?? '',
+        }))
       }
     })
   }, [])
@@ -76,6 +87,10 @@ export default function RequestAccessModal({ onClose }) {
       setError('Passwords do not match.')
       return
     }
+    if (!form.department || !form.requested_role) {
+      setError('Select a department and requested role.')
+      return
+    }
 
     if (!supabase) {
       setError('Account requests are unavailable until Supabase is configured.')
@@ -84,25 +99,35 @@ export default function RequestAccessModal({ onClose }) {
 
     setLoading(true)
     try {
-      const { error: requestError } = await supabase.from('registration_requests').insert({
-        full_name: form.full_name.trim(),
-        email: form.work_email.trim(),
-        employee_id: form.employee_id.trim(),
-        department: form.department.trim(),
-        requested_role: form.requested_role,
-        reason: form.reason.trim(),
-        status: 'pending',
-      })
+      const { data: result, error: requestError } = await supabase.functions.invoke(
+        'submit-registration-request',
+        {
+          body: {
+            full_name: form.full_name.trim(),
+            email: form.work_email.trim(),
+            employee_id: form.employee_id.trim(),
+            department: form.department.trim(),
+            requested_role: form.requested_role,
+            reason: form.reason.trim(),
+            password: form.password,
+          },
+        },
+      )
 
       if (requestError) {
-        setError('We could not submit your request. Please try again or contact your workspace administrator.')
-        return
+        throw new Error(await getSupabaseFunctionErrorMessage(requestError, 'Unable to submit your access request.'))
+      }
+      if (result?.error) throw new Error(result.error)
+      if (!result?.request_id || result.status !== 'pending') {
+        throw new Error('The registration service did not confirm that your request was saved.')
       }
 
       setForm((current) => ({ ...current, password: '', confirm_password: '' }))
       setSubmitted(true)
-    } catch {
-      setError('We could not submit your request. Please try again or contact your workspace administrator.')
+    } catch (requestError) {
+      setError(requestError instanceof Error
+        ? requestError.message
+        : 'We could not submit your request. Please try again or contact your workspace administrator.')
     } finally {
       setLoading(false)
     }
@@ -134,7 +159,10 @@ export default function RequestAccessModal({ onClose }) {
           <div className="py-8 text-center">
             <CheckCircle2 className="mx-auto text-teal-600" size={40} />
             <p className="mt-4 text-sm leading-6 text-slate-600">
-              Your request has been sent to the InvWise workspace administrators. If approved, you will receive an invitation email to securely set your account password.
+              Your request is pending Super Admin approval. If approved, your
+              initial password will be your Employee ID as entered, with
+              surrounding spaces removed. Sign in with it, then change your
+              password in Settings.
             </p>
             <button className="mt-6 w-full rounded-lg bg-teal-600 px-4 py-3 text-sm font-semibold text-white hover:bg-teal-700" onClick={onClose} type="button">
               Done
@@ -157,16 +185,28 @@ export default function RequestAccessModal({ onClose }) {
               </label>
               <label className="block text-sm font-medium text-slate-700">
                 Department
-                <select className="modal-input mt-1.5" name="department" onChange={updateField} required value={form.department}>
-                  <option disabled value="">Select a department</option>
-                  {departments.map((department) => <option key={department} value={department}>{department}</option>)}
-                </select>
+                <span className="mt-1.5 block">
+                  <SearchableSelect
+                    aria-label="Department"
+                    className="modal-input"
+                    onChange={(value) => setForm((current) => ({ ...current, department: value }))}
+                    options={departments.map((department) => ({ value: department, label: department }))}
+                    placeholder="Select a department"
+                    value={form.department}
+                  />
+                </span>
               </label>
               <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
                 Requested role
-                <select className="modal-input mt-1.5" name="requested_role" onChange={updateField} value={form.requested_role}>
-                  {roles.map((role) => <option key={role} value={role}>{role}</option>)}
-                </select>
+                <span className="mt-1.5 block">
+                  <SearchableSelect
+                    aria-label="Requested role"
+                    className="modal-input"
+                    onChange={(value) => setForm((current) => ({ ...current, requested_role: value }))}
+                    options={roles.map((role) => ({ value: role, label: role }))}
+                    value={form.requested_role}
+                  />
+                </span>
               </label>
               <label className="block text-sm font-medium text-slate-700">
                 Password
@@ -174,6 +214,7 @@ export default function RequestAccessModal({ onClose }) {
                   <input
                     autoComplete="new-password"
                     className="modal-input pr-11"
+                    maxLength={256}
                     minLength={8}
                     name="password"
                     onChange={updateField}
@@ -208,6 +249,7 @@ export default function RequestAccessModal({ onClose }) {
                   <input
                     autoComplete="new-password"
                     className="modal-input pr-11"
+                    maxLength={256}
                     name="confirm_password"
                     onChange={updateField}
                     required
@@ -226,7 +268,11 @@ export default function RequestAccessModal({ onClose }) {
                 {form.confirm_password && <span className={`mt-1 block text-xs font-normal ${passwordsMatch ? 'text-teal-700' : 'text-rose-600'}`} aria-live="polite">{passwordsMatch ? 'Passwords match.' : 'Passwords do not match.'}</span>}
               </label>
               <p className="text-xs leading-5 text-slate-500 sm:col-span-2">
-                For your security, this password is checked only in this form and is never saved with your access request. You will set your account password from the invitation email after approval.
+                This password is sent securely to Supabase Auth and is not
+                stored with your request. It is used only while your request is
+                pending; approval replaces it with your Employee ID as entered
+                (surrounding spaces removed). Change that initial password
+                after signing in.
               </p>
               <label className="block text-sm font-medium text-slate-700 sm:col-span-2">
                 Reason for access

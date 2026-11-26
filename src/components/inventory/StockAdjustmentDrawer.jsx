@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
-import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Check, ChevronDown, Minus, Package, Plus, X } from 'lucide-react'
+import { ArrowDownToLine, ArrowLeftRight, ArrowUpFromLine, Check, Minus, Package, Plus, X } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 const reasons = [
   'Purchase order received',
@@ -25,14 +26,17 @@ function LocationSelect({ label, locations, value, onChange, excludeId }) {
   return (
     <label className="block text-xs font-medium text-slate-700">
       {label}
-      <span className="relative mt-1.5 block">
-        <select className="modal-input h-10 appearance-none pr-9" onChange={(event) => onChange(event.target.value)} required value={value}>
-          <option value="">Select warehouse</option>
-          {locations.filter((location) => location.isActive !== false && location.id !== excludeId).map((location) => (
-            <option key={location.id} value={location.id}>{location.name}</option>
-          ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+      <span className="mt-1.5 block">
+        <SearchableSelect
+          aria-label={label}
+          className="modal-input h-10"
+          onChange={onChange}
+          options={[
+            { value: '', label: 'Select warehouse' },
+            ...locations.filter((location) => location.isActive !== false && location.id !== excludeId).map((location) => ({ value: location.id, label: location.name })),
+          ]}
+          value={value}
+        />
       </span>
     </label>
   )
@@ -123,12 +127,17 @@ export default function StockAdjustmentDrawer({ items, locations, selectedItem, 
             {!selectedItem && (
               <label className="block text-xs font-medium text-slate-700">
                 Select inventory item
-                <span className="relative mt-1.5 block">
-                  <select className="modal-input h-10 appearance-none pr-9" onChange={(event) => setItemId(event.target.value)} value={itemId}>
-                    <option value="">Select an item</option>
-                    {items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.sku}</option>)}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <span className="mt-1.5 block">
+                  <SearchableSelect
+                    aria-label="Select inventory item"
+                    className="modal-input h-10"
+                    onChange={setItemId}
+                    options={[
+                      { value: '', label: 'Select an item' },
+                      ...items.map((item) => ({ value: item.id, label: `${item.name} · ${item.sku}` })),
+                    ]}
+                    value={itemId}
+                  />
                 </span>
               </label>
             )}
@@ -193,11 +202,14 @@ export default function StockAdjustmentDrawer({ items, locations, selectedItem, 
 
             <label className="block text-xs font-medium text-slate-700">
               Reason code
-              <span className="relative mt-1.5 block">
-                <select className="modal-input h-10 appearance-none pr-9" onChange={(event) => setReason(event.target.value)} value={reason}>
-                  {reasons.map((value) => <option key={value} value={value}>{value}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <span className="mt-1.5 block">
+                <SearchableSelect
+                  aria-label="Reason code"
+                  className="modal-input h-10"
+                  onChange={setReason}
+                  options={reasons.map((value) => ({ value, label: value }))}
+                  value={reason}
+                />
               </span>
             </label>
 

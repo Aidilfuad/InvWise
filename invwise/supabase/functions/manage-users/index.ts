@@ -119,7 +119,7 @@ Deno.serve(async (request) => {
 
   const { data: caller, error: callerError } = await admin
     .from("profiles")
-    .select("role, is_active")
+    .select("id, role, is_active")
     .eq("auth_user_id", authData.user.id)
     .maybeSingle();
   if (callerError) {
@@ -127,10 +127,9 @@ Deno.serve(async (request) => {
       error: `Unable to verify Super Admin access: ${callerError.message}`,
     }, 500);
   }
-  if (normalizeRoleName(caller?.role) !== "superadmin" ||
-      caller.is_active !== true) {
+  if (!caller || caller.is_active !== true) {
     return jsonResponse(
-      { error: "Only an active Super Admin can manage users." },
+      { error: "Only an active workspace user can create an invitation." },
       403,
     );
   }
@@ -148,7 +147,107 @@ Deno.serve(async (request) => {
 
   const action = body.action;
   try {
+    if (action === "create_invitation_request") {
+      if (normalizeRoleName(caller.role) !== "superadmin") {
+        const { data: invitePermissions, error: invitePermissionError } = await admin
+          .from("role_permissions")
+          .select("permission_key,granted")
+          .eq("role_name", caller.role)
+          .in("permission_key", ["manage_users", "manage_registration_requests"]);
+        if (invitePermissionError) throw invitePermissionError;
+        if (!invitePermissions?.some((permission) => permission.granted)) {
+          return jsonResponse(
+            { error: "Your role is not authorized to invite workspace users." },
+            403,
+          );
+        }
+      }
+
+      if (typeof body.full_name !== "string" ||
+          !body.full_name.trim() ||
+          body.full_name.trim().length > 160 ||
+          typeof body.employee_id !== "string" ||
+          !body.employee_id.trim() ||
+          body.employee_id.trim().length > 64 ||
+          typeof body.email !== "string" ||
+          !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.email.trim()) ||
+          body.email.trim().length > 254 ||
+          typeof body.department !== "string" ||
+          !body.department.trim() ||
+          typeof body.role !== "string" ||
+          !body.role.trim() ||
+          body.role.trim().length > 100 ||
+          typeof body.reason !== "string" ||
+          body.reason.length > 1000) {
+        return jsonResponse({ error: "Complete each invitation field with a valid value." }, 400);
+      }
+
+      const email = body.email.trim().toLowerCase();
+      const employeeId = body.employee_id.trim();
+      const role = body.role.trim();
+      const department = body.department.trim();
+      if (normalizeRoleName(role) === "superadmin") {
+        return jsonResponse({ error: "Super Admin cannot be assigned through an invitation." }, 400);
+      }
+
+      const { data: roleRecord, error: roleError } = await admin
+        .from("custom_roles")
+        .select("name")
+        .eq("name", role)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (roleError) throw roleError;
+      if (!roleRecord) {
+        return jsonResponse({ error: "Select an active workspace role." }, 400);
+      }
+
+      const { data: departmentRecord, error: departmentError } = await admin
+        .from("departments")
+        .select("name")
+        .eq("name", department)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (departmentError) throw departmentError;
+      if (!departmentRecord) {
+        return jsonResponse({ error: "Select an active workspace department." }, 400);
+      }
+
+      const { data: request, error: insertError } = await admin
+        .from("registration_requests")
+        .insert({
+          full_name: body.full_name.trim(),
+          employee_id: employeeId,
+          email,
+          department,
+          requested_role: role,
+          reason: body.reason.trim() || null,
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          approved_by: caller.id,
+        })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+      return jsonResponse({ request_id: request.id, status: "approved" }, 201);
+    }
+
     if (action === "list") {
+      if (normalizeRoleName(caller.role) !== "superadmin") {
+        const { data: listPermissions, error: listPermissionError } = await admin
+          .from("role_permissions")
+          .select("permission_key,granted")
+          .eq("role_name", caller.role)
+          .eq("permission_key", "manage_users")
+          .eq("granted", true);
+        if (listPermissionError) throw listPermissionError;
+        if (!listPermissions?.length) {
+          return jsonResponse(
+            { error: "Your role is not authorized to view the user directory." },
+            403,
+          );
+        }
+      }
+
       const users: UserProfile[] = [];
       const pageSize = 1000;
       for (let offset = 0; ; offset += pageSize) {
@@ -181,6 +280,13 @@ Deno.serve(async (request) => {
           is_self: user.auth_user_id === authData.user.id,
         })),
       });
+    }
+
+    if (normalizeRoleName(caller.role) !== "superadmin") {
+      return jsonResponse(
+        { error: "Only an active Super Admin can manage user accounts." },
+        403,
+      );
     }
 
     if (!isUuid(body.user_id)) {

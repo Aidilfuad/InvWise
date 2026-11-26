@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../features/auth/login_page.dart';
+import '../../features/auth/auth_link_error_page.dart';
 import '../../features/auth/registration_approvals_page.dart';
 import '../../features/auth/registration_request_page.dart';
 import '../../features/auth/registration_setup_page.dart';
@@ -16,6 +17,7 @@ class AppRoutes {
   static const String registrationRequest = '/register';
   static const String registrationApprovals = '/registration-approvals';
   static const String registrationSetup = '/registration-setup';
+  static const String authLinkError = '/auth-link-error';
   static const String dashboard = '/dashboard';
   static const String userManagement = '/user-management';
   static const String activityLogs = '/activity-logs';
@@ -38,7 +40,20 @@ class AppRoutes {
         );
 
       case registrationSetup:
-        return MaterialPageRoute(builder: (_) => const RegistrationSetupPage());
+        return MaterialPageRoute(
+          builder: (_) => RegistrationSetupPage(
+            isRecovery: settings.arguments == true,
+          ),
+        );
+
+      case authLinkError:
+        return MaterialPageRoute(
+          builder: (_) => AuthLinkErrorPage(
+            message: settings.arguments is String
+                ? settings.arguments! as String
+                : 'This authentication link is invalid or expired. Request a new link and try again.',
+          ),
+        );
 
       case dashboard:
         return MaterialPageRoute(

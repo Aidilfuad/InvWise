@@ -181,7 +181,7 @@ class RegistrationApprovalService {
     try {
       final response = await _client.functions.invoke(
         'provision-approved-registration',
-        body: {'request_id': requestId},
+        body: {'request_id': requestId, 'redirect_target': 'mobile'},
       );
       if (response.status < 200 || response.status >= 300) {
         throw RegistrationApprovalServiceException(

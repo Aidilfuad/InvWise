@@ -14,8 +14,8 @@ export const supabase = supabaseConfigError
   : createClient(supabaseUrl, supabasePublishableKey, {
       auth: {
         autoRefreshToken: true,
-        detectSessionInUrl: true,
+        detectSessionInUrl: false,
         persistSession: true,
-        flowType: "implicit",
+        flowType: "pkce",
       },
     });

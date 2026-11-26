@@ -23,4 +23,6 @@ class SupabaseConfig {
       defaultValue: 'sb_publishable_IMK7UOCKlpNHFJBujykQ8w_C-vVQIAt',
     ),
   );
+
+  static const String authRedirectUri = 'invwise://auth/registration-setup';
 }

@@ -1,5 +1,23 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+const _workspaceRoleOrder = [
+  'Super Admin',
+  'Director',
+  'Inventory Administrator',
+  'Factory 1 Manager',
+  'Factory 2 Manager',
+  'Warehouse Manager',
+  'Manager',
+  'Supervisor',
+  'Production Supervisor',
+  'Quality Assurance / QC Supervisor',
+  'Maintenance & Automation Lead',
+  'Inventory Controller',
+  'Warehouse Supervisor',
+  'Storekeeper',
+  'Viewer',
+];
+
 class WorkspaceDepartment {
   const WorkspaceDepartment({
     required this.id,
@@ -84,9 +102,19 @@ class WorkspaceAccessService {
         .select('id,name,description,scope,is_active')
         .eq('is_active', true)
         .order('name');
-    return rows
+    final roles = rows
         .map((row) => WorkspaceRole.fromMap(row))
-        .toList(growable: false);
+        .toList();
+    roles.sort((left, right) {
+      final leftIndex = _workspaceRoleOrder.indexOf(left.name);
+      final rightIndex = _workspaceRoleOrder.indexOf(right.name);
+      final leftRank = leftIndex < 0 ? _workspaceRoleOrder.length : leftIndex;
+      final rightRank = rightIndex < 0
+          ? _workspaceRoleOrder.length
+          : rightIndex;
+      return leftRank.compareTo(rightRank);
+    });
+    return roles;
   }
 
   Future<List<RolePermission>> getRolePermissions(String roleName) async {

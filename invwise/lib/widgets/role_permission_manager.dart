@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/workspace_access_service.dart';
+import 'searchable_dropdown_form_field.dart';
 
 class RolePermissionManager extends StatefulWidget {
   const RolePermissionManager({super.key, this.initialTab = 0});
@@ -222,18 +223,13 @@ class _RolePermissionManagerState extends State<RolePermissionManager>
     children: [
       if (_error != null)
         Text(_error!, style: const TextStyle(color: Colors.red)),
-      DropdownButtonFormField<String>(
+      SearchableDropdownFormField(
         initialValue: _selectedRole,
         decoration: const InputDecoration(
           labelText: 'Role',
           border: OutlineInputBorder(),
         ),
-        items: _roles
-            .map(
-              (role) =>
-                  DropdownMenuItem(value: role.name, child: Text(role.name)),
-            )
-            .toList(),
+        options: _roles.map((role) => role.name).toList(growable: false),
         onChanged: (value) {
           setState(() => _selectedRole = value);
           if (value != null) _load();

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowDownToLine, ArrowUpFromLine, X } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 export default function QuickAdjustmentModal({
   items,
@@ -75,18 +76,34 @@ export default function QuickAdjustmentModal({
         <form className="mt-5 space-y-3.5" onSubmit={submit}>
           <label className="block text-[10px] font-medium text-slate-700">
             Inventory item
-            <select className="modal-input mt-1.5" onChange={(event) => setItemId(event.target.value)} required value={activeItemId}>
-              <option disabled value="">Select an item</option>
-              {items.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.sku}</option>)}
-            </select>
+            <span className="mt-1.5 block">
+              <SearchableSelect
+                aria-label="Inventory item"
+                className="modal-input"
+                onChange={setItemId}
+                options={[
+                  { value: '', label: 'Select an item' },
+                  ...items.map((item) => ({ value: item.id, label: `${item.name} · ${item.sku}` })),
+                ]}
+                value={activeItemId}
+              />
+            </span>
           </label>
 
           <label className="block text-[10px] font-medium text-slate-700">
             Warehouse
-            <select className="modal-input mt-1.5" onChange={(event) => setLocationId(event.target.value)} required value={activeLocationId}>
-              <option disabled value="">Select a warehouse</option>
-              {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-            </select>
+            <span className="mt-1.5 block">
+              <SearchableSelect
+                aria-label="Warehouse"
+                className="modal-input"
+                onChange={setLocationId}
+                options={[
+                  { value: '', label: 'Select a warehouse' },
+                  ...locations.map((location) => ({ value: location.id, label: location.name })),
+                ]}
+                value={activeLocationId}
+              />
+            </span>
           </label>
 
           <div>

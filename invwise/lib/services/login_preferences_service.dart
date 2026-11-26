@@ -35,9 +35,13 @@ class LoginPreferencesService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> prepareForStartup(SupabaseClient client) async {
+  Future<bool> prepareForStartup(
+    SupabaseClient client, {
+    bool preserveSession = false,
+  }) async {
     await initialize();
     final session = client.auth.currentSession;
+    if (preserveSession && session != null) return true;
     final nowSeconds = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     if (shouldRestoreSession(
       rememberMe: _rememberMe,

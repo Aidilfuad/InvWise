@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../app/constants/app_colors.dart';
 import '../../../services/inventory_service.dart';
 import '../../../services/stock_movement_service.dart';
+import '../../../widgets/searchable_dropdown_form_field.dart';
 
 class CreateStockMovementDialog extends StatefulWidget {
   const CreateStockMovementDialog({
@@ -138,32 +139,38 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownButtonFormField<StockMovementType>(
-              initialValue: _type,
+            SearchableDropdownFormField(
+              initialValue: _type.name,
               decoration: const InputDecoration(labelText: 'Movement type'),
-              items: StockMovementType.values
-                  .map(
-                    (type) =>
-                        DropdownMenuItem(value: type, child: Text(type.label)),
-                  )
+              options: StockMovementType.values
+                  .map((type) => type.name)
                   .toList(),
-              onChanged: _isSaving ? null : _onTypeChanged,
+              optionLabels: {
+                for (final type in StockMovementType.values)
+                  type.name: type.label,
+              },
+              enabled: !_isSaving,
+              onChanged: _isSaving
+                  ? null
+                  : (value) {
+                      if (value == null) return;
+                      _onTypeChanged(
+                        StockMovementType.values.firstWhere(
+                          (type) => type.name == value,
+                        ),
+                      );
+                    },
             ),
             const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
+            SearchableDropdownFormField(
               initialValue: _itemId,
               decoration: const InputDecoration(labelText: 'Inventory item'),
-              items: widget.items
-                  .map(
-                    (item) => DropdownMenuItem(
-                      value: item.id,
-                      child: Text(
-                        '${item.name} · ${item.sku}',
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  )
-                  .toList(),
+              options: widget.items.map((item) => item.id).toList(),
+              optionLabels: {
+                for (final item in widget.items)
+                  item.id: '${item.name} · ${item.sku}',
+              },
+              enabled: !_isSaving,
               onChanged: _isSaving
                   ? null
                   : (itemId) => setState(() => _itemId = itemId),
@@ -257,18 +264,15 @@ class _CreateStockMovementDialogState extends State<CreateStockMovementDialog> {
     final selectedValue = locations.any((location) => location.id == value)
         ? value
         : null;
-    return DropdownButtonFormField<String>(
+    return SearchableDropdownFormField(
       initialValue: selectedValue,
       decoration: InputDecoration(labelText: label),
-      items: locations
-          .map(
-            (location) => DropdownMenuItem(
-              value: location.id,
-              child: Text(location.name),
-            ),
-          )
-          .toList(),
-      onChanged: _isSaving ? null : onChanged,
+      options: locations.map((location) => location.id).toList(),
+      optionLabels: {
+        for (final location in locations) location.id: location.name,
+      },
+      enabled: !_isSaving,
+      onChanged: onChanged,
     );
   }
 }

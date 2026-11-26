@@ -193,7 +193,6 @@ function mapLiveSensors(rows, energyRows, alertRows, settings, warehouses, overr
     let trend = readings.map((item) => metric === 'voltage'
       ? parseNumber(item.voltage)
       : parseNumber(item.power)).filter((value) => value != null)
-    if (trend.length === 0 && reading != null) trend = Array.from({ length: 24 }, () => reading)
 
     return {
       id,

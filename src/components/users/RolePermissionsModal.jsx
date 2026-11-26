@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { LockKeyhole, Plus, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { isSuperAdminRole } from '../../lib/workspaceAccess'
+import { isSuperAdminRole, MANDATORY_WORKSPACE_PERMISSION_KEYS, sortWorkspaceRoles } from '../../lib/workspaceAccess'
+import SearchableSelect from '../common/SearchableSelect'
 
 const permissionGroups = [
   { title: 'Workspace', permissions: [
@@ -47,7 +48,7 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
   const [departmentName, setDepartmentName] = useState('')
   const [departmentDescription, setDepartmentDescription] = useState('')
   const [initialRolePermissions, setInitialRolePermissions] = useState(
-    () => new Set(['view_dashboard', 'view_inventory', 'view_alerts']),
+    () => new Set(['view_dashboard', ...MANDATORY_WORKSPACE_PERMISSION_KEYS]),
   )
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
@@ -63,7 +64,7 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
       setError(roleResult.error?.message || departmentResult.error?.message || permissionResult.error?.message)
       return
     }
-    setRoles(roleResult.data ?? [])
+    setRoles(sortWorkspaceRoles(roleResult.data ?? []))
     setDepartments(departmentResult.data ?? [])
     setPermissions(permissionResult.data ?? [])
     const nextSelected = selectedRole || roleResult.data?.[0]?.name || ''
@@ -73,6 +74,7 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
         permissionGroups.flatMap((group) => group.permissions).map(([key]) => [
           key,
           isSuperAdminRole(nextSelected) ||
+            MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(key) ||
             (permissionResult.data ?? []).some((item) =>
               item.role_name === nextSelected &&
               item.permission_key === key &&
@@ -93,7 +95,7 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
         setError(roleResult.error?.message || departmentResult.error?.message || permissionResult.error?.message)
         return
       }
-      setRoles(roleResult.data ?? [])
+      setRoles(sortWorkspaceRoles(roleResult.data ?? []))
       setDepartments(departmentResult.data ?? [])
       setPermissions(permissionResult.data ?? [])
       setSelectedRole((current) => {
@@ -102,6 +104,7 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
           permissionGroups.flatMap((group) => group.permissions).map(([key]) => [
             key,
             isSuperAdminRole(next) ||
+              MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(key) ||
               (permissionResult.data ?? []).some((item) =>
                 item.role_name === next &&
                 item.permission_key === key &&
@@ -114,7 +117,10 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
   }, [])
 
   function isGranted(permissionKey) {
-    if (isSuperAdminRole(selectedRole)) return true
+    if (
+      isSuperAdminRole(selectedRole) ||
+      MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(permissionKey)
+    ) return true
     if (Object.prototype.hasOwnProperty.call(draftPermissions, permissionKey)) {
       return draftPermissions[permissionKey]
     }
@@ -122,7 +128,10 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
   }
 
   function togglePermission(permissionKey) {
-    if (isSuperAdminRole(selectedRole)) return
+    if (
+      isSuperAdminRole(selectedRole) ||
+      MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(permissionKey)
+    ) return
     setDraftPermissions((current) => ({
       ...current,
       [permissionKey]: !isGranted(permissionKey),
@@ -221,22 +230,28 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
           {tab === 'permissions' && (
             <div>
               <label className="block text-[10px] font-semibold text-slate-700">Role
-                <select className="modal-input mt-1.5" onChange={(event) => {
-                  const next = event.target.value
+                <span className="mt-1.5 block">
+                  <SearchableSelect
+                    aria-label="Role"
+                    className="modal-input"
+                    onChange={(next) => {
                   setSelectedRole(next)
                   setDraftPermissions(Object.fromEntries(
                     permissionGroups.flatMap((group) => group.permissions).map(([key]) => [
                       key,
                       isSuperAdminRole(next) ||
+                        MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(key) ||
                         permissions.some((item) =>
                           item.role_name === next &&
                           item.permission_key === key &&
                           item.granted),
                     ]),
                   ))
-                }} value={selectedRole}>
-                  {roles.map((role) => <option key={role.id} value={role.name}>{role.name}</option>)}
-                </select>
+                    }}
+                    options={roles.map((role) => ({ value: role.name, label: role.name }))}
+                    value={selectedRole}
+                  />
+                </span>
               </label>
               <div className="mt-4 space-y-4">
                 {permissionGroups.map((group) => (
@@ -265,7 +280,7 @@ export default function RolePermissionsModal({ onClose, initialTab = 'permission
                   {permissionGroups.flatMap((group) => group.permissions).map(([key, label]) => (
                     <label className="flex items-center justify-between border-t border-slate-100 py-1.5 text-[9px] text-slate-600" key={key}>
                       {label}
-                      <input checked={initialRolePermissions.has(key)} onChange={(event) => setInitialRolePermissions((current) => {
+                      <input checked={MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(key) || initialRolePermissions.has(key)} disabled={MANDATORY_WORKSPACE_PERMISSION_KEYS.includes(key)} onChange={(event) => setInitialRolePermissions((current) => {
                         const next = new Set(current)
                         if (event.target.checked) next.add(key)
                         else next.delete(key)

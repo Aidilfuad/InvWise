@@ -1,6 +1,5 @@
 import {
   Activity,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Droplets,
@@ -8,6 +7,7 @@ import {
   Thermometer,
   Zap,
 } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 const metricIcons = {
   temperature: Thermometer,
@@ -43,6 +43,7 @@ const statusClass = {
 }
 
 export default function TelemetrySensorTable({
+  canManage = false,
   onInspect,
   onPageChange,
   onSearchChange,
@@ -90,22 +91,28 @@ export default function TelemetrySensorTable({
             value={search}
           />
         </label>
-        <label className="relative">
-          <select aria-label="Filter sensors by warehouse" className="h-8 min-w-[125px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[9px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => onWarehouseChange(event.target.value)} value={warehouse}>
-            <option value="all">All warehouses</option>
-            {warehouses.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-        </label>
-        <label className="relative">
-          <select aria-label="Filter sensors by status" className="h-8 min-w-[115px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[9px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => onStatusChange(event.target.value)} value={status}>
-            <option value="all">All statuses</option>
-            <option value="optimal">Optimal</option>
-            <option value="warning">Warning</option>
-            <option value="offline">Offline</option>
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-        </label>
+        <SearchableSelect
+          aria-label="Filter sensors by warehouse"
+          className="h-8 min-w-[125px] text-[9px] text-slate-700"
+          onChange={onWarehouseChange}
+          options={[
+            { value: 'all', label: 'All warehouses' },
+            ...warehouses.map((name) => ({ value: name, label: name })),
+          ]}
+          value={warehouse}
+        />
+        <SearchableSelect
+          aria-label="Filter sensors by status"
+          className="h-8 min-w-[115px] text-[9px] text-slate-700"
+          onChange={onStatusChange}
+          options={[
+            { value: 'all', label: 'All statuses' },
+            { value: 'optimal', label: 'Optimal' },
+            { value: 'warning', label: 'Warning' },
+            { value: 'offline', label: 'Offline' },
+          ]}
+          value={status}
+        />
         <div aria-label="Sensor status counts" className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px]">
           <span className="text-teal-700">{statusCounts.optimal} optimal</span>
           <span className="text-amber-700">{statusCounts.warning} warnings</span>
@@ -122,13 +129,13 @@ export default function TelemetrySensorTable({
               <th className="px-3 py-2 font-medium">Live reading</th>
               <th className="px-3 py-2 font-medium">Threshold status</th>
               <th className="px-3 py-2 font-medium">Last heartbeat</th>
-              <th className="px-3 py-2 text-center font-medium">Monitor</th>
+                {canManage && <th className="px-3 py-2 text-center font-medium">Monitor</th>}
               <th className="px-3 py-2"><span className="sr-only">Inspect sensor</span></th>
             </tr>
           </thead>
           <tbody>
             {sensors.length === 0 ? (
-              <tr><td className="px-4 py-10 text-center text-[10px] text-slate-400" colSpan={7}>No sensors match these filters.</td></tr>
+              <tr><td className="px-4 py-10 text-center text-[10px] text-slate-400" colSpan={canManage ? 7 : 6}>No sensors match these filters.</td></tr>
             ) : sensors.map((sensor) => {
               const Icon = metricIcons[sensor.metric] ?? Activity
               return (
@@ -159,7 +166,7 @@ export default function TelemetrySensorTable({
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-[8px] text-slate-500">{relativeTime(sensor.lastSeen)}</td>
-                  <td className="px-3 py-2 text-center">
+                  {canManage && <td className="px-3 py-2 text-center">
                     <button
                       aria-checked={sensor.monitored}
                       aria-label={`Monitor ${sensor.name}`}
@@ -170,7 +177,7 @@ export default function TelemetrySensorTable({
                     >
                       <span className={`h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${sensor.monitored ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} />
                     </button>
-                  </td>
+                  </td>}
                   <td className="px-3 py-2">
                     <button aria-label={`Inspect ${sensor.name}`} className="rounded p-1 text-slate-400 hover:bg-teal-50 hover:text-teal-700" onClick={() => onInspect(sensor)} type="button">
                       <ChevronRight size={14} />

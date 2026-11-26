@@ -3,14 +3,13 @@ import {
   Activity,
   ArrowDownToLine,
   ArrowRightLeft,
-  CalendarDays,
-  ChevronDown,
   Clock3,
   FileText,
   PackageOpen,
   PackageSearch,
 } from 'lucide-react'
 import { formatLocalDate, formatLocalTime } from './exportUtils'
+import SearchableSelect from '../common/SearchableSelect'
 
 const reportDefinitions = [
   {
@@ -84,6 +83,7 @@ function dateMatchesRange(value, range) {
 
 export default function ReportsTab({
   alertCount,
+  canExport = false,
   currencyCode,
   globalSearch,
   items,
@@ -155,23 +155,32 @@ export default function ReportsTab({
 
       <section aria-label="Report scope" className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
         <span className="mr-1 text-[10px] font-semibold text-slate-800">Report scope</span>
-        <label className="relative">
-          <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-slate-500" size={13} />
-          <select aria-label="Report date range" className="h-8 min-w-[170px] appearance-none rounded-md border border-slate-200 bg-white pl-7 pr-7 text-[9px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => setDateRange(event.target.value)} value={dateRange}>
-            <option value="30d">Nov 1 – {displayedToday.replace(/, \d{4}$/, '')}, 2026</option>
-            <option value="today">Today</option>
-            <option value="7d">Last 7 days</option>
-            <option value="all">All dates</option>
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-        </label>
-        <label className="relative">
-          <select aria-label="Report warehouse" className="h-8 min-w-[135px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[9px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => setWarehouse(event.target.value)} value={warehouse}>
-            <option value="all">All warehouses</option>
-            {warehouses.map((row) => <option key={row.id} value={row.name}>{row.name}</option>)}
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-        </label>
+        <div className="min-w-[170px]">
+          <SearchableSelect
+            aria-label="Report date range"
+            className="h-8 text-[9px] text-slate-700"
+            onChange={setDateRange}
+            options={[
+              { value: '30d', label: `Nov 1 – ${displayedToday.replace(/, \d{4}$/, '')}, 2026` },
+              { value: 'today', label: 'Today' },
+              { value: '7d', label: 'Last 7 days' },
+              { value: 'all', label: 'All dates' },
+            ]}
+            value={dateRange}
+          />
+        </div>
+        <div className="min-w-[135px]">
+          <SearchableSelect
+            aria-label="Report warehouse"
+            className="h-8 text-[9px] text-slate-700"
+            onChange={setWarehouse}
+            options={[
+              { value: 'all', label: 'All warehouses' },
+              ...warehouses.map((row) => ({ value: row.name, label: row.name })),
+            ]}
+            value={warehouse}
+          />
+        </div>
         <span className="ml-auto hidden text-[8px] text-slate-400 md:inline">Applies to every report below</span>
       </section>
 
@@ -193,7 +202,7 @@ export default function ReportsTab({
                   <p className={`mt-2 text-[9px] font-medium ${tone === 'amber' ? 'text-amber-700' : tone === 'purple' ? 'text-violet-700' : 'text-teal-700'}`}>{reportMetrics[id]}</p>
                 </div>
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              {canExport && <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <div aria-label={`${title} format`} className="flex rounded-md bg-slate-100 p-0.5" role="group">
                     {['CSV', 'PDF'].map((format) => (
@@ -205,7 +214,7 @@ export default function ReportsTab({
                 <button className="inline-flex h-7 items-center gap-1.5 rounded-md bg-teal-600 px-2.5 text-[9px] font-semibold text-white transition hover:bg-teal-700" onClick={() => generate(id, formats[id])} type="button">
                   <ArrowDownToLine size={12} /> Generate report
                 </button>
-              </div>
+              </div>}
             </article>
           )
         })}
@@ -213,7 +222,7 @@ export default function ReportsTab({
 
       {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] text-rose-700" role="alert">{error}</p>}
 
-      <section aria-label="Recent exports" className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.02)]">
+      {canExport && <section aria-label="Recent exports" className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.02)]">
         <header className="flex items-center justify-between border-b border-slate-100 px-3.5 py-2.5">
           <h3 className="text-[10px] font-semibold text-slate-800">Recent exports</h3>
           <span className="text-[8px] font-medium text-teal-700">Export history <span aria-hidden="true">→</span></span>
@@ -235,7 +244,7 @@ export default function ReportsTab({
             </div>
           ))}
         </div>
-      </section>
+      </section>}
     </div>
   )
 }

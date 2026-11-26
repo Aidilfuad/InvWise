@@ -6,6 +6,7 @@ import '../../app/constants/app_colors.dart';
 import '../../services/reports_service.dart';
 import '../../services/sensor_monitoring_service.dart';
 import '../../services/telemetry_csv_export_service.dart';
+import '../../widgets/searchable_dropdown_form_field.dart';
 
 class TelemetryHistoryPage extends StatefulWidget {
   const TelemetryHistoryPage({
@@ -29,6 +30,7 @@ class _TelemetryHistoryPageState extends State<TelemetryHistoryPage> {
   List<EnergyReadingHistory> _energyReadings = const [];
   List<SwitchEventHistory> _switchEvents = const [];
   List<EnergyReadingHistory> _chartReadings = const [];
+  SensorReading? _latestSensorReading;
   TelemetryPeriod _period = TelemetryPeriod.last24Hours;
   bool _isLoading = true;
   bool _isExporting = false;
@@ -55,16 +57,24 @@ class _TelemetryHistoryPageState extends State<TelemetryHistoryPage> {
       final switchFuture = widget.switchSensorId == null
           ? Future<List<SwitchEventHistory>>.value(const [])
           : _service.fetchSwitchHistory(widget.switchSensorId!);
+      final sensorId = widget.energySensorId ?? widget.switchSensorId;
+      final latestFuture = sensorId == null
+          ? Future<List<SensorReading>>.value(const [])
+          : _service.fetchLatest();
       final results = await Future.wait<Object>([
         energyFuture,
         switchFuture,
         chartFuture,
+        latestFuture,
       ]);
       if (!mounted) return;
       setState(() {
         _energyReadings = results[0] as List<EnergyReadingHistory>;
         _switchEvents = results[1] as List<SwitchEventHistory>;
         _chartReadings = results[2] as List<EnergyReadingHistory>;
+        _latestSensorReading = (results[3] as List<SensorReading>)
+            .where((reading) => reading.sensorId == sensorId)
+            .firstOrNull;
         _isLoading = false;
       });
     } catch (error) {
@@ -180,57 +190,83 @@ class _TelemetryHistoryPageState extends State<TelemetryHistoryPage> {
                     Row(
                       children: [
                         const Expanded(child: Text('Trend period')),
-                        DropdownButton<TelemetryPeriod>(
-                          value: _period,
-                          items: [
-                            for (final period in TelemetryPeriod.values)
-                              DropdownMenuItem(
-                                value: period,
-                                child: Text(period.label),
-                              ),
-                          ],
-                          onChanged: _isLoading
-                              ? null
-                              : (period) {
-                                  if (period == null) return;
-                                  setState(() => _period = period);
-                                  unawaited(_loadHistory());
-                                },
+                        SizedBox(
+                          width: 220,
+                          child: SearchableDropdownFormField(
+                            initialValue: _period.name,
+                            decoration: const InputDecoration(
+                              labelText: 'Trend period',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            options: TelemetryPeriod.values
+                                .map((period) => period.name)
+                                .toList(),
+                            optionLabels: {
+                              for (final period in TelemetryPeriod.values)
+                                period.name: period.label,
+                            },
+                            enabled: !_isLoading,
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(
+                                () => _period = TelemetryPeriod.values
+                                    .firstWhere(
+                                      (period) => period.name == value,
+                                    ),
+                              );
+                              unawaited(_loadHistory());
+                            },
+                          ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
-                    for (final (label, value) in [
+                    for (final (label, value, latestValue, unit) in [
                       (
                         'Voltage Trend',
                         _chartReadings
                             .map((reading) => reading.voltage)
                             .toList(),
+                        _latestSensorReading?.voltage,
+                        'V',
                       ),
                       (
                         'Current Trend',
                         _chartReadings
                             .map((reading) => reading.current)
                             .toList(),
+                        _latestSensorReading?.current,
+                        'A',
                       ),
                       (
                         'Power Trend',
                         _chartReadings.map((reading) => reading.power).toList(),
+                        _latestSensorReading?.power,
+                        'W',
                       ),
                       (
                         'Energy Trend',
                         _chartReadings
                             .map((reading) => reading.energy)
                             .toList(),
+                        _latestSensorReading?.energy,
+                        'kWh',
                       ),
                     ]) ...[
-                      _TrendChart(title: label, values: value),
+                      _TrendChart(
+                        title: label,
+                        values: value,
+                        latestValue: latestValue,
+                        latestReading: _latestSensorReading,
+                        unit: unit,
+                      ),
                       const SizedBox(height: 8),
                     ],
                     const SizedBox(height: 8),
                     const SizedBox(height: 8),
                     if (_energyReadings.isEmpty)
-                      const _EmptyHistory()
+                      _LastReadingCard(reading: _latestSensorReading)
                     else
                       for (final reading in _energyReadings)
                         _EnergyHistoryTile(reading: reading),
@@ -271,10 +307,19 @@ class _HistoryHeading extends StatelessWidget {
 }
 
 class _TrendChart extends StatelessWidget {
-  const _TrendChart({required this.title, required this.values});
+  const _TrendChart({
+    required this.title,
+    required this.values,
+    required this.latestValue,
+    required this.latestReading,
+    required this.unit,
+  });
 
   final String title;
   final List<double> values;
+  final double? latestValue;
+  final SensorReading? latestReading;
+  final String unit;
 
   @override
   Widget build(BuildContext context) => Container(
@@ -293,12 +338,41 @@ class _TrendChart extends StatelessWidget {
           height: 110,
           width: double.infinity,
           child: values.isEmpty
-              ? Center(
-                  child: Text(
-                    'No readings in this period',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                )
+              ? latestValue != null && latestReading != null
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Most recent: ${_format(latestValue!)} $unit',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${latestReading!.sensorName} · ${latestReading!.warehouseName ?? 'Warehouse unavailable'}',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        Text(
+                          latestReading!.updatedLabelAt(DateTime.now()),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Center(
+                      child: Text(
+                        'No readings in this period',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    )
               : CustomPaint(
                   painter: _TelemetryChartPainter(
                     values: values,
@@ -311,6 +385,56 @@ class _TrendChart extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _LastReadingCard extends StatelessWidget {
+  const _LastReadingCard({required this.reading});
+
+  final SensorReading? reading;
+
+  @override
+  Widget build(BuildContext context) {
+    final sensor = reading;
+    if (sensor == null) return const _EmptyHistory();
+    final value = sensor.valueNumeric == null
+        ? sensor.valueText ?? 'Reading unavailable'
+        : '${_format(sensor.valueNumeric!)} ${_unitFor(sensor.sensorType)}';
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Most recent sensor reading',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(value, style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              '${sensor.sensorName} · ${sensor.sensorCode} · ${sensor.warehouseName ?? 'Warehouse unavailable'}',
+            ),
+            Text(
+              sensor.lastSeen == null
+                  ? 'Timestamp unavailable'
+                  : _dateTime(sensor.lastSeen!),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _unitFor(String sensorType) {
+    final type = sensorType.toLowerCase();
+    if (type.contains('temperature') || type.contains('temp')) return '°C';
+    if (type.contains('humidity')) return '%';
+    if (type.contains('voltage')) return 'V';
+    if (type.contains('current')) return 'A';
+    if (type.contains('power')) return 'W';
+    if (type.contains('energy')) return 'kWh';
+    return '';
+  }
 }
 
 class _TelemetryChartPainter extends CustomPainter {

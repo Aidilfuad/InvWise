@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../app/constants/app_colors.dart';
 import '../../../app/constants/app_spacing.dart';
+import '../../../widgets/searchable_dropdown_form_field.dart';
 
 /// Shared white card shell used by all Inventory Item cards.
 class InventoryItemCardShell extends StatelessWidget {
@@ -177,32 +178,15 @@ class InventoryItemDropdown extends StatelessWidget {
                 textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 2),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: value,
-              isExpanded: true,
-              isDense: true,
-              icon: Icon(
-                Icons.keyboard_arrow_down,
-                color: AppColors.textSecondary,
-              ),
-              style: textTheme.bodyLarge?.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
-              hint: Text(
-                'Select',
-                style: textTheme.bodyLarge
-                    ?.copyWith(color: AppColors.textSecondary),
-              ),
-              items: items
-                  .map((e) => DropdownMenuItem(
-                        value: e,
-                        child: Text(e, overflow: TextOverflow.ellipsis),
-                      ))
-                  .toList(),
-              onChanged: onChanged,
+          SearchableDropdownFormField(
+            initialValue: value,
+            options: items,
+            decoration: const InputDecoration(
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.zero,
+              hintText: 'Select',
             ),
+            onChanged: onChanged,
           ),
         ],
       ),

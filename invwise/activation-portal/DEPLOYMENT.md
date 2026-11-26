@@ -37,18 +37,23 @@
 7. In Supabase **Authentication → URL Configuration**:
    - Set **Site URL** to `https://invwise-activation.vercel.app`.
    - Add `https://invwise-activation.vercel.app` to **Redirect URLs**.
+   - Add `invwise://auth/registration-setup` to **Redirect URLs** to support
+     invitations and password recovery opened directly in the Flutter app.
    - Remove obsolete `http://localhost:3000` entries when they are no longer
      needed. Keep local development URLs only if you still test locally.
-8. Set the provisioning Edge Function redirect secret to the same activation
-   URL:
+8. Set the provisioning Edge Function redirect secret to the activation URL:
 
    ```powershell
    supabase secrets set INVITE_REDIRECT_URL='https://invwise-activation.vercel.app' --project-ref avpgjbhgiuhowsdpwbms
    ```
 
    Replace the URL if the Vercel production domain differs. The deployed
-   `provision-approved-registration` function uses this secret as `redirectTo`
-   when it sends invitation emails.
+   `provision-approved-registration` function uses this value as `redirectTo`
+   for invitations created from the web app. Flutter provisioning requests use
+   the mobile redirect `invwise://auth/registration-setup` by default; set
+   `MOBILE_INVITE_REDIRECT_URL` only if the app's registered redirect URI
+   changes. Supabase Auth's Redirect URLs allowlist remains authoritative for
+   both destinations.
 9. Redeploy the provisioning function if needed, then trigger a new test
    invitation. Old invitation emails keep their original redirect URL; send a
    new invitation to test the updated destination.

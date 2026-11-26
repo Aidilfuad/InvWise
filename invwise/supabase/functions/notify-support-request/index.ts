@@ -27,13 +27,12 @@ Deno.serve(async (request) => {
   const serviceUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const resendApiKey = Deno.env.get("RESEND_API_KEY");
-  const adminEmail = Deno.env.get("SUPPORT_ADMIN_EMAIL");
+  const fallbackAdminEmail = Deno.env.get("SUPPORT_ADMIN_EMAIL");
   const fromEmail = Deno.env.get("SUPPORT_FROM_EMAIL");
   const missingSecrets = [
     !serviceUrl && "SUPABASE_URL",
     !serviceRoleKey && "SUPABASE_SERVICE_ROLE_KEY",
     !resendApiKey && "RESEND_API_KEY",
-    !adminEmail && "SUPPORT_ADMIN_EMAIL",
     !fromEmail && "SUPPORT_FROM_EMAIL",
   ].filter(Boolean);
   if (missingSecrets.length > 0) {
@@ -52,6 +51,22 @@ Deno.serve(async (request) => {
   const admin = createClient(serviceUrl!, serviceRoleKey!, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+  const { data: workspaceSettings, error: settingsError } = await admin
+    .from("app_settings")
+    .select("support_email")
+    .eq("id", "exchange_rate_usd_myr")
+    .maybeSingle();
+  if (settingsError) {
+    return jsonResponse({
+      error: `Unable to load the configured workspace support email: ${settingsError.message}`,
+    }, 500);
+  }
+  const adminEmail = workspaceSettings?.support_email?.trim() || fallbackAdminEmail;
+  if (!adminEmail) {
+    return jsonResponse({
+      error: "Set a workspace support email in Settings before sending support notifications.",
+    }, 500);
+  }
   const { data: authData, error: authError } =
     await admin.auth.getUser(accessToken);
   if (authError || !authData.user) {

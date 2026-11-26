@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../app/constants/supabase_config.dart';
+
 import 'login_tracking_service.dart';
 import 'login_preferences_service.dart';
 import 'security_session_tracker.dart';
@@ -219,7 +221,10 @@ class AuthService {
     }
 
     try {
-      await _client.auth.resetPasswordForEmail(trimmedEmail);
+      await _client.auth.resetPasswordForEmail(
+        trimmedEmail,
+        redirectTo: SupabaseConfig.authRedirectUri,
+      );
     } on AuthRetryableFetchException {
       throw const AuthServiceException(
         'Network error. Check your connection and try again.',

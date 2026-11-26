@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
+import SearchableSelect from '../common/SearchableSelect'
 
 function initialValues(item, units, warehouses) {
   const locationId = item?.locationId ?? warehouses[0]?.id ?? ''
@@ -117,30 +118,48 @@ export default function InventoryItemModal({
             </label>
             <label className="block text-xs font-medium text-slate-700">
               Category
-              <select className="modal-input mt-1.5" name="categoryId" onChange={update} value={form.categoryId}>
-                <option value="">Uncategorized</option>
-                {categories.filter((category) => category.is_active !== false).map((category) => (
-                  <option key={category.id} value={category.id}>{category.name}</option>
-                ))}
-              </select>
+              <span className="mt-1.5 block">
+                <SearchableSelect
+                  aria-label="Category"
+                  className="modal-input"
+                  onChange={(categoryId) => setForm((current) => ({ ...current, categoryId }))}
+                  options={[
+                    { value: '', label: 'Uncategorized' },
+                    ...categories.filter((category) => category.is_active !== false).map((category) => ({ value: category.id, label: category.name })),
+                  ]}
+                  value={form.categoryId}
+                />
+              </span>
             </label>
             <label className="block text-xs font-medium text-slate-700">
               Unit
-              <select className="modal-input mt-1.5" name="unitId" onChange={update} required value={form.unitId}>
-                <option value="">Select unit</option>
-                {units.filter((unit) => unit.is_active !== false).map((unit) => (
-                  <option key={unit.id} value={unit.id}>{unit.name} ({unit.abbreviation})</option>
-                ))}
-              </select>
+              <span className="mt-1.5 block">
+                <SearchableSelect
+                  aria-label="Unit"
+                  className="modal-input"
+                  onChange={(unitId) => setForm((current) => ({ ...current, unitId }))}
+                  options={[
+                    { value: '', label: 'Select unit' },
+                    ...units.filter((unit) => unit.is_active !== false).map((unit) => ({ value: unit.id, label: `${unit.name} (${unit.abbreviation})` })),
+                  ]}
+                  value={form.unitId}
+                />
+              </span>
             </label>
             <label className="block text-xs font-medium text-slate-700">
               Warehouse location
-              <select className="modal-input mt-1.5" name="locationId" onChange={update} required value={form.locationId}>
-                <option value="">Select warehouse</option>
-                {warehouses.filter((warehouse) => warehouse.isActive !== false).map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
-                ))}
-              </select>
+              <span className="mt-1.5 block">
+                <SearchableSelect
+                  aria-label="Warehouse location"
+                  className="modal-input"
+                  onChange={(locationId) => setForm((current) => ({ ...current, locationId }))}
+                  options={[
+                    { value: '', label: 'Select warehouse' },
+                    ...warehouses.filter((warehouse) => warehouse.isActive !== false).map((warehouse) => ({ value: warehouse.id, label: warehouse.name })),
+                  ]}
+                  value={form.locationId}
+                />
+              </span>
             </label>
             <label className="block text-xs font-medium text-slate-700">
               Bin / zone <span className="font-normal text-slate-400">(optional)</span>

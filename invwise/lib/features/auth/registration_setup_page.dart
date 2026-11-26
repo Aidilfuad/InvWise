@@ -7,7 +7,9 @@ import '../../app/routes/app_routes.dart';
 import 'registration_request_validation.dart';
 
 class RegistrationSetupPage extends StatefulWidget {
-  const RegistrationSetupPage({super.key});
+  const RegistrationSetupPage({super.key, this.isRecovery = false});
+
+  final bool isRecovery;
 
   @override
   State<RegistrationSetupPage> createState() => _RegistrationSetupPageState();
@@ -41,7 +43,7 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
   Future<void> _submit() async {
     if (_isSubmitting || !(_formKey.currentState?.validate() ?? false)) return;
     final requestId = _requestId;
-    if (requestId == null) {
+    if (requestId == null && !widget.isRecovery) {
       setState(() {
         _errorMessage = 'This invitation is not linked to a registration.';
       });
@@ -63,22 +65,24 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
       await client.auth.updateUser(
         UserAttributes(password: _passwordController.text),
       );
-      final passwordSession = await client.auth.signInWithPassword(
-        email: email,
-        password: _passwordController.text,
-      );
-      if (passwordSession.user?.id != invitedUser.id) {
-        throw Exception('Unable to verify the invited account.');
-      }
-      final response = await client.functions.invoke(
-        'complete-registration-setup',
-        body: {'request_id': requestId},
-      );
-      if (response.status < 200 || response.status >= 300) {
-        final message = response.data is Map
-            ? (response.data as Map)['error']?.toString()
-            : null;
-        throw Exception(message ?? 'Unable to complete account setup.');
+      if (requestId != null) {
+        final passwordSession = await client.auth.signInWithPassword(
+          email: email,
+          password: _passwordController.text,
+        );
+        if (passwordSession.user?.id != invitedUser.id) {
+          throw Exception('Unable to verify the invited account.');
+        }
+        final response = await client.functions.invoke(
+          'complete-registration-setup',
+          body: {'request_id': requestId},
+        );
+        if (response.status < 200 || response.status >= 300) {
+          final message = response.data is Map
+              ? (response.data as Map)['error']?.toString()
+              : null;
+          throw Exception(message ?? 'Unable to complete account setup.');
+        }
       }
 
       await client.auth.signOut();
@@ -88,8 +92,12 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-          const SnackBar(
-            content: Text('Account setup complete. Sign in with your email.'),
+          SnackBar(
+            content: Text(
+              widget.isRecovery
+                  ? 'Password updated. Sign in with your new password.'
+                  : 'Account setup complete. Sign in with your email.',
+            ),
           ),
         );
     } on FunctionException catch (error) {
@@ -118,6 +126,7 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
   @override
   Widget build(BuildContext context) {
     final hasInvite = _requestId != null;
+    final canSetPassword = hasInvite || widget.isRecovery;
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -134,8 +143,10 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
               shrinkWrap: true,
               children: [
                 Text(
-                  hasInvite
-                      ? 'Complete Account Setup'
+                  canSetPassword
+                      ? widget.isRecovery
+                            ? 'Reset Your Password'
+                            : 'Complete Account Setup'
                       : 'Invitation Unavailable',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: AppColors.textPrimary,
@@ -144,10 +155,14 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  hasInvite ? 'Choose a password for your InvWise account.' : 'Open this page from the invitation email on this device.',
+                  canSetPassword
+                      ? widget.isRecovery
+                            ? 'Choose a new password for your InvWise account.'
+                            : 'Your initial password is your Employee ID. Choose a new password before entering your workspace.'
+                      : 'Open this page from the invitation email on this device.',
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
-                if (hasInvite) ...[
+                if (canSetPassword) ...[
                   const SizedBox(height: AppSpacing.lg),
                   TextFormField(
                     controller: _passwordController,
@@ -159,6 +174,10 @@ class _RegistrationSetupPageState extends State<RegistrationSetupPage> {
                       if (requiredError != null) return requiredError;
                       if (value!.length < 8) {
                         return 'Use at least 8 characters.';
+                      }
+                      if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
+                          !RegExp(r'\d').hasMatch(value)) {
+                        return 'Include at least one letter and one number.';
                       }
                       return null;
                     },

@@ -13,7 +13,6 @@ class RegistrationRequestService {
   RegistrationRequestService({SupabaseClient? client})
     : _client = client ?? Supabase.instance.client;
 
-  static const String _table = 'registration_requests';
   final SupabaseClient _client;
 
   Future<void> submitRequest({
@@ -22,6 +21,7 @@ class RegistrationRequestService {
     required String email,
     required String department,
     required String requestedRole,
+    required String password,
     String? reason,
   }) async {
     final trimmedName = fullName.trim();
@@ -42,33 +42,44 @@ class RegistrationRequestService {
       );
     }
     try {
-      await _client.from(_table).insert({
-        'full_name': trimmedName,
-        'employee_id': trimmedEmployeeId,
-        'email': trimmedEmail,
-        'department': trimmedDepartment,
-        'requested_role': requestedRole,
-        'reason': reason?.trim(),
-        'status': 'pending',
-      });
-    } on PostgrestException catch (error) {
-      throw RegistrationRequestServiceException(_friendlyMessage(error));
+      final response = await _client.functions.invoke(
+        'submit-registration-request',
+        body: {
+          'full_name': trimmedName,
+          'employee_id': trimmedEmployeeId,
+          'email': trimmedEmail,
+          'department': trimmedDepartment,
+          'requested_role': requestedRole,
+          'reason': reason?.trim() ?? '',
+          'password': password,
+        },
+      );
+      if (response.status < 200 || response.status >= 300) {
+        final message = response.data is Map
+            ? (response.data as Map)['error']?.toString()
+            : null;
+        throw RegistrationRequestServiceException(
+          message ?? 'Registration request service returned HTTP ${response.status}.',
+        );
+      }
+      if (response.data is! Map ||
+          (response.data as Map)['status'] != 'pending' ||
+          (response.data as Map)['request_id'] is! String) {
+        throw const RegistrationRequestServiceException(
+          'The registration service did not confirm that your request was saved.',
+        );
+      }
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final message = details is Map ? details['error']?.toString() : null;
+      throw RegistrationRequestServiceException(
+        message ?? 'Registration request service returned HTTP ${error.status}.',
+      );
     } catch (error) {
+      if (error is RegistrationRequestServiceException) rethrow;
       throw RegistrationRequestServiceException(
         'Unable to submit your registration request. $error',
       );
     }
-  }
-
-  String _friendlyMessage(PostgrestException error) {
-    if (error.code == '42501' ||
-        error.message.toLowerCase().contains('row-level security')) {
-      return 'Registration requests are currently unavailable. Please try '
-          'again later.';
-    }
-    if (error.code == '22P02' || error.code == '23514') {
-      return 'The requested role or request status is invalid.';
-    }
-    return 'Unable to submit your registration request. ${error.message}';
   }
 }

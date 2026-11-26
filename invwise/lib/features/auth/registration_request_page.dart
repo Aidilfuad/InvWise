@@ -4,7 +4,25 @@ import '../../app/constants/app_colors.dart';
 import '../../app/constants/app_spacing.dart';
 import '../../services/registration_request_service.dart';
 import '../../services/workspace_access_service.dart';
+import '../../widgets/searchable_dropdown_form_field.dart';
 import 'registration_request_validation.dart';
+
+const _workspaceRoleOrder = [
+  'Super Admin',
+  'Director',
+  'Factory 1 Manager',
+  'Factory 2 Manager',
+  'Warehouse Manager',
+  'Manager',
+  'Supervisor',
+  'Production Supervisor',
+  'Quality Assurance / QC Supervisor',
+  'Maintenance & Automation Lead',
+  'Inventory Controller',
+  'Warehouse Supervisor',
+  'Storekeeper',
+  'Viewer',
+];
 
 class RegistrationRequestPage extends StatefulWidget {
   const RegistrationRequestPage({super.key});
@@ -58,7 +76,19 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
         _departments = departments.map((item) => item.name).toList();
       }
       roles = roles.where((role) => role.name != 'Super Admin').toList();
-      _roles = roles.map((role) => role.name).toList(growable: false);
+      roles.sort((left, right) {
+        final leftIndex = _workspaceRoleOrder.indexOf(left.name);
+        final rightIndex = _workspaceRoleOrder.indexOf(right.name);
+        final leftRank = leftIndex < 0 ? _workspaceRoleOrder.length : leftIndex;
+        final rightRank = rightIndex < 0
+            ? _workspaceRoleOrder.length
+            : rightIndex;
+        return leftRank.compareTo(rightRank);
+      });
+      _roles = roles.isEmpty
+          ? _workspaceRoleOrder.where((role) => role != 'Super Admin').toList()
+          : roles.map((role) => role.name).toList(growable: false);
+      _requestedRole = _roles.contains('Viewer') ? 'Viewer' : _roles.first;
     } catch (_) {
       _departments = const [
         'Warehouse Operations',
@@ -68,7 +98,10 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
         'Quality & Compliance',
         'Administration',
       ];
-      _roles = const ['Warehouse Supervisor', 'Storekeeper'];
+      _roles = _workspaceRoleOrder
+          .where((role) => role != 'Super Admin')
+          .toList(growable: false);
+      _requestedRole = 'Viewer';
     } finally {
       if (mounted) setState(() {});
     }
@@ -104,6 +137,7 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
         department: department,
         requestedRole: role,
         reason: _reasonController.text,
+        password: _passwordController.text,
       );
       if (!mounted) return;
       ScaffoldMessenger.of(context)
@@ -198,46 +232,32 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
                   validator: RegistrationRequestValidation.email,
                 ),
                 const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
+                SearchableDropdownFormField(
                   initialValue: _department,
                   decoration: const InputDecoration(
                     labelText: 'Department',
                     border: OutlineInputBorder(),
                   ),
-                  items: _departments
-                      .map(
-                        (department) => DropdownMenuItem(
-                          value: department,
-                          child: Text(department),
-                        ),
-                      )
-                      .toList(growable: false),
+                  options: _departments,
+                  enabled: !_isSubmitting,
                   validator: (value) => value == null
                       ? RegistrationRequestValidation.required(null)
                       : null,
-                  onChanged: _isSubmitting
-                      ? null
-                      : (value) => setState(() => _department = value),
+                  onChanged: (value) => setState(() => _department = value),
                 ),
                 const SizedBox(height: AppSpacing.md),
-                DropdownButtonFormField<String>(
+                SearchableDropdownFormField(
                   initialValue: _requestedRole,
                   decoration: const InputDecoration(
                     labelText: 'Requested Role',
                     border: OutlineInputBorder(),
                   ),
-                  items: _roles
-                      .map(
-                        (role) =>
-                            DropdownMenuItem(value: role, child: Text(role)),
-                      )
-                      .toList(growable: false),
+                  options: _roles,
+                  enabled: !_isSubmitting,
                   validator: (value) => value == null
                       ? RegistrationRequestValidation.required(null)
                       : null,
-                  onChanged: _isSubmitting
-                      ? null
-                      : (role) => setState(() => _requestedRole = role),
+                  onChanged: (role) => setState(() => _requestedRole = role),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _textField(
@@ -292,9 +312,10 @@ class _RegistrationRequestPageState extends State<RegistrationRequestPage> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 Text(
-                  'For your security, this password is checked only in this form '
-                  'and is never saved with your access request. You will set '
-                  'your account password from the invitation email after approval.',
+                  'Your chosen password is used only while your request is '
+                  'pending. If approved, your initial password becomes your '
+                  'Employee ID as entered (surrounding spaces removed). Sign in with it, then change it in '
+                  'Settings > Security > Change Password.',
                   style: Theme.of(context).textTheme.bodySmall
                       ?.copyWith(color: AppColors.textSecondary),
                 ),

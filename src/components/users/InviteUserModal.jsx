@@ -1,42 +1,19 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { UserPlus, X } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
+import SearchableSelect from '../common/SearchableSelect'
 
-export default function InviteUserModal({ onClose, onInvite }) {
+export default function InviteUserModal({ departments = [], onClose, onInvite, roles = [] }) {
   const [values, setValues] = useState({
     fullName: '',
     employeeId: '',
     email: '',
     department: '',
-    role: 'Storekeeper',
+    role: '',
     reason: '',
   })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState('')
-  const [departments, setDepartments] = useState([
-    'Warehouse Operations',
-    'Inventory Control',
-    'Telemetry & Maintenance',
-    'Logistics & Distribution',
-    'Quality & Compliance',
-    'Administration',
-  ])
-  const [roles, setRoles] = useState(['Storekeeper', 'Warehouse Supervisor'])
-
-  useEffect(() => {
-    if (!supabase) return
-    Promise.all([
-      supabase.from('departments').select('name').eq('is_active', true).order('name'),
-      supabase.from('custom_roles').select('name').eq('is_active', true).neq('name', 'Super Admin').order('name'),
-    ]).then(([departmentResult, roleResult]) => {
-      if (!departmentResult.error && departmentResult.data?.length) setDepartments(departmentResult.data.map((item) => item.name))
-      if (!roleResult.error && roleResult.data?.length) {
-        setRoles(roleResult.data.map((item) => item.name))
-        setValues((current) => ({ ...current, role: current.role === 'Storekeeper' && roleResult.data.some((item) => item.name === 'Storekeeper') ? 'Storekeeper' : roleResult.data[0].name }))
-      }
-    })
-  }, [])
-
+  const selectedRole = values.role || (roles.includes('Viewer') ? 'Viewer' : roles[0] || '')
   function update(event) {
     setValues((current) => ({ ...current, [event.target.name]: event.target.value }))
   }
@@ -47,15 +24,16 @@ export default function InviteUserModal({ onClose, onInvite }) {
       setError('Enter a valid work email address.')
       return
     }
-    if (!values.fullName.trim() || !values.employeeId.trim() || !values.department.trim()) {
-      setError('Complete the name, employee ID, and department fields.')
+    const role = selectedRole
+    if (!values.fullName.trim() || !values.employeeId.trim() || !values.department.trim() || !role) {
+      setError('Complete the required fields and ensure an active department and role are available.')
       return
     }
 
     setPending(true)
     setError('')
     try {
-      await onInvite(values)
+      await onInvite({ ...values, role })
       onClose()
     } catch (inviteError) {
       setError(inviteError instanceof Error ? inviteError.message : 'Unable to send this invitation.')
@@ -82,11 +60,11 @@ export default function InviteUserModal({ onClose, onInvite }) {
           <div className="grid gap-3.5 sm:grid-cols-2">
             <label className="block text-[10px] font-semibold text-slate-700 sm:col-span-2">
               Full name
-              <input autoFocus className="modal-input mt-1.5" maxLength={160} name="fullName" onChange={update} placeholder="e.g. Farah Nabila" required value={values.fullName} />
+              <input autoFocus className="modal-input mt-1.5" maxLength={160} name="fullName" onChange={update} placeholder="Full name" required value={values.fullName} />
             </label>
             <label className="block text-[10px] font-semibold text-slate-700">
               Employee ID
-              <input className="modal-input mt-1.5" maxLength={64} name="employeeId" onChange={update} placeholder="EMP-048" required value={values.employeeId} />
+              <input className="modal-input mt-1.5" maxLength={64} name="employeeId" onChange={update} placeholder="Employee ID" required value={values.employeeId} />
             </label>
             <label className="block text-[10px] font-semibold text-slate-700">
               Work email
@@ -94,16 +72,31 @@ export default function InviteUserModal({ onClose, onInvite }) {
             </label>
             <label className="block text-[10px] font-semibold text-slate-700">
               Department
-              <select className="modal-input mt-1.5" name="department" onChange={update} required value={values.department}>
-                <option disabled value="">Select a department</option>
-                {departments.map((department) => <option key={department} value={department}>{department}</option>)}
-              </select>
+              <span className="mt-1.5 block">
+                <SearchableSelect
+                  aria-label="Department"
+                  className="modal-input"
+                  onChange={(department) => setValues((current) => ({ ...current, department }))}
+                  options={departments.map((department) => ({ value: department, label: department }))}
+                  placeholder="Select a department"
+                  value={values.department}
+                />
+              </span>
+              {departments.length === 0 && <span className="mt-1 block text-[8px] font-normal text-amber-700">No active departments are available. Add one before inviting a user.</span>}
             </label>
             <label className="block text-[10px] font-semibold text-slate-700">
               Requested role
-              <select className="modal-input mt-1.5" name="role" onChange={update} value={values.role}>
-                {roles.map((role) => <option key={role} value={role}>{role}</option>)}
-              </select>
+              <span className="mt-1.5 block">
+                <SearchableSelect
+                  aria-label="Requested role"
+                  className="modal-input"
+                  onChange={(role) => setValues((current) => ({ ...current, role }))}
+                  options={roles.map((role) => ({ value: role, label: role }))}
+                  placeholder="Select a role"
+                  value={selectedRole}
+                />
+              </span>
+              {roles.length === 0 && <span className="mt-1 block text-[8px] font-normal text-amber-700">No active roles are available. Add one before inviting a user.</span>}
             </label>
             <label className="block text-[10px] font-semibold text-slate-700 sm:col-span-2">
               Invitation note <span className="font-normal text-slate-400">(optional)</span>
@@ -111,11 +104,16 @@ export default function InviteUserModal({ onClose, onInvite }) {
             </label>
           </div>
 
-          <p className="text-[9px] leading-4 text-slate-500">The database supports Warehouse Supervisor and Storekeeper registration requests. New accounts are provisioned through the secured Supabase invitation function.</p>
+          <p className="text-[9px] leading-4 text-slate-500">
+            The initial password is the user’s Employee ID as entered, with
+            surrounding spaces removed. Ask them to change it after signing in
+            under Settings → Change password; the invitation link also lets
+            them choose a new password before their first sign-in.
+          </p>
           {error && <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[10px] text-rose-700" role="alert">{error}</p>}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button className="h-9 rounded-md border border-slate-200 px-3 text-[10px] font-semibold text-slate-600 hover:bg-slate-50" disabled={pending} onClick={onClose} type="button">Cancel</button>
-            <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-teal-600 px-4 text-[10px] font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={pending} type="submit">{pending ? 'Sending…' : 'Send invitation'}</button>
+            <button className="inline-flex h-9 items-center gap-1.5 rounded-md bg-teal-600 px-4 text-[10px] font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={pending || !departments.length || !roles.length} type="submit">{pending ? 'Sending…' : 'Send invitation'}</button>
           </div>
         </form>
       </section>

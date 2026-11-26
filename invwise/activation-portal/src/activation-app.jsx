@@ -1,35 +1,28 @@
 import { useEffect, useState } from "react";
 
+import { establishAuthCallbackSession } from "./auth-callback.js";
 import { getPasswordRequirements, validatePassword } from "./password-policy.js";
 import { supabase, supabaseConfigError } from "./supabase.js";
 
-let invitationVerification;
-
 function getErrorMessage(error) {
+  let message = error?.message ?? "Something went wrong. Please try again.";
   if (error?.details && typeof error.details === "object") {
-    return (
+    message =
       error.details.error ??
       error.details.message ??
-      JSON.stringify(error.details)
-    );
-  }
-  if (typeof error?.details === "string" && error.details.trim()) {
+      JSON.stringify(error.details);
+  } else if (typeof error?.details === "string" && error.details.trim()) {
     try {
       const details = JSON.parse(error.details);
-      return details.error ?? details.message ?? error.details;
+      message = details.error ?? details.message ?? error.details;
     } catch {
-      return error.details;
+      message = error.details;
     }
   }
-  return error?.message ?? "Something went wrong. Please try again.";
-}
-
-function verifyInvitationToken(tokenHash) {
-  invitationVerification ??= supabase.auth.verifyOtp({
-    token_hash: tokenHash,
-    type: "invite",
-  });
-  return invitationVerification;
+  if (/expired|invalid|already been used|otp/i.test(message)) {
+    return "This invite or password link is invalid, expired, or has already been used. Ask your InvWise administrator for a new invite or request another password reset.";
+  }
+  return message;
 }
 
 function clearInvitationUrl() {
@@ -37,17 +30,6 @@ function clearInvitationUrl() {
     {},
     document.title,
     window.location.pathname,
-  );
-}
-
-function invitationUrlError() {
-  const query = new URLSearchParams(window.location.search);
-  const fragment = new URLSearchParams(window.location.hash.slice(1));
-  return (
-    query.get("error_description") ??
-    fragment.get("error_description") ??
-    query.get("error") ??
-    fragment.get("error")
   );
 }
 
@@ -66,7 +48,7 @@ function Brand() {
   );
 }
 
-function SuccessView() {
+function SuccessView({ isRecovery }) {
   return (
     <section className="activation-card success-card" aria-live="polite">
       <div className="success-icon" aria-hidden="true">
@@ -74,20 +56,22 @@ function SuccessView() {
           <path d="m5 12.5 4.5 4.5L19 7" />
         </svg>
       </div>
-      <p className="eyebrow">YOU’RE ALL SET</p>
-      <h1>Welcome to InvWise</h1>
+      <p className="eyebrow">{isRecovery ? "PASSWORD UPDATED" : "YOU’RE ALL SET"}</p>
+      <h1>{isRecovery ? "Your password is ready" : "Welcome to InvWise"}</h1>
       <p className="success-message">
-        Account activated successfully. You may now log in to InvWise.
+        {isRecovery
+          ? "Your password was updated successfully. You may now sign in to InvWise."
+          : "Account activated successfully. You may now log in to InvWise."}
       </p>
       <div className="success-note">
-        Your account is ready. You can close this page and sign in to the
-        InvWise app with your email and new password.
+        You can close this page and sign in to the InvWise app with your email
+        and new password.
       </div>
     </section>
   );
 }
 
-function ActivationForm({ user, onSuccess }) {
+function ActivationForm({ user, flowType, onSuccess }) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -105,7 +89,7 @@ function ActivationForm({ user, onSuccess }) {
     }
 
     const requestId = user.user_metadata?.registration_request_id;
-    if (!requestId) {
+    if (flowType === "invite" && !requestId) {
       setErrorMessage(
         "This invitation is not linked to a registration request. Contact InvWise support.",
       );
@@ -123,24 +107,26 @@ function ActivationForm({ user, onSuccess }) {
       });
       if (updateError) throw updateError;
 
-      const { data: signInData, error: signInError } =
-        await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) throw signInError;
-      if (signInData.user?.id !== user.id) {
-        throw new Error("Unable to verify the invited account after sign-in.");
-      }
+      if (flowType === "invite") {
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({ email, password });
+        if (signInError) throw signInError;
+        if (signInData.user?.id !== user.id) {
+          throw new Error("Unable to verify the invited account after sign-in.");
+        }
 
-      const { data, error: completionError } = await supabase.functions.invoke(
-        "complete-registration-setup",
-        { body: { request_id: requestId } },
-      );
-      if (completionError) throw completionError;
-      if (data?.status !== "completed") {
-        throw new Error(
-          data?.error ?? "The account activation was not confirmed.",
+        const { data, error: completionError } = await supabase.functions.invoke(
+          "complete-registration-setup",
+          { body: { request_id: requestId } },
         );
+        if (completionError) throw completionError;
+        if (data?.status !== "completed") {
+          throw new Error(
+            data?.error ?? "The account activation was not confirmed.",
+          );
+        }
       }
-      onSuccess();
+      onSuccess(flowType === "recovery");
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setIsSubmitting(false);
@@ -157,16 +143,11 @@ function ActivationForm({ user, onSuccess }) {
           </svg>
         </div>
         <p className="eyebrow">SECURE ACCOUNT SETUP</p>
-        <h1>Create your password</h1>
+        <h1>{flowType === "recovery" ? "Choose a new password" : "Create your password"}</h1>
         <p className="card-description">
-          Set a password to finish activating your InvWise account
-          {user.email ? (
-            <>
-              {" "}
-              for <strong>{user.email}</strong>
-            </>
-          ) : null}
-          .
+          {flowType === "recovery"
+            ? <>Choose a new password for {user.email ? <strong>{user.email}</strong> : "your InvWise account"}.</>
+            : <>Your initial password is your Employee ID. Set a new password here before entering your InvWise workspace. {user.email && <>Account: <strong>{user.email}</strong>.</>}</>}
         </p>
       </div>
 
@@ -243,7 +224,7 @@ function ActivationForm({ user, onSuccess }) {
             </>
           ) : (
             <>
-              Activate account
+              {flowType === "recovery" ? "Update password" : "Activate account"}
               <span aria-hidden="true">→</span>
             </>
           )}
@@ -263,7 +244,9 @@ function ActivationForm({ user, onSuccess }) {
 
 function ActivationApp() {
   const [user, setUser] = useState(null);
+  const [flowType, setFlowType] = useState("invite");
   const [isActivated, setIsActivated] = useState(false);
+  const [isRecovery, setIsRecovery] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -282,39 +265,44 @@ function ActivationApp() {
     }).data.subscription;
 
     async function loadInvitation() {
-      const query = new URLSearchParams(window.location.search);
-      const tokenHash = query.get("token_hash");
-      const type = query.get("type");
+      const url = new URL(window.location.href);
       try {
-      if (tokenHash && type === "invite") {
-        const { error } = await verifyInvitationToken(tokenHash);
-          if (error) throw error;
-          clearInvitationUrl();
-        }
-
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
+        const callback = await establishAuthCallbackSession(
+          supabase.auth,
+          url,
+        );
+        if (callback.hasCallback) clearInvitationUrl();
         if (!active) return;
 
-        const inviteError = invitationUrlError();
-        if (inviteError) {
-          clearInvitationUrl();
-          throw new Error(inviteError);
-        }
-        if (!data.session?.user) {
+        const session = callback.session;
+        if (!session?.user) {
           throw new Error(
-            "This invitation link is invalid or has expired. Ask your InvWise administrator to send a new invitation.",
+            "This invite or password link is invalid, expired, or has already been used. Ask your InvWise administrator for a new invite or request another password reset.",
           );
         }
-        if (!data.session.user.user_metadata?.registration_request_id) {
+        const resolvedFlowType =
+          callback.type === "invite" || callback.type === "recovery"
+          ? callback.type
+          : session.user.user_metadata?.registration_request_id
+            ? "invite"
+            : null;
+        if (!resolvedFlowType) {
           throw new Error(
-            "This invitation is not linked to an InvWise registration request.",
+            "This link is not an InvWise invite or password recovery link.",
           );
         }
-
-        clearInvitationUrl();
-        setUser(data.session.user);
+        if (
+          resolvedFlowType === "invite" &&
+          !session.user.user_metadata?.registration_request_id
+        ) {
+          throw new Error(
+            "This invitation is not linked to an InvWise registration request. Contact InvWise support.",
+          );
+        }
+        setFlowType(resolvedFlowType);
+        setUser(session.user);
       } catch (error) {
+        clearInvitationUrl();
         if (active) setErrorMessage(getErrorMessage(error));
       } finally {
         if (active) setIsLoading(false);
@@ -341,22 +329,29 @@ function ActivationApp() {
             <p>Please wait while we securely confirm your account.</p>
           </section>
         ) : isActivated ? (
-          <SuccessView />
+          <SuccessView isRecovery={isRecovery} />
         ) : errorMessage ? (
           <section className="activation-card error-card" role="alert">
             <div className="error-symbol" aria-hidden="true">
               !
             </div>
-            <p className="eyebrow">INVITATION ISSUE</p>
-            <h1>We couldn’t activate your account</h1>
+            <p className="eyebrow">AUTHENTICATION LINK ISSUE</p>
+            <h1>We couldn’t continue</h1>
             <p className="card-description">{errorMessage}</p>
             <p className="support-hint">
-              If your invitation has expired, contact your InvWise
-              administrator for a new one.
+              If your link has expired or was already used, request a new one
+              from your InvWise administrator.
             </p>
           </section>
         ) : user ? (
-          <ActivationForm user={user} onSuccess={() => setIsActivated(true)} />
+          <ActivationForm
+            flowType={flowType}
+            user={user}
+            onSuccess={(recovery) => {
+              setIsRecovery(recovery);
+              setIsActivated(true);
+            }}
+          />
         ) : null}
         <footer className="page-footer">
           <span>InvWise</span> · Secure inventory management

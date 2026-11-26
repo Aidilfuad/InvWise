@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Children, useEffect, useMemo, useState } from 'react'
 import {
   Bell,
   Check,
   CheckCircle2,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -24,8 +23,9 @@ import InviteUserModal from '../components/users/InviteUserModal'
 import RolePermissionsModal from '../components/users/RolePermissionsModal'
 import useUserManagementData from '../components/users/useUserManagementData'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
-import { isSuperAdminRole } from '../lib/workspaceAccess'
+import { isSuperAdminRole, useWorkspaceAccess } from '../lib/workspaceAccess'
 import { getSupabaseFunctionErrorMessage } from '../lib/supabaseFunctionErrors'
+import SearchableSelect from '../components/common/SearchableSelect'
 
 const pageSize = 6
 
@@ -76,6 +76,7 @@ function Toggle({ checked, label, onChange, disabled = false }) {
 
 export default function UserManagementPage() {
   const context = useOutletContext() ?? {}
+  const access = useWorkspaceAccess()
   const data = useUserManagementData()
   const warehouses = context.source === 'live' ? context.data?.warehouses ?? [] : []
   const [search, setSearch] = useState('')
@@ -94,6 +95,7 @@ export default function UserManagementPage() {
   const [deletePasswordVisible, setDeletePasswordVisible] = useState(false)
   const [deleteError, setDeleteError] = useState('')
   const isCurrentSuperAdmin = isSuperAdminRole(context.data?.profile?.role)
+  const canInviteUsers = access.allows('manage_users') || access.allows('manage_registration_requests')
   const [selectedRequestIds, setSelectedRequestIds] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false)
@@ -161,7 +163,7 @@ export default function UserManagementPage() {
   }
 
   async function provisionRequest(requestId) {
-    const { data: response, error: invokeError } = await supabase.functions.invoke('provision-approved-registration', { body: { request_id: requestId } })
+    const { data: response, error: invokeError } = await supabase.functions.invoke('provision-approved-registration', { body: { request_id: requestId, redirect_target: 'web' } })
     if (invokeError) {
       throw new Error(await getSupabaseFunctionErrorMessage(invokeError, 'The invitation could not be sent.'))
     }
@@ -178,27 +180,21 @@ export default function UserManagementPage() {
     if (!supabase || !isSupabaseConfigured) throw new Error('Connect Supabase before inviting users.')
     let provisioningSucceeded = false
     const requestEmail = values.email.trim().toLowerCase()
-    const insertResult = await supabase.from('registration_requests').insert({
-      full_name: values.fullName.trim(),
-      employee_id: values.employeeId.trim(),
-      email: values.email.trim(),
-      department: values.department.trim(),
-      requested_role: values.role,
-      reason: values.reason.trim() || null,
-      status: 'pending',
-    }).select('id').single()
-    if (insertResult.error) throw new Error(insertResult.error.message)
 
     try {
-      const approverId = await currentProfileId()
-      const updateResult = await supabase.from('registration_requests').update({
-        status: 'approved',
-        approved_at: new Date().toISOString(),
-        approved_by: approverId,
-      }).eq('id', insertResult.data.id).eq('status', 'pending').select('id').maybeSingle()
-      if (updateResult.error) throw new Error(updateResult.error.message)
-      if (!updateResult.data) throw new Error('The invitation request was created but could not be approved. Review it in Pending registration requests.')
-      const provisionResult = await provisionRequest(insertResult.data.id)
+      const request = await data.invokeUserAction({
+        action: 'create_invitation_request',
+        full_name: values.fullName,
+        employee_id: values.employeeId,
+        email: values.email,
+        department: values.department,
+        role: values.role,
+        reason: values.reason,
+      })
+      if (!request?.request_id || request.status !== 'approved') {
+        throw new Error('The invitation service did not confirm that the request was created.')
+      }
+      const provisionResult = await provisionRequest(request.request_id)
       provisioningSucceeded = true
       const invitationMessage = provisionResult.email_invitation_sent
         ? `Invitation email sent to ${values.email.trim()}.`
@@ -486,7 +482,7 @@ export default function UserManagementPage() {
                   <button className="mt-2 text-[9px] font-semibold text-teal-700" onClick={() => { setNotificationsOpen(false); document.getElementById('pending-requests')?.scrollIntoView({ behavior: 'smooth' }) }} type="button">Review requests</button>
                 </div>}
               </div>
-              <button className="inline-flex h-8 items-center gap-1.5 rounded-md bg-teal-600 px-3 text-[9px] font-semibold text-white hover:bg-teal-700" onClick={() => setModal({ type: 'invite' })} type="button"><UserPlus size={12} /> Invite User</button>
+              {canInviteUsers && <button className="inline-flex h-8 items-center gap-1.5 rounded-md bg-teal-600 px-3 text-[9px] font-semibold text-white hover:bg-teal-700" onClick={() => setModal({ type: 'invite' })} type="button"><UserPlus size={12} /> Invite User</button>}
             </div>
           </div>
         </header>
@@ -510,9 +506,9 @@ export default function UserManagementPage() {
               <p className="mt-1 text-[9px] text-slate-500">{activeCount} active · {data.users.length - activeCount} inactive · {pendingCount} pending</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <button className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setModal({ type: 'permissions', initialTab: 'departments' })} type="button">+ New Department</button>
-              <button className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setModal({ type: 'permissions', initialTab: 'roles' })} type="button">+ New Role</button>
-              <button className="inline-flex h-8 items-center gap-1 rounded-md bg-teal-50 px-2.5 text-[9px] font-semibold text-teal-700 hover:bg-teal-100" onClick={() => setModal({ type: 'permissions', initialTab: 'permissions' })} type="button">Manage role permissions <ChevronRight size={12} /></button>
+              {isCurrentSuperAdmin && <button className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setModal({ type: 'permissions', initialTab: 'departments' })} type="button">+ New Department</button>}
+              {isCurrentSuperAdmin && <button className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 px-2.5 text-[9px] font-semibold text-slate-700 hover:bg-slate-50" onClick={() => setModal({ type: 'permissions', initialTab: 'roles' })} type="button">+ New Role</button>}
+              {isCurrentSuperAdmin && <button className="inline-flex h-8 items-center gap-1 rounded-md bg-teal-50 px-2.5 text-[9px] font-semibold text-teal-700 hover:bg-teal-100" onClick={() => setModal({ type: 'permissions', initialTab: 'permissions' })} type="button">Manage role permissions <ChevronRight size={12} /></button>}
             </div>
           </header>
 
@@ -585,8 +581,10 @@ export default function UserManagementPage() {
                         </div>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <button aria-label={`Edit ${user.full_name}`} className="inline-flex items-center gap-1 text-slate-500 hover:text-teal-700 disabled:opacity-50" disabled={busyId === user.id || user.is_deletion_pending} onClick={() => setModal({ type: 'edit', user })} type="button"><Edit3 size={11} /> Edit</button>
-                          <button className={`font-medium hover:underline disabled:opacity-50 ${user.is_active ? 'text-rose-600' : 'text-teal-700'}`} disabled={busyId === user.id || user.is_deletion_pending || (user.is_self && user.is_active)} onClick={() => runUserUpdate(user, { action: 'set_active', is_active: !user.is_active })} type="button">{user.is_active ? 'Deactivate' : 'Activate'}</button>
+                          {isCurrentSuperAdmin && <>
+                            <button aria-label={`Edit ${user.full_name}`} className="inline-flex items-center gap-1 text-slate-500 hover:text-teal-700 disabled:opacity-50" disabled={busyId === user.id || user.is_deletion_pending} onClick={() => setModal({ type: 'edit', user })} type="button"><Edit3 size={11} /> Edit</button>
+                            <button className={`font-medium hover:underline disabled:opacity-50 ${user.is_active ? 'text-rose-600' : 'text-teal-700'}`} disabled={busyId === user.id || user.is_deletion_pending || (user.is_self && user.is_active)} onClick={() => runUserUpdate(user, { action: 'set_active', is_active: !user.is_active })} type="button">{user.is_active ? 'Deactivate' : 'Activate'}</button>
+                          </>}
                           {isCurrentSuperAdmin && !user.is_active && !user.is_self && !user.is_deletion_pending && (
                             <button className="font-semibold text-rose-600 hover:text-rose-800 disabled:opacity-50" disabled={busyId === user.id} onClick={() => {
                               setDeletePassword('')
@@ -791,12 +789,17 @@ function SummaryCard({ detail, icon: Icon, label, tone, value }) {
 }
 
 function FilterSelect({ ariaLabel, children, onChange, value }) {
+  const options = Children.toArray(children).map((child) => ({
+    value: String(child.props.value),
+    label: child.props.children,
+  }))
   return (
-    <label className="relative">
-      <select aria-label={ariaLabel} className="h-8 min-w-[105px] appearance-none rounded-md border border-slate-200 bg-white pl-2.5 pr-7 text-[9px] text-slate-700 outline-none focus:border-teal-500" onChange={(event) => onChange(event.target.value)} value={value}>
-        {children}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-    </label>
+    <SearchableSelect
+      aria-label={ariaLabel}
+      className="h-8 min-w-[105px] text-[9px] text-slate-700"
+      onChange={onChange}
+      options={options}
+      value={value}
+    />
   )
 }
